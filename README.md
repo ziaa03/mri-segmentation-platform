@@ -40,7 +40,7 @@ The goal is to create a platform that will be useful for medical professionals (
 ## Installation 
 1. Clone the repository 
 2. Install dependencies
-    npm install 
+ **npm install** 
 3. Run the project
-    npm run dev
+ **npm run dev**
 
