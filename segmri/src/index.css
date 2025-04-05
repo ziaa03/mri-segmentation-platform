@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Remove fixed width and padding to allow full-width layouts */
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Simplified logo styling */
+.logo {
+  height: 3em;
+  will-change: transform;
+  transition: transform 300ms ease;
+}
+
+.logo:hover {
+  transform: scale(1.05);
+}
