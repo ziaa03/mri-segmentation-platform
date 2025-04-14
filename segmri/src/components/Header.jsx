@@ -20,27 +20,10 @@ const Header = () => {
                 <a href="/about-us" className="text-[#343231] hover:text-[#74342B] hover:underline transition-colors">ABOUT US</a>
               </li>
               <li>
-                <a href="/profile" className="text-[#343231] hover:text-[#74342B] hover:underline transition-colors">PROFILE</a>
+                <a href="/profile" className="text-[#343231] hover:text-[#74342B] hover:underline transition-colors">LOGIN</a>
               </li>
             </ul>
           </nav>
-          
-          {/* Mobile menu button */}
-          <button className="md:hidden text-[#343231]">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-        </div>
-        
-        {/* Mobile menu (hidden by default) */}
-        <div className="md:hidden hidden">
-          <ul className="mt-4 space-y-2">
-            <li><a href="#" className="block py-2 text-[#343231] hover:text-[#74342B] transition-colors">HOME</a></li>
-            <li><a href="#" className="block py-2 text-[#343231] hover:text-[#74342B] transition-colors">UPLOADS</a></li>
-            <li><a href="#" className="block py-2 text-[#343231] hover:text-[#74342B] transition-colors">ABOUT US</a></li>
-            <li><a href="#" className="block py-2 text-[#343231] hover:text-[#74342B] transition-colors">PROFILE</a></li>
-          </ul>
         </div>
       </div>
     </header>
