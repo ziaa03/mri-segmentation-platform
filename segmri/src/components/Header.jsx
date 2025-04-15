@@ -20,7 +20,7 @@ const Header = () => {
                 <a href="/about-us" className="text-[#343231] hover:text-[#74342B] hover:underline transition-colors">ABOUT US</a>
               </li>
               <li>
-                <a href="/profile" className="text-[#343231] hover:text-[#74342B] hover:underline transition-colors">LOGIN</a>
+                <a href="/login" className="text-[#343231] hover:text-[#74342B] hover:underline transition-colors">LOGIN</a>
               </li>
             </ul>
           </nav>
