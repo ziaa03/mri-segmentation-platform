@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { IoMdEye } from "react-icons/io";
 import { IoMdEyeOff } from "react-icons/io";
+import { Link } from 'react-router-dom';
 
 const RegisterPage = () => {
 
@@ -25,7 +26,7 @@ const RegisterPage = () => {
             {/* Login div */}
             <div className='h-7/8 flex-1 flex items-center justify-center'>
               <div className='w-full max-w-md px-6'>
-                <div className='mb-10 text-[#741E20]' style={{fontFamily: 'Ovo' }}>
+                <div className='mb-10 text-[#741E20]'>
                   <p className='text-4xl mb-3 text-bold tracking-wider'>SIGN UP to VisHeart !</p>
                   <p className='text-xl text-thin tracking-wide'>Start your journey</p>
                 </div>
@@ -50,13 +51,13 @@ const RegisterPage = () => {
                           {show ? (<IoMdEye className="text-[#74342B] cursor-pointer ml-2 hover:text-black" onClick={handleClick} />) : (<IoMdEyeOff className="text-[#74342B] cursor-pointer ml-2 hover:text-black" onClick={handleClick} />)}
                         </div>
 
-                        <button className='mt-4 text-[#FFFCF6] px-8 py-2 bg-[#741E20] text-xl hover:shadow-2xl hover:bg-opacity-85 duration-500 transform transition-transform  hover:scale-110 ' style={{fontFamily: 'Ovo' }}>REGISTER</button>
+                        <button className='mt-4 text-[#FFFCF6] px-8 py-2 bg-[#741E20] text-xl hover:shadow-2xl hover:bg-opacity-85 duration-500 transform transition-transform  hover:scale-110 '>REGISTER</button>
 
 
-                        <div className='mt-5' style={{fontFamily: 'Ovo' }}>
+                        <div className='mt-5'>
                           <p className='tracking-wider text-[#343231]'>
                             Already have an account?
-                            <a href="#" className="text-[#343231] ml-2 underline hover:text-[#9D4C51] duration-200">Sign-in Here.</a>
+                            <Link to="/login" className="text-[#343231] ml-2 underline hover:text-[#9D4C51] duration-200">Sign In Now!</Link>
                           </p>
                         </div>
 
