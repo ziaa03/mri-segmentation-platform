@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 
 const LandingPage = () => {
   // State for image slider
@@ -22,7 +23,7 @@ const LandingPage = () => {
       <div className="hero-section relative w-full h-screen overflow-hidden bg-gradient-to-b from-[#3A4454] to-[#5B7B9A]">
         {/* Background Video */}
         <div className="absolute inset-0 w-full h-full">
-          <div className="absolute inset-0 bg-[#3A4454] opacity-50 z-10"></div>
+          <div className="absolute inset-0 bg-[#3A4454] opacity-70 z-10"></div>
           <video 
             className="w-full h-full object-cover"
             autoPlay 
@@ -31,7 +32,7 @@ const LandingPage = () => {
             playsInline
             style={{ transform: `translateY(${scrollY * 0.15}px)` }}
           >
-            <source src="/hero-vid.mp4" type="video/mp4" />
+            <source src="/MedSAM.mp4" type="video/mp4" />
             Your browser does not support the video tag.
           </video>
         </div>
@@ -39,23 +40,23 @@ const LandingPage = () => {
         {/* Content */}
         <div className="hero-content relative z-20 h-full flex flex-col items-center justify-center text-center px-4">
           <div>
-            <h1 className="hero-header text-6xl font-light tracking-wider text-white m-0">
+            <h1 className="hero-header text-7xl font-light tracking-wider text-white m-0">
               VisHeart
             </h1>
             <p className="hero-description text-xl font-light text-white mt-6 mb-12 max-w-xl opacity-90">
               AI-Powered Cardiac Segmentation for Precision Healthcare
             </p>
-            <button 
-              className="hero-button px-8 py-3 bg-transparent border-2 border-white text-white rounded-full hover:bg-white hover:text-blue-900 transition-all duration-300 transform hover:-translate-y-1"
+            <a href="#info-section" 
+              className="hero-button px-8 py-3 bg-transparent border-2 border-white text-white rounded-full hover:bg-white hover:text-blue-900 transition-all duration-300 transform hover:-translate-y-1 scroll-smooth"
             >
               Explore
-            </button>
+            </a>
           </div>
         </div>
       </div>
       
       {/* Information Section with Image Slider */}
-      <div className="info-section py-24 px-8 bg-[#FFFCF6]">
+      <div id="info-section" className="info-section py-24 px-8 bg-[#FFFCF6]">
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col lg:flex-row gap-12 items-start">
             {/* Info Description */}
@@ -263,9 +264,11 @@ const LandingPage = () => {
               </p>
             </div>
             <div className="md:w-1/3 flex flex-col space-y-4">
-              <button className="px-8 py-3 bg-[#A87C5F] text-white rounded-md hover:bg-[#966C52] transition-all duration-300 shadow-lg">
+            <Link to="/register" className="block">
+              <button className="w-full px-8 py-3 bg-[#A87C5F] text-white rounded-md hover:bg-[#966C52] transition-all duration-300 shadow-lg">
                 Create an account
               </button>
+            </Link>
               <button className="px-8 py-3 bg-transparent border border-white text-white rounded-md hover:bg-white hover:bg-opacity-10 transition-all duration-300">
                 Learn more
               </button>
