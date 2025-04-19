@@ -62,7 +62,7 @@ const AboutUsPage = () => {
         viewport={{ once: true, amount: 0.7 }}
         className='py-16 px-6 md:px-16 xl:px-72 bg-gradient-to-b from-[#091021] to-[#1D3050] flex flex-col lg:flex-row items-center gap-24'>
 
-            {/* Image with animation */}
+            {/* Image */}
             <motion.img 
                 src="./mission.jpeg" 
                 alt="mission" 
@@ -74,7 +74,7 @@ const AboutUsPage = () => {
                 viewport={{ once: false, amount: 0.7 }}
             />
 
-            {/* Text (static) */}
+            {/* Text */}
             <motion.div
             className='flex-1'
             variants={fadeIn("right", 0.5)} 
@@ -98,7 +98,7 @@ const AboutUsPage = () => {
         viewport={{ once: true, amount: 0.7 }}
         className='py-16 px-6 md:px-16 xl:px-72 bg-gradient-to-t from-[#091021] to-[#1D3050] flex flex-col lg:flex-row items-center gap-24'>
 
-            {/* Text (static) */}
+            {/* Text */}
             <motion.div className='flex-1'
             variants={fadeIn("left", 0.5)} 
             initial="hidden"
@@ -111,7 +111,7 @@ const AboutUsPage = () => {
                 </p>
             </motion.div>
 
-            {/* Image with animation */}
+            {/* Image */}
             <motion.img 
                 src="./vision.jpeg" 
                 alt="mission" 
