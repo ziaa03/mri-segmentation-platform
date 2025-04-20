@@ -5,7 +5,8 @@ import Footer from './components/Footer';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
-import FileManagementPage from './components/FileManagementPage';
+import FileManagementPage from './pages/FileManagementPage';
+import UserManagement from './pages/UserManagementPage';
 import './index.css'; 
 
 function App() {
@@ -26,6 +27,7 @@ function App() {
                 <Routes>
                   <Route path="/" element={<LandingPage />} />
                   <Route path="/uploads" element={<FileManagementPage />} />
+                  <Route path="/user-management" element={<UserManagement />} />
                   <Route path="/about-us" element={<div>About Us Page</div>} />
                   <Route path="/login" element={<div>Login Page</div>} />
                   <Route path="*" element={<Navigate to="/" />} />
