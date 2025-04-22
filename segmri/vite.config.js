@@ -8,5 +8,10 @@ export default defineConfig({
     postcss: {
       plugins: [tailwindcss()],
     },
-  }
-})
+  },
+  build: {
+    rollupOptions: {
+      external: ['react', 'react-dom'],
+    },
+  },
+});
