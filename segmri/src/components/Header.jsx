@@ -11,7 +11,7 @@ const Header = () => {
           <nav className="hidden md:block">
             <ul className="flex space-x-8">
               <li>
-                <a href="#" className="text-[#343231] hover:text-[#74342B] hover:underline transition-colors">HOME</a>
+                <a href="/" className="text-[#343231] hover:text-[#74342B] hover:underline transition-colors">HOME</a>
               </li>
               <li>
                 <a href="/uploads" className="text-[#343231] hover:text-[#74342B] hover:underline transition-colors">UPLOADS</a>
