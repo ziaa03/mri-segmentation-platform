@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 const Header = () => {
   return (
     <header className="py-4 px-8 bg-[#FFFCF6] text-[#343231] shadow-sm">
@@ -5,7 +7,9 @@ const Header = () => {
         <div className="flex justify-between items-center">
           <div className="flex items-center">
             {/* Logo */}
-            <img src="/heart-logo.png" alt="VisHeart Logo" className="w-[110px]" />
+            <Link to="/">
+            <h1 className="text-2xl font-semibold text-[#343231] mr-4">VisHeart</h1>
+            </Link>
           </div>
           
           <nav className="hidden md:block">
@@ -21,6 +25,9 @@ const Header = () => {
               </li>
               <li>
                 <a href="/login" className="text-[#343231] hover:text-[#74342B] hover:underline transition-colors">LOGIN</a>
+              </li>
+              <li>
+                <a href="/user-settings" className="text-[#343231] hover:text-[#74342B] hover:underline transition-colors">SETTINGS</a>
               </li>
             </ul>
           </nav>
