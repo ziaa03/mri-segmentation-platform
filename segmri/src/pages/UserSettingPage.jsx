@@ -151,7 +151,7 @@ const UserSettingPage = () => {
         <div className='flex justify-center mt-12 mb-20' style={{ fontFamily: 'Poppins, sans-serif' }}>
           <button 
           onClick={() => setShowDeleteModal(true)}
-          className='rounded-md px-6 py-2 text-[#FFFCF6] bg-[#DA858A] shadow-lg hover:bg-[#BF7377] duration-300 transform transition-transform hover:scale-110'>
+          className='rounded-md px-6 py-2 text-[#FFFCF6] bg-[#74342B] shadow-lg hover:bg-[#BF7377] duration-300 transform transition-transform hover:scale-110'>
             Delete This Account
           </button>
         </div>
