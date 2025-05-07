@@ -1,65 +1,69 @@
 import React, { useState } from 'react';
 import { IoMdEye } from "react-icons/io";
 import { IoMdEyeOff } from "react-icons/io";
+import { Tooltip } from 'react-tooltip';
+import 'react-tooltip/dist/react-tooltip.css'; // Import default styles
+import api from '../api/AxiosInstance';
+
 
 const UserSettingPage = () => {
   // User Info States
-  const [name, setName] = useState('Alexa Raules');
-  const [dob, setDob] = useState('1998-04-27');
+  const [name, setName] = useState('Alexaraules');
   const [phone, setPhone] = useState('0123456789');
   const [showModal, setShowModal] = useState(false);
+  const [gmail, setGmail] = useState('alexaraules@gmail.com');
 
   // Temp States for User Info Modal
   const [tempName, setTempName] = useState(name);
-  const [tempDob, setTempDob] = useState(dob);
   const [tempPhone, setTempPhone] = useState(phone);
+  const [tempGmail, setTempGmail] = useState(gmail);
 
   // Account Info States
-  const [gmail, setGmail] = useState('alexaraules@gmail.com');
   const [showAccountModal, setShowAccountModal] = useState(false);
-  const [tempGmail, setTempGmail] = useState(gmail);
   const [originalPassword, setOriginalPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
 
-  const [profileImage, setProfileImage] = useState('./default_user.png');
-  const [tempImage, setTempImage] = useState(profileImage);
+  // User Information Modal - Validation Check (username,phone,email)
+  const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
+  const phoneRegex = /^\d{10,15}$/;
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+  const isUsernameValid = usernameRegex.test(tempName);
+  const isPhoneValid = phoneRegex.test(tempPhone);
+  const isEmailValid = emailRegex.test(tempGmail);
+  const isUserFormValid = isUsernameValid && isPhoneValid && isEmailValid ;
+
+  // Account Information Modal - Validation Check (newPassword)
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
+  const isPasswordValid = passwordRegex.test(newPassword);
+  const showPasswordError = newPassword !== "" && !isPasswordValid;
+  const isAccFormValid = isPasswordValid;
 
   const handleEditClick = () => {
     setTempName(name);
-    setTempDob(dob);
     setTempPhone(phone);
-    setTempImage(profileImage);
+    setTempGmail(gmail);
     setShowModal(true);
   };
   
   const handleSave = () => {
+    setGmail(tempGmail);
     setName(tempName);
-    setDob(tempDob);
     setPhone(tempPhone);
-    setProfileImage(tempImage);
     setShowModal(false);
   };
-  
-
-  // check if the user info modal input is not empty
-  const isUserFormValid = tempName.trim() && tempDob && tempPhone.trim();
 
   const handleAccountEditClick = () => {
-    setTempGmail(gmail);
     setOriginalPassword('');
     setNewPassword('');
     setShowAccountModal(true);
   };
 
   const handleAccountSave = () => {
-    setGmail(tempGmail);
     // Handle original & new password validation here later (backend logic)
     setShowAccountModal(false);
   };
-
-  // check if the acc info modal input is not empty
-  // only check gmail field -> cuz pwd wont show by default
-  const isAccFormValid = tempGmail.trim();
+  
 
   //State for eye icon (original password)
   const [show,setShow] = useState(false) 
@@ -86,11 +90,11 @@ const UserSettingPage = () => {
     <div className="min-h-screen flex justify-center bg-[#F8F2E6]">
       <div className="max-w-6xl mx-auto">
 
-        {/* Profile Picture Section */}
         <div className="flex flex-col items-center pt-12" style={{ fontFamily: 'Poppins, sans-serif' }}>
-          <img src={profileImage} alt="pfp" className="w-32 h-32 rounded-full shadow-lg object-cover" />
-          <h1 className="mt-4 text-xl font-bold text-[#3E435D]">{name}</h1>
-          <h2 className="mt-2 text-base text-[#676765]">{gmail}</h2>
+          {/* <img src={profileImage} alt="pfp" className="w-32 h-32 rounded-full shadow-lg object-cover" /> */}
+          <h1 className="mt-4 text-xl font-bold text-[#3E435D]">Hi, {name} !</h1>
+          <p className='mt-2 text-base text-[#676765]'>Manage your account here</p>
+          {/* <h2 className="mt-2 text-base text-[#676765]">{gmail}</h2> */}
         </div>
 
         {/* User Info Section */}
@@ -107,16 +111,16 @@ const UserSettingPage = () => {
             <div className="h-[0.5px] w-[550px] bg-black mx-auto mb-8"></div>
             <div>
               <div className="mb-4 space-y-2">
-                <p className="text-sm font-semibold">Name</p>
+                <p className="text-sm font-semibold">Username</p>
                 <p className="text-base text-[#616161]">{name}</p>
               </div>
               <div className="mb-4 space-y-2">
-                <p className="text-sm font-semibold">Date of Birth</p>
-                <p className="text-base text-[#616161]">{dob}</p>
-              </div>
-              <div className="space-y-2">
                 <p className="text-sm font-semibold">Phone Number</p>
                 <p className="text-base text-[#616161]">{phone}</p>
+              </div>
+              <div className="mb-4 space-y-2">
+                <p className="text-sm font-semibold">Email</p>
+                <p className="text-base text-[#616161]">{gmail}</p>
               </div>
             </div>
           </div>
@@ -139,10 +143,6 @@ const UserSettingPage = () => {
                 <p className="text-sm font-semibold">Registered Date</p>
                 <p className="text-base text-[#616161]">2025-04-09</p>
               </div>
-              <div className="mb-4 space-y-2">
-                <p className="text-sm font-semibold">Gmail</p>
-                <p className="text-base text-[#616161]">{gmail}</p>
-              </div>
             </div>
           </div>
         </div>
@@ -156,7 +156,7 @@ const UserSettingPage = () => {
           </button>
         </div>
 
-
+        {/* user info model */}
         {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
           <div
@@ -164,37 +164,6 @@ const UserSettingPage = () => {
             style={{ fontFamily: 'Poppins, sans-serif' }}>
             <h2 className="text-xl font-semibold mb-2 text-center">Edit User Info</h2>
               
-            {/* Image Preview & Upload */}
-            <div className="space-y-2">
-              
-              {/* Image Preview First */}
-              {tempImage && (
-                <img
-                  src={tempImage}
-                  alt="Preview"
-                  className="w-24 h-24 rounded-full mx-auto mt-1 object-cover shadow"
-                />
-              )}
-    
-              {/* Upload Button Second */}
-              <label className="block text-sm font-medium">Profile Image</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  const file = e.target.files[0];
-                  if (file) {
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                      setTempImage(reader.result);
-                    };
-                    reader.readAsDataURL(file);
-                  }
-                }}
-                className="w-full p-2 border rounded-md text-sm"
-              />
-            </div>
-            
             {/* Name Input */}
             <div className="space-y-2">
               <label className="block text-sm font-medium">Name</label>
@@ -204,17 +173,9 @@ const UserSettingPage = () => {
                 onChange={(e) => setTempName(e.target.value)}
                 className="w-full p-2 border rounded-md"
               />
-            </div>
-            
-            {/* DOB Input */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium">Date of Birth</label>
-              <input
-                type="date"
-                value={tempDob}
-                onChange={(e) => setTempDob(e.target.value)}
-                className="w-full p-2 border rounded-md"
-              />
+              {!isUsernameValid && (
+                <p className="text-sm text-red-500"> Username must be 3-20 characters, alphanumeric or underscores only.</p>
+              )}
             </div>
             
             {/* Phone Input */}
@@ -226,6 +187,17 @@ const UserSettingPage = () => {
                 onChange={(e) => setTempPhone(e.target.value)}
                 className="w-full p-2 border rounded-md"
               />
+              {!isPhoneValid && (
+                <p className="text-sm text-red-500">Phone number must be 10-15 digits.</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium">Email</label>
+              <input type='email' value={tempGmail} onChange={(e) => setTempGmail(e.target.value)} className="w-full p-2 border rounded-md" />
+              {!isEmailValid && (
+                <p className="text-sm text-red-500">Invalid email format</p>
+              )}
             </div>
             
             {/* Action Buttons */}
@@ -253,22 +225,18 @@ const UserSettingPage = () => {
         )}
 
 
-
         {/* Account Info Modal */}
         {showAccountModal && (
           <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
             <div className="bg-white rounded-lg p-8 w-[400px] shadow-2xl space-y-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
               <h2 className="text-xl font-semibold mb-2 text-center">Edit Account Info</h2>
-
+              {/* Registered Date */}
               <div className="space-y-2">
                 <label className="block text-sm font-medium">Registered Date</label>
                 <input value="2025-04-09" disabled className="w-full p-2 border bg-gray-100 text-gray-500 rounded-md" />
               </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-medium">Gmail</label>
-                <input type='email' value={tempGmail} onChange={(e) => setTempGmail(e.target.value)} className="w-full p-2 border rounded-md" />
-              </div>
 
+              {/* Original Password */}
               <div className="space-y-2">
                 <label className="block text-sm font-medium">Original Password</label>
                 <div className="relative">
@@ -288,15 +256,24 @@ const UserSettingPage = () => {
                 </div>
               </div>
 
+              {/* New Password */}
               <div className="space-y-2">
                 <label className="block text-sm font-medium">New Password</label>
                 <div className="relative">
                   <input
                     type={showNewPassword ? "text" : "password"}
                     value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full p-2 pr-10 border rounded-md"
+                    onChange={(e) => {
+                      setNewPassword(e.target.value);
+                    }}
+                    disabled={originalPassword.trim() === ""}
+                    data-tooltip-id='new-password-tooltip'
+                    data-tooltip-content='Please enter your original password first'
+                    className={`w-full p-2 pr-10 border rounded-md ${originalPassword.trim() === "" ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""}`}
                   />
+                  {/* tooltip for new password if original password havent been filled in */}
+                  {originalPassword.trim() === "" && (<Tooltip id="new-password-tooltip" place="top" effect="solid" />)}
+
                   <div className="absolute inset-y-0 right-3 flex items-center">
                     {showNewPassword ? (
                       <IoMdEye className="text-black cursor-pointer hover:text-[#3C4E84]" onClick={handleNewPasswordClick} />
@@ -304,7 +281,11 @@ const UserSettingPage = () => {
                       <IoMdEyeOff className="text-black cursor-pointer hover:text-[#3C4E84]" onClick={handleNewPasswordClick} />
                     )}
                   </div>
+                  
                 </div>
+                {showPasswordError && (
+                <p className="text-sm text-red-500"> Password must be at least 8 characters and include at least one Uppercase, one Lowercase, one Number, and a Special Character.</p>
+                )}
               </div>
               
               <div className="flex justify-between mt-6">
