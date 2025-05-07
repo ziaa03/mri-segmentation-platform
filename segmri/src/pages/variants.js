@@ -1,7 +1,7 @@
 // transition for About Us Page
 
 export const fadeIn = (direction = "up", delay = 0) => {
-    const distance = 100; // how far off-screen to start
+    const distance = 40; // how far off-screen to start
   
     return {
       hidden: {
