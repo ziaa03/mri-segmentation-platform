@@ -1,17 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { IoMdEye } from "react-icons/io";
 import { IoMdEyeOff } from "react-icons/io";
 import { Tooltip } from 'react-tooltip';
 import 'react-tooltip/dist/react-tooltip.css'; // Import default styles
 import api from '../api/AxiosInstance';
+import { useNavigate } from 'react-router-dom';
+
 
 
 const UserSettingPage = () => {
   // User Info States
-  const [name, setName] = useState('Alexaraules');
-  const [phone, setPhone] = useState('0123456789');
+  
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [gmail, setGmail] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [gmail, setGmail] = useState('alexaraules@gmail.com');
 
   // Temp States for User Info Modal
   const [tempName, setTempName] = useState(name);
@@ -19,6 +22,7 @@ const UserSettingPage = () => {
   const [tempGmail, setTempGmail] = useState(gmail);
 
   // Account Info States
+  const [registeredDate, setRegisteredDate] = useState('');
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [originalPassword, setOriginalPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -45,13 +49,29 @@ const UserSettingPage = () => {
     setTempGmail(gmail);
     setShowModal(true);
   };
-  
-  const handleSave = () => {
-    setGmail(tempGmail);
-    setName(tempName);
-    setPhone(tempPhone);
-    setShowModal(false);
+
+  // save user infomation (update username/phone/email)
+  const handleSave = async () => {
+    try {
+      const response = await api.post('auth/update', {
+        username: tempName,
+        phone: tempPhone,
+        email: tempGmail
+      });
+
+      console.log('Update successful:', response.data);
+
+      // Apply updates to UI states
+      setName(tempName);
+      setPhone(tempPhone);
+      setGmail(tempGmail);
+      setShowModal(false);
+    } catch (error) {
+      console.error('Update failed:', error);
+      alert('Failed to update user info. Please try again.');
+    }
   };
+
 
   const handleAccountEditClick = () => {
     setOriginalPassword('');
@@ -59,11 +79,25 @@ const UserSettingPage = () => {
     setShowAccountModal(true);
   };
 
-  const handleAccountSave = () => {
-    // Handle original & new password validation here later (backend logic)
-    setShowAccountModal(false);
-  };
-  
+  // save user infomation (update password)
+  const handleAccountSave = async () => {
+  try {
+    const response = await api.post('/auth/update-password', {
+      old_password: originalPassword,
+      password: newPassword,
+    });
+
+    if (response.data.update) {
+      alert('Password updated successfully.');
+      setShowAccountModal(false);
+    } else {
+      alert(response.data.message || 'Failed to update password.');
+    }
+  } catch (error) {
+    console.error('Error updating password:', error);
+    alert('An error occurred. Please try again later.');
+  }
+};
 
   //State for eye icon (original password)
   const [show,setShow] = useState(false) 
@@ -80,11 +114,58 @@ const UserSettingPage = () => {
   // Delete Account Modal
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  const handleDeleteAccount = () => {
+  // const handleDeleteAccount = () => {
     // Handle account deletion logic here
-    console.log("Account deleted");
-    setShowDeleteModal(false);
-  };
+    // console.log("Account deleted");
+    // setShowDeleteModal(false);
+  // };
+
+  const navigate = useNavigate();
+  const handleDeleteAccount = async () => {
+  try {
+    const response = await api.post('/auth/delete');
+
+    if (response.data.delete) {
+      alert("Account deleted successfully.");
+      navigate('/landing');
+
+    } else {
+      alert(response.data.message || "Failed to delete account.");
+    }
+  } catch (error) {
+    console.error("Error deleting account:", error);
+    alert("An error occurred while deleting your account.");
+  }
+};
+
+  // fetch user information
+  useEffect(() =>
+    {
+      const fetchUserInfo = async () => {
+        try {
+          const response = await api.get('auth/fetch'); // Make sure AxiosInstance has baseURL set
+          console.log('User Info Response:', response.data); // <== log here
+          const { user } = response.data;
+          const { username, phone, email, createdAt } = user;
+        
+          setName(username);
+          setPhone(phone);
+          setGmail(email);
+          const formattedDate = new Date(createdAt).toISOString().split('T')[0]; // "YYYY-MM-DD"
+          setRegisteredDate(formattedDate);
+        
+          // Optionally sync temp values for edit modal
+          setTempName(name);
+          setTempPhone(phone);
+          setTempGmail(email);
+        } catch (error) {
+          console.error('Failed to fetch user info:', error);
+        }
+      };
+    
+      fetchUserInfo();
+    }, []);
+
 
   return (
     <div className="min-h-screen flex justify-center bg-[#F8F2E6]">
@@ -141,7 +222,7 @@ const UserSettingPage = () => {
             <div>
               <div className="mb-4 space-y-2">
                 <p className="text-sm font-semibold">Registered Date</p>
-                <p className="text-base text-[#616161]">2025-04-09</p>
+                <p className="text-base text-[#616161]">{registeredDate}</p>
               </div>
             </div>
           </div>
@@ -233,7 +314,7 @@ const UserSettingPage = () => {
               {/* Registered Date */}
               <div className="space-y-2">
                 <label className="block text-sm font-medium">Registered Date</label>
-                <input value="2025-04-09" disabled className="w-full p-2 border bg-gray-100 text-gray-500 rounded-md" />
+                <input value={registeredDate} disabled className="w-full p-2 border bg-gray-100 text-gray-500 rounded-md" />
               </div>
 
               {/* Original Password */}
