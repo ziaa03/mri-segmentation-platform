@@ -46,7 +46,7 @@ const AboutUsPage = () => {
                 whileInView="show"
                 viewport={{ once: false, amount: 0.7 }}
                 className="text-center flex flex-col items-center">
-                <h1 className='pt-4 pb-10 text-6xl text-[#74342B] font-semibold'>About Us</h1>
+                <h1 className='pt-4 pb-10 text-6xl text-[#74342B]'>About Us</h1>
                 <p className='text-lg text-[#343231] max-w-4xl'>
                     Our cardiac component segmentation website is a web-based platform designed to assist in the analysis of cardiac MRI images. By integrating advanced AI segmentation models, it enables accurate identification of key cardiac structures such as the left ventricle, myocardium, and right ventricle. The platform focuses on creating a seamless experience for image uploading, segmentation, and results visualization, all within a secure and intuitive environment tailored for medical imaging.
                 </p>
@@ -139,7 +139,7 @@ const AboutUsPage = () => {
             viewport={{ once: true, amount: 0.7 }}
             className="text-center max-w-4xl"
           >
-            <h2 className="text-4xl font-bold text-[#74342B] mb-6">Meet Our Leadership</h2>
+            <h2 className="text-4xl text-[#74342B] mb-6">Meet Our Leadership</h2>
             <p className="text-[#343231] text-lg mb-12">
               Meet the minds shaping our direction, championing innovation, and delivering impact with purpose.
             </p>
@@ -191,7 +191,7 @@ const AboutUsPage = () => {
             whileInView="show"
             viewport={{ once: true, amount: 0.7 }}
             className="text-center max-w-2xl mb-10">
-              <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+              <h2 className="text-3xl md:text-4xl text-white mb-4">
                 Explore Our Features
               </h2>
               <p className="text-gray-300 text-base md:text-lg">

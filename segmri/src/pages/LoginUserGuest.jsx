@@ -1,28 +1,32 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom'; // Import useNavigate hook
+import { useNavigate } from 'react-router-dom';
 import { Tooltip } from 'react-tooltip';
-import 'react-tooltip/dist/react-tooltip.css'; // Import default styles
-import api from '../api/AxiosInstance'; // Assuming you have axios instance set up
+import 'react-tooltip/dist/react-tooltip.css';
+import { useAuth } from '../context/AuthContext';
 
 const LoginUserGuest = () => {
-  const navigate = useNavigate(); // Hook for navigation
+  const navigate = useNavigate();
+  const { loginAsGuest } = useAuth();
 
   const handleUserModeClick = () => {
     // Navigate to the login page
     setTimeout(() => {
-        navigate('/login');
-      }, 500);
+      navigate('/login');
+    }, 500);
   };
 
   const handleGuestModeClick = async () => {
     try {
-      // Make API call for guest mode
-      const response = await api.post('/auth/guest');
-      console.log('Guest mode activated:', response.data);
-      // Redirect to a landing page or home page after success
-      setTimeout(() => {
-        navigate('/landing');
-      }, 500);
+      // Use the auth context to login as guest
+      const result = await loginAsGuest();
+      console.log('Login result:', result);
+      if (result.success) {
+        console.log('Guest mode activated');
+        // Redirect to landing page after success
+        setTimeout(() => {
+          navigate('/landing');
+        }, 500);
+      }
     } catch (error) {
       console.error('Error activating guest mode:', error);
     }
@@ -46,7 +50,7 @@ const LoginUserGuest = () => {
 
           {/* User Mode Button */}
           <button
-            onClick={handleUserModeClick} // Navigate to login page
+            onClick={handleUserModeClick}
             className='w-full max-w-sm py-3 rounded-full bg-[#974646] text-white text-lg tracking-wider mb-6 shadow-md hover:bg-[#7D3A3A] transition duration-300'
             data-tooltip-id="user-tooltip"
             data-tooltip-content="'User Mode' to access all features with your account"
@@ -64,7 +68,7 @@ const LoginUserGuest = () => {
 
           {/* Guest Mode Button */}
           <button
-            onClick={handleGuestModeClick} // Trigger API for guest mode
+            onClick={handleGuestModeClick}
             className='w-full max-w-sm py-3 rounded-full bg-[#974646] text-white text-lg tracking-wider shadow-md hover:bg-[#7D3A3A] transition duration-300'
             data-tooltip-id="guest-tooltip"
             data-tooltip-content="'Guest Mode' for limited access without logging in"

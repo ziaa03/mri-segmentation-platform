@@ -83,9 +83,7 @@ const FileUpload = ({ onFilesSelected, uploadStatus, uploadProgress, errorMessag
       {/* File Upload Area */}
       <div
         className={`relative border-2 border-dashed rounded-xl p-12 text-center transition-all duration-300 ${
-          isDragging
-            ? 'border-[#5B7B9A] bg-blue-50'
-            : 'border-gray-300 hover:border-[#5B7B9A] hover:bg-gray-50'
+          isDragging ? 'border-[#5B7B9A] bg-blue-50' : 'border-gray-300 hover:border-[#5B7B9A] hover:bg-gray-50'
         }`}
         onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}

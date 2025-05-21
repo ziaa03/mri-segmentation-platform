@@ -1,44 +1,55 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { IoMdEye, IoMdEyeOff } from "react-icons/io";
-import { Link } from 'react-router-dom';
-import api from '../api/AxiosInstance';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const LoginPage = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [show, setShow] = useState(false);
-
-  // State to trigger welcome message before redirect to landing
-  const [welcome, setWelcome] = useState(false); 
-  // State to handle redirection
+  const [welcome, setWelcome] = useState(false);
+  const [welcomeMessage, setWelcomeMessage] = useState('');
   const [isRedirecting, setIsRedirecting] = useState(false);
+
+  const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleClick = () => {
     setShow(!show);
   };
 
-  const navigate = useNavigate();
-
-  // Handle form submit
+  // Handle regular user login
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await api.post('/auth/login', { username, password });
-      console.log('Login success:', response.data);
+      const result = await login(username, password);
       
-      // Trigger welcome message and start the redirection timer
-      setWelcome(true);
-      setIsRedirecting(true);
-      
-      // Redirect to landing page
-      setTimeout(() => {
-        navigate('/landing');
-      }, 1500);
+      if (result.success) {
+        // Set welcome message based on role
+        const role = result.user.role || 'user';
+        let redirectPath = '/landing';
+        
+        if (role === 'admin') {
+          setWelcomeMessage(`Welcome, Admin ${result.user.username}!`);
+        } else {
+          setWelcomeMessage(`Welcome back, ${result.user.username}!`);
+        }
+        
+        // Show welcome message and start redirect timer
+        setWelcome(true);
+        setIsRedirecting(true);
+        
+        // Redirect after delay
+        setTimeout(() => {
+          navigate(redirectPath);
+        }, 1500);
+      } else {
+        setError(result.error);
+      }
     } catch (err) {
       console.error('Login error:', err);
-      setError(err.response?.data?.message || 'Login failed. Please try again.');
+      setError('Login failed. Please try again.');
     }
   };
 
@@ -67,12 +78,12 @@ const LoginPage = () => {
             {/* Display the welcome message */}
             {welcome && (
               <div className="text-left justify-center w-[500px] h-[200px]">
-                <h1 className="text-5xl font-bold text-[#741E20] tracking-wide mb-4">Welcome to VisHeart !</h1>
+                <h1 className="text-5xl font-bold text-[#741E20] tracking-wide mb-4">{welcomeMessage}</h1>
                 <p className="text-xl mt-4">Redirecting you to the landing page...</p>
               </div>
             )}
 
-            {/* Show the login form only if we're not redirecting and haven't shown the welcome message */}
+                            {/* Show the login form only if we're not redirecting and haven't shown the welcome message */}
             {!isRedirecting && !welcome && (
               <form onSubmit={handleSubmit}>
                 {/* Username input */}
@@ -107,11 +118,20 @@ const LoginPage = () => {
                 {/* Login button */}
                 <button 
                   type="submit" 
-                  className='text-[#FFFCF6] px-8 py-2 bg-[#741E20] hover:shadow-2xl hover:bg-opacity-85 duration-500 transform transition-transform hover:scale-110 text-xl'
-                >LOGIN</button>
+                  className='text-[#FFFCF6] px-8 py-2 bg-[#741E20] hover:shadow-2xl hover:bg-opacity-85 duration-500 transform transition-transform hover:scale-110 text-xl w-full'
+                >
+                  LOGIN
+                </button>
 
                 {/* Error message */}
                 {error && <p className="text-red-500 mt-4">{error}</p>}
+
+                {/* Back to selection */}
+                <div className='mt-6 text-center'>
+                  <Link to="/login-choice" className="text-[#343231] underline hover:text-[#9D4C51] duration-200">
+                    Back to login options
+                  </Link>
+                </div>
 
                 {/* Link to register */}
                 <div className='mt-6'>

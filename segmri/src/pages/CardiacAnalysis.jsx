@@ -8,29 +8,6 @@ import AnalysisResults from '../components/AnalysisResults';
 import Notification from '../components/Notifications';
 import api from '../api/AxiosInstance';
 
-// Add a debug logger utility
-const DebugLogger = {
-  isDebugMode: true, // Set this to false in production
-  log: function(component, message, data = null) {
-    if (!this.isDebugMode) return;
-    const formattedMessage = `[DEBUG][${component}] ${message}`;
-    if (data) {
-      console.log(formattedMessage, data);
-    } else {
-      console.log(formattedMessage);
-    }
-  },
-  error: function(component, message, error = null) {
-    if (!this.isDebugMode) return;
-    const formattedMessage = `[ERROR][${component}] ${message}`;
-    if (error) {
-      console.error(formattedMessage, error);
-    } else {
-      console.error(formattedMessage);
-    }
-  }
-};
-
 const CardiacAnalysisPage = () => {
   // File upload states
   const [files, setFiles] = useState([]);
@@ -69,212 +46,64 @@ const CardiacAnalysisPage = () => {
   }, []);
 
   // Function to handle file selection and upload initiation
-  const handleFilesSelected = async (selectedFiles, status, message) => {
-    addDebugMessage(`File selection: status=${status}, files=${selectedFiles.length}`);
+const handleFilesSelected = async (selectedFiles, status, message) => {
+  addDebugMessage(`File selection: status=${status}, files=${selectedFiles.length}`);
+
+  if (status === 'error') {
+    setUploadStatus('error');
+    setErrorMessage(message);
+    addDebugMessage(`File selection error: ${message}`);
+    return;
+  }
+
+  setUploadStatus('uploading');
+  setErrorMessage('');
+  setFiles(selectedFiles);
+
+  const formData = new FormData();
+
+  selectedFiles.forEach(file => {
+    formData.append('files', file);  // Ensure the field name is 'files' (matches backend)
+    addDebugMessage(`Adding file to upload: ${file.name} (${file.size} bytes)`);
+  });
+
+  formData.append('name', 'Cardiac Analysis Project');
+  formData.append('description', 'Uploaded from Cardiac Analysis UI');
+
+  try {
+    addDebugMessage('Starting upload to server...');
     
-    if (status === 'error') {
-      setUploadStatus('error');
-      setErrorMessage(message);
-      addDebugMessage(`File selection error: ${message}`);
-      return;
-    }
-  
-    setUploadStatus('uploading');
-    setErrorMessage('');
-    setFiles(selectedFiles);
-  
-    const formData = new FormData();
-  
-    selectedFiles.forEach(file => {
-      formData.append('file', file);
-      addDebugMessage(`Adding file to upload: ${file.name} (${file.size} bytes)`);
+    const response = await api.put('/project/upload-new-project', formData, {
+      withCredentials: true,  // Ensure cookies are sent with the request
     });
-  
-    formData.append('projectName', 'Cardiac Analysis Project');
-    formData.append('description', 'Uploaded from Cardiac Analysis UI');
-  
-    try {
-      addDebugMessage('Starting upload to server...');
-      const response = await api.put('/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        onUploadProgress: (event) => {
-          const percent = Math.round((event.loaded * 100) / event.total);
-          setUploadProgress(percent);
-          if (percent % 20 === 0) {
-            addDebugMessage(`Upload progress: ${percent}%`);
-          }
-        },
-        withCredentials: true,
-      });
-  
-      addDebugMessage('Upload completed successfully. Server response received.');
-      addDebugMessage(`Response status: ${response.status}`);
-      addDebugMessage('Response data:', response.data);
-      
+
+    addDebugMessage('Upload completed successfully. Server response received.');
+    addDebugMessage(`Response status: ${response.status}`);
+    addDebugMessage('Response data:', response.data);
+
+    if (response.data.success) {
+      const { projectId, status } = response.data;
+      addDebugMessage(`Project ID: ${projectId}`);
+      addDebugMessage(`Project Status: ${status}`);
+
+      setProjectId(projectId);
+      setProjectStatus(status);  // Set status from the response
+
       setUploadStatus('success');
-      setIsProcessing(true);
-      
-      // Store project ID from response if available
-      if (response.data && response.data.projectId) {
-        setProjectId(response.data.projectId);
-        setProjectName(response.data.projectName || 'Cardiac Analysis Project');
-        setProjectDescription(response.data.description || '');
-        addDebugMessage(`Project ID received: ${response.data.projectId}`);
-      } else {
-        addDebugMessage('WARNING: No projectId in response data!');
-        setErrorMessage('Server response missing project ID. Processing cannot continue.');
-        setIsProcessing(false);
-        return;
-      }
-      
-      // Start polling for processing status
-      pollProcessingStatus(response.data.projectId);
-    } catch (err) {
-      const errorDetail = err.response?.data || err.message || 'Unknown error';
-      DebugLogger.error('CardiacAnalysisPage', 'Upload error:', err);
-      addDebugMessage(`Upload failed: ${JSON.stringify(errorDetail)}`);
-      console.error('Upload error:', err.response?.data || err.message);
-      setUploadStatus('error');
-      setErrorMessage(err.response?.data?.message || err.message || 'Upload failed');
+      setIsProcessing(false); // No need for polling
+    } else {
+      setErrorMessage('Server response missing project information.');
       setIsProcessing(false);
     }
-  };
-
-  // Poll for processing status
-  const pollProcessingStatus = useCallback((pid) => {
-    if (!pid) {
-      addDebugMessage('Cannot poll status: No project ID available');
-      setIsProcessing(false);
-      setErrorMessage('Missing project ID for status check');
-      return;
-    }
-    
-    addDebugMessage(`Starting to poll processing status for project ${pid}`);
-    
-    let pollCount = 0;
-    const maxPollAttempts = 30; // Prevent infinite polling
-    const pollInterval = 2000; // 2 seconds
-    
-    const checkStatus = async () => {
-      pollCount++;
-      try {
-        addDebugMessage(`Polling attempt ${pollCount} for project ${pid}`);
-        const response = await api.get(`/projects/${pid}/status`);
-        
-        addDebugMessage(`Poll response: ${JSON.stringify(response.data)}`);
-        setProcessingStatus(response.data.status);
-        
-        if (response.data.progress) {
-          setProcessingProgress(response.data.progress);
-        }
-        
-        if (response.data.status === 'complete') {
-          addDebugMessage('Processing completed successfully');
-          setIsProcessing(false);
-          setProcessingComplete(true);
-          fetchSegmentationData(pid);
-        } else if (response.data.status === 'failed') {
-          addDebugMessage(`Processing failed: ${response.data.message || 'No error details'}`);
-          setIsProcessing(false);
-          setUploadStatus('error');
-          setErrorMessage(response.data.message || 'Processing failed');
-        } else if (pollCount >= maxPollAttempts) {
-          addDebugMessage('Maximum polling attempts reached. Stopping poll.');
-          setIsProcessing(false);
-          setUploadStatus('error');
-          setErrorMessage('Processing timeout - please try refreshing the page');
-        } else {
-          // Continue polling if still processing
-          setTimeout(() => checkStatus(), pollInterval);
-        }
-      } catch (error) {
-        const errorDetail = error.response?.data || error.message || 'Unknown error';
-        addDebugMessage(`Status check failed: ${JSON.stringify(errorDetail)}`);
-        DebugLogger.error('CardiacAnalysisPage', 'Status check error:', error);
-        
-        if (pollCount >= maxPollAttempts) {
-          setIsProcessing(false);
-          setUploadStatus('error');
-          setErrorMessage('Failed to check processing status after multiple attempts');
-        } else {
-          // Retry polling despite error
-          setTimeout(() => checkStatus(), pollInterval);
-        }
-      }
-    };
-    
-    // Start the polling
-    checkStatus();
-  }, []);
-
-  // Fetch segmentation data from backend
-  const fetchSegmentationData = useCallback(async (pid) => {
-    const projectIdToUse = pid || projectId;
-    if (!projectIdToUse) {
-      addDebugMessage('Cannot fetch segmentation data: No project ID available');
-      return;
-    }
-    
-    try {
-      addDebugMessage(`Fetching segmentation data for project ${projectIdToUse}`);
-      const response = await api.get(`/projects/${projectIdToUse}/segmentation`);
-      
-      if (response.data) {
-        addDebugMessage('Segmentation data received');
-        
-        // Log the structure of the response to help debugging
-        DebugLogger.log('CardiacAnalysisPage', 'Segmentation data structure:', {
-          hasFrames: response.data.frames !== undefined,
-          hasSlices: response.data.slices !== undefined,
-          hasMasks: response.data.masks !== undefined,
-          hasItems: response.data.segmentationItems !== undefined,
-          frameCount: response.data.frames,
-          sliceCount: response.data.slices
-        });
-        
-        const { 
-          masks, 
-          frames, 
-          slices, 
-          segmentationItems 
-        } = response.data;
-        
-        if (!masks) {
-          addDebugMessage('WARNING: No masks data in response');
-        } else {
-          addDebugMessage(`Received ${Object.keys(masks).length} frame(s) of mask data`);
-        }
-        
-        setSegmentationData({
-          masks,
-          boundingBoxes: response.data.boundingBoxes || []
-        });
-        
-        if (frames !== undefined && slices !== undefined) {
-          setMaxTimeIndex(frames - 1);
-          setMaxLayerIndex(slices - 1);
-          addDebugMessage(`Set max indices: time=${frames - 1}, layer=${slices - 1}`);
-        } else {
-          addDebugMessage('WARNING: frames or slices data missing in response');
-        }
-        
-        if (segmentationItems && Array.isArray(segmentationItems)) {
-          setSegmentItems(segmentationItems);
-          addDebugMessage(`Received ${segmentationItems.length} segmentation items`);
-        } else {
-          addDebugMessage('WARNING: No segmentation items in response');
-          setSegmentItems([]);
-        }
-      } else {
-        addDebugMessage('WARNING: Empty response from segmentation endpoint');
-      }
-    } catch (error) {
-      const errorDetail = error.response?.data || error.message || 'Unknown error';
-      addDebugMessage(`Failed to fetch segmentation data: ${JSON.stringify(errorDetail)}`);
-      DebugLogger.error('CardiacAnalysisPage', 'Segmentation fetch error:', error);
-      setErrorMessage('Failed to load segmentation data');
-    }
-  }, [projectId]);
+  } catch (err) {
+    const errorDetail = err.response?.data || err.message || 'Unknown error';
+    DebugLogger.error('CardiacAnalysisPage', 'Upload error:', err);
+    addDebugMessage(`Upload failed: ${JSON.stringify(errorDetail)}`);
+    setUploadStatus('error');
+    setErrorMessage(err.response?.data?.message || err.message || 'Upload failed');
+    setIsProcessing(false);
+  }
+};
 
   // Handlers for VisualizationControls
   const handleTimeSliderChange = (e) => {

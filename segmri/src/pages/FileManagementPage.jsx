@@ -160,7 +160,7 @@ const FileDetailsSidebar = ({ file, onClose, onDelete, onFavorite, onRemoveTag }
       </div>
       
       <div className="mt-8 space-y-3">
-        <button className="w-full py-2 bg-blue-600 text-white rounded-md flex items-center justify-center hover:bg-blue-700 transition-colors">
+        <button className="w-full py-2 bg-[#5B7B9A] text-white rounded-md flex items-center justify-center hover:bg-[#4A6A89] transition-colors">
           <Download className="h-4 w-4 mr-2" />
           Download
         </button>
@@ -480,8 +480,8 @@ const FileManagementPage = () => {
               )}
             </button>
             
-            <Link to="/file-upload"
-              className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center hover:bg-blue-700 transition-colors"
+            <Link to="/cardiac-analysis"
+              className="px-4 py-2 bg-[#5B7B9A] text-white rounded-md flex items-center hover:bg-[#4A6A89] transition-colors"
             >
               <Upload className="w-4 h-4 mr-2" />
               Upload

@@ -1,10 +1,13 @@
-  import React, { useState, useEffect } from 'react';
-  import { Link } from 'react-router-dom';
-  import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import BrushMaskCanvas from '../pages/Brush';
 
   const LandingPage = () => {
     // State for image slider
     const [currentSlide, setCurrentSlide] = useState(0);
+
+    const sampleImage = '/image-1.png';
     
     // Images for slider
     const sliderImages = [
@@ -83,6 +86,11 @@
             </motion.div>
           </div>
         </motion.div>
+
+        <div>
+      <h1>Segmentation Mask Test</h1>
+      <BrushMaskCanvas imageSrc={sampleImage} />
+    </div>
         
         {/* Information Section with Image Slider */}
         <div id="info-section" className="info-section py-24 px-8 bg-[#FFFCF6]">
@@ -123,11 +131,11 @@
                 </div>
                 
                 <div className="info-button mt-8">
-                  <button 
+                  <Link to="/about-us"
                     className="px-6 py-3 bg-[#5B7B9A] hover:bg-[#4A6A89] text-white rounded-md transition-all duration-300 shadow-md"
                   >
                     Learn More
-                  </button>
+                  </Link>
                 </div>
               </div>
               
@@ -436,7 +444,7 @@
                       },
                       {
                         question: "Can VisHeart integrate with our existing hospital systems?",
-                        answer: "Yes, VisHeart is designed with comprehensive API connectivity and supports major healthcare system integrations including EPIC, Cerner, and standard DICOM/PACS systems."
+                        answer: "Yes, VisHeart is designed with comprehensive API connectivity and supports major healthcare system integrations including standard DICOM/PACS systems."
                       }
                     ].map((faq, index) => (
                       <motion.div 
@@ -473,9 +481,11 @@
                   Create an account
                 </button>
               </Link>
-                <button className="px-8 py-3 bg-transparent border border-white text-white rounded-md hover:bg-white hover:bg-opacity-10 transition-all duration-300">
+              <Link to="/about-us" className="block">
+                <button className="w-full px-8 py-3 bg-transparent border border-white text-white rounded-md hover:bg-white hover:bg-opacity-10 transition-all duration-300">
                   Learn more
                 </button>
+              </Link>
               </div>
             </div>
           </div>
