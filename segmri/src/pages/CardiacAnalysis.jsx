@@ -162,32 +162,47 @@ const CardiacAnalysisPage = () => {
   }, [addDebugMessage]);
 
   // Handle file upload and start segmentation
-  const handleFilesSelected = async (selectedFiles, status, message) => {
-    if (status === 'error') {
-      setUploadStatus('error');
-      setErrorMessage(message);
-      return;
-    }
+  // Handle file upload and start segmentation
+const handleFilesSelected = async (selectedFiles, status, message) => {
+  if (status === 'error') {
+    setUploadStatus('error');
+    setErrorMessage(message);
+    return;
+  }
 
-    setUploadStatus('uploading');
-    setFiles(selectedFiles);
-    addDebugMessage(`Starting upload of ${selectedFiles.length} files`);
+  setUploadStatus('uploading');
+  setFiles(selectedFiles);
+  addDebugMessage(`Starting upload of ${selectedFiles.length} files`);
 
-    const formData = new FormData();
-    selectedFiles.forEach(file => formData.append('files', file));
+  const formData = new FormData();
+  selectedFiles.forEach(file => formData.append('files', file));
 
-    try {
-      const response = await api.put('/project/upload-new-project', formData, {
-        withCredentials: true,
-      });
+  try {
+    const response = await api.put('/project/upload-new-project', formData, {
+      withCredentials: true,
+    });
 
-      // Check for success in multiple ways since backend might return different formats
-      const isSuccess = response.data.success === true || 
-                       response.status === 200 || 
-                       (response.data.message && response.data.message.includes('successfully'));
+    // Check for success in multiple ways since backend might return different formats
+    const isSuccess = response.data.success === true || 
+                     response.status === 200 || 
+                     (response.data.message && response.data.message.includes('successfully'));
+    
+    if (isSuccess) {
+      // Extract project ID from the response structure
+      let projectId = null;
       
-      if (isSuccess && (response.data.projectId || response.data.project_id)) {
-        const projectId = response.data.projectId || response.data.project_id;
+      // Check different possible locations for project ID
+      if (response.data.projectId) {
+        projectId = response.data.projectId;
+      } else if (response.data.project_id) {
+        projectId = response.data.project_id;
+      } else if (response.data.projects && Array.isArray(response.data.projects) && response.data.projects.length > 0) {
+        // Project ID is in the projects array
+        const project = response.data.projects[0];
+        projectId = project._id || project.id || project.projectId || project.project_id;
+      }
+      
+      if (projectId) {
         setProjectId(projectId);
         addDebugMessage(`Upload successful, project ID: ${projectId}`);
 
@@ -196,19 +211,21 @@ const CardiacAnalysisPage = () => {
         
         // Trigger segmentation after file upload
         await triggerSegmentation(projectId);
-      } else if (isSuccess) {
-        // Success but no project ID found - log the response structure
-        DebugLogger.log('CardiacAnalysisPage', 'Upload successful but no project ID found', response.data);
-        throw new Error('Upload succeeded but no project ID was returned. Check response structure.');
       } else {
-        throw new Error('Upload failed: ' + (response.data.message || 'Unknown error'));
+        // Success but no project ID found - log the full response structure for debugging
+        DebugLogger.log('CardiacAnalysisPage', 'Upload successful but no project ID found', response.data);
+        console.log('Full response structure:', JSON.stringify(response.data, null, 2));
+        throw new Error('Upload succeeded but no project ID was returned. Please check the response structure in console logs.');
       }
-    } catch (err) {
-      setUploadStatus('error');
-      setErrorMessage(err.message);
-      DebugLogger.error('CardiacAnalysisPage', 'Upload failed', err);
+    } else {
+      throw new Error('Upload failed: ' + (response.data.message || 'Unknown error'));
     }
-  };
+  } catch (err) {
+    setUploadStatus('error');
+    setErrorMessage(err.message);
+    DebugLogger.error('CardiacAnalysisPage', 'Upload failed', err);
+  }
+};
 
   // Trigger Segmentation
   const triggerSegmentation = async (projectId) => {
