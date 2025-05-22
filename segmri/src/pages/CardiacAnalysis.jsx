@@ -181,8 +181,13 @@ const CardiacAnalysisPage = () => {
         withCredentials: true,
       });
 
-      if (response.data.success) {
-        const { projectId } = response.data;
+      // Check for success in multiple ways since backend might return different formats
+      const isSuccess = response.data.success === true || 
+                       response.status === 200 || 
+                       (response.data.message && response.data.message.includes('successfully'));
+      
+      if (isSuccess && (response.data.projectId || response.data.project_id)) {
+        const projectId = response.data.projectId || response.data.project_id;
         setProjectId(projectId);
         addDebugMessage(`Upload successful, project ID: ${projectId}`);
 
@@ -191,6 +196,10 @@ const CardiacAnalysisPage = () => {
         
         // Trigger segmentation after file upload
         await triggerSegmentation(projectId);
+      } else if (isSuccess) {
+        // Success but no project ID found - log the response structure
+        DebugLogger.log('CardiacAnalysisPage', 'Upload successful but no project ID found', response.data);
+        throw new Error('Upload succeeded but no project ID was returned. Check response structure.');
       } else {
         throw new Error('Upload failed: ' + (response.data.message || 'Unknown error'));
       }
@@ -206,22 +215,42 @@ const CardiacAnalysisPage = () => {
     addDebugMessage(`Starting segmentation for project ${projectId}`);
     
     try {
-      const response = await api.post(`/segmentation/start-segmentation/${projectId}`);
+      DebugLogger.log('CardiacAnalysisPage', `Making POST request to /segmentation/start-segmentation/${projectId}`);
+      
+      // Since your backend uses :projectId as a URL parameter, we need to send the request body
+      // but the projectId is already in the URL path
+      const response = await api.post(`/segmentation/start-segmentation/${projectId}`, {
+        // Add any additional data your backend might expect in the request body
+        projectId: projectId // Some backends expect this in both URL and body
+      });
+      
+      DebugLogger.log('CardiacAnalysisPage', 'Segmentation start response', response.data);
 
-      if (response.data.success) {
+      // Check for success in multiple ways
+      const isSuccess = response.data.success === true || 
+                       response.status === 200 || 
+                       (response.data.message && response.data.message.includes('successfully')) ||
+                       (response.data.message && response.data.message.includes('started'));
+
+      if (isSuccess) {
         addDebugMessage('Segmentation started successfully');
         setProcessingStatus('segmenting');
         
-        // Fetch segmentation results once segmentation is complete
-        const segmentationResults = await fetchSegmentationResults(projectId);
+        // Add a delay before fetching results to allow processing time
+        addDebugMessage('Waiting for segmentation to complete...');
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+        
+        // Poll for segmentation results
+        const segmentationResults = await pollForSegmentationResults(projectId);
         
         if (segmentationResults) {
           processSegmentationData(segmentationResults);
           setUploadStatus('success');
         } else {
-          throw new Error('No segmentation results received');
+          throw new Error('No segmentation results received after polling');
         }
       } else {
+        DebugLogger.error('CardiacAnalysisPage', 'Segmentation start failed', response.data);
         throw new Error('Segmentation failed to start: ' + (response.data.message || 'Unknown error'));
       }
     } catch (err) {
@@ -232,16 +261,49 @@ const CardiacAnalysisPage = () => {
     }
   };
 
-  // Fetch segmentation results from backend
+  // Poll for segmentation results (since processing might take time)
+  const pollForSegmentationResults = async (projectId, maxAttempts = 10, interval = 3000) => {
+    addDebugMessage(`Starting to poll for segmentation results (max ${maxAttempts} attempts)`);
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        addDebugMessage(`Polling attempt ${attempt}/${maxAttempts} for project ${projectId}`);
+        
+        const response = await api.get(`/segmentation/segmentation-results/${projectId}`);
+        DebugLogger.log('CardiacAnalysisPage', `Poll attempt ${attempt} response`, response.data);
+        
+        if (response.data && (Array.isArray(response.data) ? response.data.length > 0 : response.data.frames)) {
+          addDebugMessage(`Segmentation results found on attempt ${attempt}`);
+          return response.data;
+        } else {
+          addDebugMessage(`No results yet on attempt ${attempt}, waiting ${interval/1000}s...`);
+          if (attempt < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, interval));
+          }
+        }
+      } catch (err) {
+        DebugLogger.error('CardiacAnalysisPage', `Poll attempt ${attempt} failed`, err);
+        if (attempt === maxAttempts) {
+          throw err;
+        }
+        await new Promise(resolve => setTimeout(resolve, interval));
+      }
+    }
+    
+    addDebugMessage('Polling completed without finding results');
+    return null;
+  };
+
+  // Fetch segmentation results from backend (single attempt version)
   const fetchSegmentationResults = async (projectId) => {
     addDebugMessage(`Fetching segmentation results for project ${projectId}`);
     
     try {
       const response = await api.get(`/segmentation/segmentation-results/${projectId}`);
+      DebugLogger.log('CardiacAnalysisPage', 'Direct fetch response', response.data);
       
       if (response.data) {
         addDebugMessage('Segmentation results fetched successfully');
-        DebugLogger.log('CardiacAnalysisPage', 'Segmentation results structure', response.data);
         return response.data;
       } else {
         throw new Error('Empty response from segmentation results endpoint');
