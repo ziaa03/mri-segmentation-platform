@@ -9,9 +9,4 @@ export default defineConfig({
       plugins: [tailwindcss()],
     },
   },
-  build: {
-    rollupOptions: {
-      external: ['react', 'react-dom'],
-    },
-  },
 });
