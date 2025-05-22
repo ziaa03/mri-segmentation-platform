@@ -150,12 +150,12 @@ const AboutUsPage = () => {
               {
                 name: "Kathy Wong Hui Ying",
                 role: "Lead",
-                image: "./placeholder-pfp.png"
+                image: "./kathy.jpg"
               },
               {
                 name: "Ts. Assoc. Prof. Dr. Miko Chang May Lee",
                 role: "Advisor",
-                image: "./placeholder-pfp.png"
+                image: "./miko.jpeg"
               },
             ].map((person, index) => (
               <div
@@ -183,7 +183,7 @@ const AboutUsPage = () => {
 
 
         {/* Website Feature Section */}
-        <div className="w-full min-h-screen flex flex-col items-center justify-center bg-[#2b2d2f] overflow-hidden px-4">
+        <div className="w-full min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-[#5B7B9A] to-[#3A4454] overflow-hidden px-4">
             {/* Text */}
             <motion.div
             variants={fadeIn("up", 0.2)}
@@ -215,7 +215,7 @@ const AboutUsPage = () => {
                 modifier: 2,
                 slideShadows: true,
               }}
-              className="w-full py-12"
+              className="w-full py-12" 
             >
               {imageslider.map((item, index) => (
                 <SwiperSlide

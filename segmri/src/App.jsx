@@ -40,7 +40,7 @@ function App() {
                     <Route path="/cardiac-analysis" element={<CardiacAnalysisPage />} />
                     
                     {/* Protected routes - require any authenticated user */}
-                    <Route element={<ProtectedRoute allowedRoles={['user', 'admin', 'guest']} />}>
+                    <Route element={<ProtectedRoute allowedRoles={['user', 'admin']} />}>
                       <Route path="/user-settings" element={<UserSettingPage />} />
                     </Route>
                     

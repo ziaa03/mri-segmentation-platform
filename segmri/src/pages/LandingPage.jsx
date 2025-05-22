@@ -87,10 +87,10 @@ import BrushMaskCanvas from '../pages/Brush';
           </div>
         </motion.div>
 
-        <div>
-      <h1>Segmentation Mask Test</h1>
-      <BrushMaskCanvas imageSrc={sampleImage} />
-    </div>
+        {/* <div> */}
+      {/* <h1>Segmentation Mask Test</h1> */}
+      {/* <BrushMaskCanvas imageSrc={sampleImage} /> */}
+    {/* </div> */}
         
         {/* Information Section with Image Slider */}
         <div id="info-section" className="info-section py-24 px-8 bg-[#FFFCF6]">
