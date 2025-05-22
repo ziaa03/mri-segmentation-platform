@@ -38,12 +38,12 @@ const CardiacAnalysisPage = () => {
   const [projectName, setProjectName] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
 
-  // Add debug message
-  const addDebugMessage = useCallback((message) => {
-    const timestamp = new Date().toISOString();
-    setDebugMessages(prev => [...prev, { timestamp, message }]);
-    DebugLogger.log('CardiacAnalysisPage', message);
-  }, []);
+  // // Add debug message
+  // const addDebugMessage = useCallback((message) => {
+  //   const timestamp = new Date().toISOString();
+  //   setDebugMessages(prev => [...prev, { timestamp, message }]);
+  //   DebugLogger.log('CardiacAnalysisPage', message);
+  // }, []);
 
   // Function to handle file selection and upload initiation
 const handleFilesSelected = async (selectedFiles, status, message) => {
@@ -97,7 +97,7 @@ const handleFilesSelected = async (selectedFiles, status, message) => {
     }
   } catch (err) {
     const errorDetail = err.response?.data || err.message || 'Unknown error';
-    DebugLogger.error('CardiacAnalysisPage', 'Upload error:', err);
+    // DebugLogger.error('CardiacAnalysisPage', 'Upload error:', err);
     addDebugMessage(`Upload failed: ${JSON.stringify(errorDetail)}`);
     setUploadStatus('error');
     setErrorMessage(err.response?.data?.message || err.message || 'Upload failed');
@@ -151,7 +151,7 @@ const handleFilesSelected = async (selectedFiles, status, message) => {
     } catch (error) {
       const errorDetail = error.response?.data || error.message || 'Unknown error';
       addDebugMessage(`Save failed: ${JSON.stringify(errorDetail)}`);
-      DebugLogger.error('CardiacAnalysisPage', 'Save error:', error);
+      // DebugLogger.error('CardiacAnalysisPage', 'Save error:', error);
       alert('Failed to save project: ' + (error.response?.data?.message || error.message));
     }
   };
@@ -182,7 +182,7 @@ const handleFilesSelected = async (selectedFiles, status, message) => {
     } catch (error) {
       const errorDetail = error.response?.data || error.message || 'Unknown error';
       addDebugMessage(`Export failed: ${JSON.stringify(errorDetail)}`);
-      DebugLogger.error('CardiacAnalysisPage', 'Export error:', error);
+      // DebugLogger.error('CardiacAnalysisPage', 'Export error:', error);
       alert('Failed to export project: ' + (error.response?.data?.message || error.message));
     }
   };
@@ -212,45 +212,45 @@ const handleFilesSelected = async (selectedFiles, status, message) => {
     } catch (error) {
       const errorDetail = error.response?.data || error.message || 'Unknown error';
       addDebugMessage(`Failed to update segmentation: ${JSON.stringify(errorDetail)}`);
-      DebugLogger.error('CardiacAnalysisPage', 'Segmentation update error:', error);
+      // DebugLogger.error('CardiacAnalysisPage', 'Segmentation update error:', error);
       alert('Failed to update segmentation');
     }
   };
 
-  // Debug panel component
-  const DebugPanel = () => {
-    if (!DebugLogger.isDebugMode) return null;
+  // // Debug panel component
+  // const DebugPanel = () => {
+  //   if (!DebugLogger.isDebugMode) return null;
     
-    return (
-      <div className="mt-8 p-4 bg-gray-100 rounded-lg">
-        <div className="flex justify-between mb-2">
-          <h3 className="text-lg font-medium">Debug Information</h3>
-          <button 
-            onClick={() => setDebugMessages([])}
-            className="text-sm text-red-600 hover:text-red-800"
-          >
-            Clear
-          </button>
-        </div>
-        <div className="mb-4">
-          <p><strong>Project ID:</strong> {projectId || 'None'}</p>
-          <p><strong>Upload Status:</strong> {uploadStatus || 'None'}</p>
-          <p><strong>Processing:</strong> {isProcessing ? 'Yes' : 'No'}</p>
-          <p><strong>Processing Status:</strong> {processingStatus || 'N/A'}</p>
-          <p><strong>Processing Progress:</strong> {processingProgress}%</p>
-          <p><strong>Processing Complete:</strong> {processingComplete ? 'Yes' : 'No'}</p>
-        </div>
-        <div className="border rounded max-h-48 overflow-y-auto bg-gray-800 text-white p-2 font-mono text-xs">
-          {debugMessages.map((entry, index) => (
-            <div key={index} className="mb-1">
-              <span className="text-gray-400">[{entry.timestamp}]</span> {entry.message}
-            </div>
-          ))}
-          {debugMessages.length === 0 && <p>No debug messages</p>}
-        </div>
-      </div>
-    );
-  };
+  //   return (
+  //     <div className="mt-8 p-4 bg-gray-100 rounded-lg">
+  //       <div className="flex justify-between mb-2">
+  //         <h3 className="text-lg font-medium">Debug Information</h3>
+  //         <button 
+  //           onClick={() => setDebugMessages([])}
+  //           className="text-sm text-red-600 hover:text-red-800"
+  //         >
+  //           Clear
+  //         </button>
+  //       </div>
+  //       <div className="mb-4">
+  //         <p><strong>Project ID:</strong> {projectId || 'None'}</p>
+  //         <p><strong>Upload Status:</strong> {uploadStatus || 'None'}</p>
+  //         <p><strong>Processing:</strong> {isProcessing ? 'Yes' : 'No'}</p>
+  //         <p><strong>Processing Status:</strong> {processingStatus || 'N/A'}</p>
+  //         <p><strong>Processing Progress:</strong> {processingProgress}%</p>
+  //         <p><strong>Processing Complete:</strong> {processingComplete ? 'Yes' : 'No'}</p>
+  //       </div>
+  //       <div className="border rounded max-h-48 overflow-y-auto bg-gray-800 text-white p-2 font-mono text-xs">
+  //         {debugMessages.map((entry, index) => (
+  //           <div key={index} className="mb-1">
+  //             <span className="text-gray-400">[{entry.timestamp}]</span> {entry.message}
+  //           </div>
+  //         ))}
+  //         {debugMessages.length === 0 && <p>No debug messages</p>}
+  //       </div>
+  //     </div>
+  //   );
+  // };
 
   return (
     <div className="py-16 px-8 bg-[#FFFCF6] min-h-screen w-full">
@@ -367,7 +367,7 @@ const handleFilesSelected = async (selectedFiles, status, message) => {
         />
         
         {/* Debug Panel */}
-        <DebugPanel />
+        {/* <DebugPanel /> */}
       </div>
     </div>
   );
