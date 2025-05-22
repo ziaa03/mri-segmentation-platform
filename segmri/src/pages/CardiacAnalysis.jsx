@@ -42,8 +42,8 @@ const CardiacAnalysisPage = () => {
   // Image navigation states
   const [currentTimeIndex, setCurrentTimeIndex] = useState(0);
   const [currentLayerIndex, setCurrentLayerIndex] = useState(0);
-  const [maxTimeIndex, setMaxTimeIndex] = useState(20);
-  const [maxLayerIndex, setMaxLayerIndex] = useState(30);
+  const [maxTimeIndex, setMaxTimeIndex] = useState(0);
+  const [maxLayerIndex, setMaxLayerIndex] = useState(0);
   
   // Processing states
   const [isProcessing, setIsProcessing] = useState(false);
@@ -68,184 +68,75 @@ const CardiacAnalysisPage = () => {
     DebugLogger.log('CardiacAnalysisPage', message);
   }, []);
 
-  // Function to setup demo data
-  const setupDemoData = useCallback(() => {
-    addDebugMessage('Setting up demo segmentation data...');
-
-    // Set up hardcoded segment items
-    const demoSegmentItems = [
-      {
-        id: 'lv_endo',
-        name: 'LV Endocardium',
-        color: '#FF6B6B',
-        confidenceScore: 0.94,
-        volume: 68.2,
-        area: 15.3,
-        visible: true
-      },
-      {
-        id: 'lv_epi',
-        name: 'LV Epicardium',
-        color: '#4ECDC4',
-        confidenceScore: 0.91,
-        volume: 134.7,
-        area: 28.6,
-        visible: true
-      },
-      {
-        id: 'rv_endo',
-        name: 'RV Endocardium',
-        color: '#45B7D1',
-        confidenceScore: 0.89,
-        volume: 72.1,
-        area: 18.9,
-        visible: true
-      },
-      {
-        id: 'la',
-        name: 'Left Atrium',
-        color: '#F7DC6F',
-        confidenceScore: 0.87,
-        volume: 45.3,
-        area: 12.1,
-        visible: false
-      },
-      {
-        id: 'ra',
-        name: 'Right Atrium',
-        color: '#BB8FCE',
-        confidenceScore: 0.85,
-        volume: 41.8,
-        area: 11.7,
-        visible: false
-      },
-      {
-        id: 'aorta',
-        name: 'Ascending Aorta',
-        color: '#F1948A',
-        confidenceScore: 0.92,
-        volume: 8.4,
-        area: 3.2,
-        visible: false
-      }
-    ];
-
-    setSegmentItems(demoSegmentItems);
-    addDebugMessage(`Set ${demoSegmentItems.length} segment items`);
-
-    // Create dummy segmentation masks
-    const width = 64;
-    const height = 64;
-
-    const createDummyCircleMask = () =>
-      Array.from({ length: height }, (_, y) =>
-        Array.from({ length: width }, (_, x) =>
-          (x - 32) ** 2 + (y - 32) ** 2 < 400 ? 1 : 0
-        )
-      );
-
-    const demoSegmentationData = {
-      lv_endo: createDummyCircleMask(),
-      lv_epi: createDummyCircleMask(),
-      rv_endo: createDummyCircleMask(),
-      la: createDummyCircleMask(),
-      ra: createDummyCircleMask(),
-      aorta: createDummyCircleMask(),
-    };
-
-    setSegmentationData(demoSegmentationData);
-    addDebugMessage('Created dummy segmentation masks');
-
-    // Mark processing as complete
-    setProcessingComplete(true);
-    setIsProcessing(false);
-    addDebugMessage('Demo setup complete - processingComplete set to true');
-  }, [addDebugMessage]);
-
   // Function to handle file selection and upload initiation
-  const handleFilesSelected = async (selectedFiles, status, message) => {
-    addDebugMessage(`File selection: status=${status}, files=${selectedFiles.length}`);
+const handleFilesSelected = async (selectedFiles, status, message) => {
+  addDebugMessage(`File selection: status=${status}, files=${selectedFiles.length}`);
 
-    if (status === 'error') {
-      setUploadStatus('error');
-      setErrorMessage(message);
-      addDebugMessage(`File selection error: ${message}`);
-      return;
-    }
+  if (status === 'error') {
+    setUploadStatus('error');
+    setErrorMessage(message);
+    addDebugMessage(`File selection error: ${message}`);
+    return;
+  }
 
-    setUploadStatus('uploading');
-    setErrorMessage('');
-    setFiles(selectedFiles);
-    setIsProcessing(true);
-    setProcessingComplete(false);
+  setUploadStatus('uploading');
+  setErrorMessage('');
+  setFiles(selectedFiles);
 
-    const formData = new FormData();
+  const formData = new FormData();
 
-    selectedFiles.forEach(file => {
-      formData.append('files', file);
-      addDebugMessage(`Adding file to upload: ${file.name} (${file.size} bytes)`);
+  selectedFiles.forEach(file => {
+    formData.append('files', file);  // Ensure the field name is 'files' (matches backend)
+    addDebugMessage(`Adding file to upload: ${file.name} (${file.size} bytes)`);
+  });
+
+  formData.append('name', 'Cardiac Analysis Project');
+  formData.append('description', 'Uploaded from Cardiac Analysis UI');
+
+  try {
+    addDebugMessage('Starting upload to server...');
+    
+    const response = await api.put('/project/upload-new-project', formData, {
+      withCredentials: true,  // Ensure cookies are sent with the request
     });
 
-    formData.append('name', 'Cardiac Analysis Project');
-    formData.append('description', 'Uploaded from Cardiac Analysis UI');
+    addDebugMessage('Upload completed successfully. Server response received.');
+    addDebugMessage(`Response status: ${response.status}`);
+    addDebugMessage('Response data:', response.data);
 
-    try {
-      addDebugMessage('Starting upload to server...');
-      
-      const response = await api.put('/project/upload-new-project', formData, {
-        withCredentials: true,
-      });
+    if (response.data.success) {
+      const { projectId, status } = response.data;
+      addDebugMessage(`Project ID: ${projectId}`);
+      addDebugMessage(`Project Status: ${status}`);
 
-      addDebugMessage('Upload completed successfully. Server response received.');
-      addDebugMessage(`Response status: ${response.status}`);
-      addDebugMessage('Response data:', response.data);
+      setProjectId(projectId);
+      setProjectStatus(status);  // Set status from the response
 
-      // Check if response is successful (status 200-299)
-      if (response.status >= 200 && response.status < 300) {
-        // Handle both cases: when server returns success property and when it doesn't
-        const projectId = response.data?.projectId || `demo_${Date.now()}`;
-        const status = response.data?.status || 'completed';
-        
-        addDebugMessage(`Project ID: ${projectId}`);
-        addDebugMessage(`Project Status: ${status}`);
-        addDebugMessage('Server response successful - setting up demo data');
-
-        setProjectId(projectId);
-        setProcessingStatus(status);
-        setUploadStatus('success');
-        
-        // Set up demo data after successful upload
-        addDebugMessage('Upload successful, setting up demo data...');
-        setupDemoData();
-
-      } else {
-        addDebugMessage('Server response indicates failure');
-        setErrorMessage('Server response indicates upload failure.');
-        setIsProcessing(false);
-        setProcessingComplete(false);
-      }
-    } catch (err) {
-      const errorDetail = err.response?.data || err.message || 'Unknown error';
-      DebugLogger.error('CardiacAnalysisPage', 'Upload error:', err);
-      addDebugMessage(`Upload failed: ${JSON.stringify(errorDetail)}`);
-      setUploadStatus('error');
-      setErrorMessage(err.response?.data?.message || err.message || 'Upload failed');
+      setUploadStatus('success');
+      setIsProcessing(false); // No need for polling
+    } else {
+      setErrorMessage('Server response missing project information.');
       setIsProcessing(false);
-      setProcessingComplete(false);
     }
-  };
+  } catch (err) {
+    const errorDetail = err.response?.data || err.message || 'Unknown error';
+    DebugLogger.error('CardiacAnalysisPage', 'Upload error:', err);
+    addDebugMessage(`Upload failed: ${JSON.stringify(errorDetail)}`);
+    setUploadStatus('error');
+    setErrorMessage(err.response?.data?.message || err.message || 'Upload failed');
+    setIsProcessing(false);
+  }
+};
 
   // Handlers for VisualizationControls
   const handleTimeSliderChange = (e) => {
     const newTimeIndex = parseInt(e.target.value);
     setCurrentTimeIndex(newTimeIndex);
-    addDebugMessage(`Time index changed to: ${newTimeIndex}`);
   };
 
   const handleLayerSliderChange = (e) => {
     const newLayerIndex = parseInt(e.target.value);
     setCurrentLayerIndex(newLayerIndex);
-    addDebugMessage(`Layer index changed to: ${newLayerIndex}`);
   };
 
   const handleReset = () => {
@@ -257,7 +148,6 @@ const CardiacAnalysisPage = () => {
     setIsProcessing(false);
     setProcessingComplete(false);
     setSegmentationData(null);
-    setSegmentItems([]);
     setCurrentTimeIndex(0);
     setCurrentLayerIndex(0);
     setProjectId(null);
@@ -341,7 +231,7 @@ const CardiacAnalysisPage = () => {
       
       addDebugMessage('Segmentation update successful');
       // Refresh segmentation data
-      setupDemoData();
+      fetchSegmentationData();
     } catch (error) {
       const errorDetail = error.response?.data || error.message || 'Unknown error';
       addDebugMessage(`Failed to update segmentation: ${JSON.stringify(errorDetail)}`);
@@ -372,8 +262,6 @@ const CardiacAnalysisPage = () => {
           <p><strong>Processing Status:</strong> {processingStatus || 'N/A'}</p>
           <p><strong>Processing Progress:</strong> {processingProgress}%</p>
           <p><strong>Processing Complete:</strong> {processingComplete ? 'Yes' : 'No'}</p>
-          <p><strong>Segment Items Count:</strong> {segmentItems.length}</p>
-          <p><strong>Segmentation Data:</strong> {segmentationData ? 'Available' : 'None'}</p>
         </div>
         <div className="border rounded max-h-48 overflow-y-auto bg-gray-800 text-white p-2 font-mono text-xs">
           {debugMessages.map((entry, index) => (
@@ -502,7 +390,7 @@ const CardiacAnalysisPage = () => {
         />
         
         {/* Debug Panel */}
-        <DebugPanel />
+        {/* <DebugPanel /> */}
       </div>
     </div>
   );
