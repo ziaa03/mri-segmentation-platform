@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import api from '../api/AxiosInstance'; 
+import api from '../api/AxiosInstance';
 
 // Create authentication context
 const AuthContext = createContext();
@@ -15,36 +15,31 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
-        // First attempt to access a protected route to check if we're authenticated
-        const response = await api.get('/auth/protected');
+        // Make a single call to fetch user data - this will fail if not authenticated
+        const userDataResponse = await api.get('/auth/fetch');
         
-        if (response.status === 200) {
-          try {
-            // If protected route works, fetch user details
-            const userDataResponse = await api.get('/auth/fetch');
-            
-            if (userDataResponse.data && userDataResponse.data.fetch && userDataResponse.data.user) {
-              const userData = userDataResponse.data.user;
-              setCurrentUser({
-                username: userData.username,
-                email: userData.email,
-                phone: userData.phone,
-                role: userData.role
-              });
-              setUserRole(userData.role || 'user');
-            }
-          } catch (fetchError) {
-            console.error('Error fetching user data:', fetchError);
-            // Even if fetch fails, we're still authenticated
-            setCurrentUser({ username: 'authenticated-user' });
-            setUserRole('user');
-          }
+        if (userDataResponse.data && userDataResponse.data.fetch && userDataResponse.data.user) {
+          const userData = userDataResponse.data.user;
+          setCurrentUser({
+            username: userData.username,
+            email: userData.email,
+            phone: userData.phone,
+            role: userData.role
+          });
+          setUserRole(userData.role || 'user');
         }
       } catch (error) {
-        console.error('Auth status check failed:', error);
-        // If the request fails, the user is not logged in
-        setCurrentUser(null);
-        setUserRole('guest');
+        // Handle based on status code
+        if (error.response?.status === 401) {
+          // User is not authenticated
+          setCurrentUser(null);
+          setUserRole('guest');
+        } else {
+          // Other error - session might be valid but fetch failed
+          console.error('Error checking auth status:', error.message || 'Unknown error');
+          setCurrentUser(null);
+          setUserRole('guest');
+        }
       } finally {
         setLoading(false);
       }
@@ -56,7 +51,6 @@ export const AuthProvider = ({ children }) => {
   // Login function
   const login = async (username, password) => {
     try {
-      // First login to get credentials established
       const response = await api.post('/auth/login', { username, password });
       const data = response.data;
   
@@ -64,24 +58,21 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Login failed');
       }
       
-      // Create a basic user object with what we know from login response
-      const basicUser = {
-        username: data.username || username,
+      // First set basic user info from login response
+      const user = {
+        username: data.username,
         role: data.role || 'user'
       };
       
-      // Set current user immediately with basic info
-      setCurrentUser(basicUser);
-      setUserRole(basicUser.role);
+      setCurrentUser(user);
+      setUserRole(user.role);
       
+      // Try to fetch full user details in the background
       try {
-        // Then try to fetch complete user data
         const userDataResponse = await api.get('/auth/fetch');
         
-        if (userDataResponse.data && userDataResponse.data.fetch && userDataResponse.data.user) {
+        if (userDataResponse.data?.fetch && userDataResponse.data?.user) {
           const userData = userDataResponse.data.user;
-          
-          // Update with full details if available
           const fullUser = {
             username: userData.username,
             email: userData.email,
@@ -95,13 +86,13 @@ export const AuthProvider = ({ children }) => {
           return { success: true, user: fullUser };
         }
       } catch (fetchError) {
-        console.error('User data fetch failed:', fetchError);
+        // Just log this error but don't fail the login
+        console.error('Additional user data fetch failed:', fetchError.message || 'Unknown error');
       }
       
-      // Return success with whatever user info we have
-      return { success: true, user: basicUser };
+      // Return success with basic user info if full fetch failed
+      return { success: true, user };
     } catch (error) {
-      console.error('Login failed:', error);
       return {
         success: false,
         error: error.response?.data?.message || error.message || 'Login failed. Please try again.'
@@ -130,7 +121,6 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true, user };
     } catch (error) {
-      console.error('Guest login failed:', error);
       return {
         success: false,
         error: error.response?.data?.message || error.message || 'Guest login failed. Please try again.'
@@ -141,12 +131,11 @@ export const AuthProvider = ({ children }) => {
   // Logout function
   const logout = async () => {
     try {
-      // Call logout endpoint to invalidate the session on the server
       await api.post('/auth/logout');
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error('Logout error:', error.message || 'Unknown error');
     } finally {
-      // Reset state
+      // Reset state regardless of server response
       setCurrentUser(null);
       setUserRole('guest');
     }
