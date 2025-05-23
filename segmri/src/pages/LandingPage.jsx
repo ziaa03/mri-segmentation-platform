@@ -89,7 +89,7 @@ import BrushMaskCanvas from '../pages/Brush';
 
         <div>
       <h1>Segmentation Mask Test</h1>
-      <BrushMaskCanvas imageSrc={sampleImage} />
+      {/* <BrushMaskCanvas imageSrc={sampleImage} /> */}
     </div>
         
         {/* Information Section with Image Slider */}
