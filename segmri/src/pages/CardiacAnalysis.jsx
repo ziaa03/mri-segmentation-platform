@@ -8,6 +8,13 @@ import AnalysisResults from '../components/AnalysisResults';
 import Notification from '../components/Notifications';
 import api from '../api/AxiosInstance';
 
+import { 
+  processAndUploadMasks, 
+  batchUploadAllMasks,
+  uploadMaskToS3,
+  decodeRLE 
+} from '../utils/RLE-Decoder';
+
 // Add a debug logger utility
 const DebugLogger = {
   isDebugMode: true, // Set this to false in production
@@ -59,6 +66,10 @@ const CardiacAnalysisPage = () => {
   // Project data
   const [projectId, setProjectId] = useState(null);
   const [uploadedFileName, setUploadedFileName] = useState('');
+
+  //Segmentation Masks
+  const [uploadingMasks, setUploadingMasks] = useState(false);
+  const [maskUploadResults, setMaskUploadResults] = useState([]);
 
   // Debug message logging
   const addDebugMessage = useCallback((message) => {
@@ -124,6 +135,123 @@ const CardiacAnalysisPage = () => {
       throw err;
     }
   };
+
+  // Add this function to handle single mask upload
+const handleUploadCurrentMasks = async () => {
+  if (!projectId || !segmentationData) {
+    alert('No active project or segmentation data available.');
+    return;
+  }
+
+  setUploadingMasks(true);
+  addDebugMessage(`Starting mask upload for frame ${currentTimeIndex}, slice ${currentLayerIndex}`);
+
+  try {
+    const results = await processAndUploadMasks(
+      segmentationData,
+      currentTimeIndex,
+      currentLayerIndex,
+      { projectId, api }
+    );
+
+    setMaskUploadResults(prev => [...prev, ...results]);
+    
+    const successCount = results.filter(r => r.success).length;
+    const totalCount = results.length;
+    
+    addDebugMessage(`Mask upload completed: ${successCount}/${totalCount} successful`);
+    alert(`Uploaded ${successCount}/${totalCount} masks successfully`);
+
+  } catch (error) {
+    addDebugMessage(`Mask upload failed: ${error.message}`);
+    alert('Failed to upload masks: ' + error.message);
+  } finally {
+    setUploadingMasks(false);
+  }
+};
+
+// Add this function to handle batch upload of all masks
+const handleUploadAllMasks = async () => {
+  if (!projectId || !segmentationData) {
+    alert('No active project or segmentation data available.');
+    return;
+  }
+
+  const confirmUpload = window.confirm(
+    'This will upload all decoded masks to S3. This may take several minutes. Continue?'
+  );
+  
+  if (!confirmUpload) return;
+
+  setUploadingMasks(true);
+  addDebugMessage('Starting batch upload of all masks...');
+
+  try {
+    const allResults = await batchUploadAllMasks(segmentationData, projectId, api);
+    
+    // Flatten results for display
+    const flatResults = allResults.flatMap(frameResult => 
+      frameResult.results ? frameResult.results.map(r => ({
+        ...r,
+        frameIndex: frameResult.frameIndex,
+        sliceIndex: frameResult.sliceIndex
+      })) : []
+    );
+
+    setMaskUploadResults(flatResults);
+    
+    const successCount = flatResults.filter(r => r.success).length;
+    const totalCount = flatResults.length;
+    
+    addDebugMessage(`Batch upload completed: ${successCount}/${totalCount} masks uploaded`);
+    alert(`Batch upload completed: ${successCount}/${totalCount} masks uploaded successfully`);
+
+  } catch (error) {
+    addDebugMessage(`Batch upload failed: ${error.message}`);
+    alert('Batch upload failed: ' + error.message);
+  } finally {
+    setUploadingMasks(false);
+  }
+};
+
+// Add this function to handle individual mask upload (when user selects a specific mask)
+const handleUploadSelectedMask = async (maskData) => {
+  if (!projectId || !maskData.rle) {
+    alert('No project ID or mask data available.');
+    return;
+  }
+
+  setUploadingMasks(true);
+  addDebugMessage(`Uploading selected mask: ${maskData.class}`);
+
+  try {
+    // Decode the RLE data
+    const binaryMask = decodeRLE(maskData.rle, 512, 512);
+    
+    // Upload to S3
+    const result = await uploadMaskToS3(binaryMask, 512, 512, {
+      projectId,
+      frameIndex: currentTimeIndex,
+      sliceIndex: currentLayerIndex,
+      className: maskData.class,
+      format: 'png',
+      api
+    });
+
+    if (result.success) {
+      addDebugMessage(`Successfully uploaded mask: ${maskData.class} to ${result.s3Url}`);
+      alert(`Mask uploaded successfully!\nFile: ${result.filename}\nSize: ${result.size} bytes`);
+    } else {
+      throw new Error(result.error);
+    }
+
+  } catch (error) {
+    addDebugMessage(`Failed to upload selected mask: ${error.message}`);
+    alert('Failed to upload mask: ' + error.message);
+  } finally {
+    setUploadingMasks(false);
+  }
+};
 
   // Process segmentation data and set boundaries - updated to match backend structure
   const processSegmentationData = useCallback((data) => {
@@ -543,6 +671,9 @@ const CardiacAnalysisPage = () => {
                     onLayerSliderChange={handleLayerSliderChange}
                     onSave={handleSave}
                     onExport={handleExport}
+                    onUploadCurrentMasks={handleUploadCurrentMasks}
+                    onUploadAllMasks={handleUploadAllMasks}
+                    uploadingMasks={uploadingMasks}
                   />
                 </div>
 

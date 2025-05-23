@@ -1,220 +1,174 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useRef, useEffect, useState } from 'react';
+import { decodeRLE, renderMaskOnCanvas } from '../utils/RLE-Decoder';
 
 const AISegmentationDisplay = ({
+  segmentationData,
   currentTimeIndex,
   currentLayerIndex,
-  segmentationData,
-  segmentItems = [],
+  segmentItems,
   onMaskSelected,
   selectedMask
 }) => {
-  const [loading, setLoading] = useState(false);
-  const [imageSrc, setImageSrc] = useState(null);
-  const [maskSrc, setMaskSrc] = useState(null);
-  const [error, setError] = useState(null);
-  const [visibleSegments, setVisibleSegments] = useState([]);
+  const canvasRef = useRef(null);
+  const [visibleMasks, setVisibleMasks] = useState({});
 
-  // Initialize visible segments based on available segment items
-  useEffect(() => {
-    if (segmentItems.length > 0) {
-      setVisibleSegments(segmentItems.map(item => item.id));
+  // Get current slice data (matches your existing data structure)
+  const getCurrentSliceData = () => {
+    if (!segmentationData?.masks?.[currentTimeIndex]?.[currentLayerIndex]) {
+      return null;
     }
-  }, [segmentItems]);
+    return segmentationData.masks[currentTimeIndex][currentLayerIndex];
+  };
 
-  // Load image and mask when indices change
+  // Render masks when data changes
   useEffect(() => {
-    const fetchImages = async () => {
-      if (!segmentationData) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const sliceData = getCurrentSliceData();
+    if (!sliceData) return;
+
+    const ctx = canvas.getContext('2d');
+    const width = 512;
+    const height = 512;
+    
+    canvas.width = width;
+    canvas.height = height;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+    
+    // Draw background (you could load actual DICOM image here)
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, width, height);
+
+    // Render each segmentation mask
+    sliceData.segmentationMasks?.forEach(maskData => {
+      const maskId = `${maskData.class}_${currentTimeIndex}_${currentLayerIndex}`;
       
-      setLoading(true);
-      setError(null);
-      
-      try {
-        // Check if we have mask data for the current indices
-        if (segmentationData.masks && 
-            segmentationData.masks[currentTimeIndex] && 
-            segmentationData.masks[currentTimeIndex][currentLayerIndex]) {
+      // Check if mask should be visible (default to true)
+      if (visibleMasks[maskId] !== false && maskData.rle) {
+        try {
+          // Decode RLE data
+          const binaryMask = decodeRLE(maskData.rle, width, height);
           
-          // Get base image URL
-          const baseImgUrl = segmentationData.masks[currentTimeIndex][currentLayerIndex].baseImage;
+          // Get color for this class
+          const classColor = getClassColor(maskData.class);
           
-          // Get mask URL
-          const maskUrl = segmentationData.masks[currentTimeIndex][currentLayerIndex].maskImage;
+          // Render mask on canvas
+          renderMaskOnCanvas(canvas, binaryMask, width, height, classColor);
           
-          // Load both images
-          setImageSrc(baseImgUrl);
-          setMaskSrc(maskUrl);
-        } else {
-          setError('Image not available for the selected frame and slice');
+        } catch (error) {
+          console.error('Error decoding RLE for mask:', maskData.class, error);
         }
-      } catch (err) {
-        console.error('Failed to load segmentation images:', err);
-        setError('Failed to load images');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchImages();
-  }, [currentTimeIndex, currentLayerIndex, segmentationData]);
-
-  const handleSegmentToggle = (segId) => {
-    setVisibleSegments(prev => {
-      if (prev.includes(segId)) {
-        return prev.filter(id => id !== segId);
-      } else {
-        return [...prev, segId];
       }
     });
+
+  }, [segmentationData, currentTimeIndex, currentLayerIndex, visibleMasks]);
+
+  // Get class color (matches your existing color scheme)
+  const getClassColor = (className) => {
+    const classColors = {
+      'RV': '#FF6B6B',    // Red for Right Ventricle
+      'LVC': '#4ECDC4',   // Teal for Left Ventricle Cavity  
+      'MYO': '#45B7D1'    // Blue for Myocardium
+    };
+    return classColors[className] || '#FFD93D';
   };
 
-  const handleAddSegment = () => {
-    // This would typically open a dialog to add a new segment
-    alert('Add segment functionality would be implemented here');
+  // Toggle mask visibility
+  const toggleMaskVisibility = (maskId) => {
+    setVisibleMasks(prev => ({
+      ...prev,
+      [maskId]: !prev[maskId]
+    }));
   };
+
+  // Handle mask selection
+  const handleMaskClick = (maskData) => {
+    if (onMaskSelected) {
+      onMaskSelected({
+        ...maskData,
+        frameIndex: currentTimeIndex,
+        sliceIndex: currentLayerIndex
+      });
+    }
+  };
+
+  const sliceData = getCurrentSliceData();
+  const availableMasks = sliceData?.segmentationMasks || [];
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md">
-      <h3 className="text-xl font-medium mb-6 text-[#3A4454]">AI Segmentation</h3>
-      
-      {/* Image Display Area */}
-      <div className="relative w-full h-80 bg-gray-100 rounded-lg mb-6 overflow-hidden">
-        {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-200 bg-opacity-50">
-            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        )}
-        
-        {error && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <p className="text-red-500">{error}</p>
-          </div>
-        )}
-        
-        {imageSrc && (
-          <img 
-            src={imageSrc} 
-            alt={`Frame ${currentTimeIndex + 1}, Slice ${currentLayerIndex + 1}`}
-            className="absolute inset-0 w-full h-full object-contain"
-          />
-        )}
-        
-        {maskSrc && visibleSegments.length > 0 && (
-          <img 
-            src={maskSrc} 
-            alt="Segmentation mask"
-            className="absolute inset-0 w-full h-full object-contain opacity-60"
-          />
-        )}
-        
-        {/* Display bounding boxes if available */}
-        {segmentationData?.boundingBoxes && 
-         segmentationData.boundingBoxes[currentTimeIndex] && 
-         segmentationData.boundingBoxes[currentTimeIndex][currentLayerIndex] && (
-          <div className="absolute inset-0">
-            {segmentationData.boundingBoxes[currentTimeIndex][currentLayerIndex]
-              .filter(box => visibleSegments.includes(box.class))
-              .map((box, index) => (
-                <div 
-                  key={index}
-                  className="absolute border-2 border-blue-500"
-                  style={{
-                    left: `${box.x}px`,
-                    top: `${box.y}px`,
-                    width: `${box.width}px`,
-                    height: `${box.height}px`,
-                  }}
-                  onClick={() => onMaskSelected({
-                    id: box.class,
-                    boundingBox: box,
-                    timeIndex: currentTimeIndex,
-                    layerIndex: currentLayerIndex
-                  })}
-                >
-                  <div className="absolute top-0 left-0 transform -translate-y-full bg-blue-500 text-white text-xs px-1 rounded">
-                    {box.class} ({Math.round(box.confidence * 100)}%)
-                  </div>
-                </div>
-              ))
-            }
-          </div>
-        )}
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+      <div className="p-4 border-b border-gray-200">
+        <h4 className="text-lg font-medium text-gray-900">
+          AI Segmentation Display
+        </h4>
+        <p className="text-sm text-gray-600">
+          Frame: {currentTimeIndex + 1}, Slice: {currentLayerIndex + 1}
+        </p>
       </div>
-      
-      {/* Segmentation Items List */}
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <h4 className="text-sm font-medium text-gray-700">Segmentation Items</h4>
-          <span className="text-xs text-gray-500">(Click to select)</span>
+
+      <div className="p-4">
+        {/* Canvas for displaying masks */}
+        <div className="mb-4">
+          <canvas
+            ref={canvasRef}
+            className="border border-gray-300 rounded-lg cursor-pointer max-w-full h-auto"
+            style={{ backgroundColor: '#000' }}
+          />
         </div>
-        
-        <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-md">
-          {segmentItems.length === 0 ? (
-            <p className="text-sm text-gray-500 p-3">No segmentation items available</p>
-          ) : (
-            <ul className="divide-y divide-gray-200">
-              {segmentItems.map((item, index) => (
-                <li 
-                  key={index}
-                  className={`flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-gray-50 ${
-                    selectedMask?.id === item.id ? 'bg-blue-50' : ''
-                  }`}
-                  onClick={() => onMaskSelected({
-                    id: item.id,
-                    name: item.name,
-                    timeIndex: currentTimeIndex,
-                    layerIndex: currentLayerIndex
-                  })}
-                >
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={visibleSegments.includes(item.id)}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        handleSegmentToggle(item.id);
-                      }}
-                      className="mr-2 h-4 w-4 text-blue-600"
-                    />
-                    <span className="text-sm">{item.name || item.id}</span>
-                  </div>
-                  
-                  <div className="flex items-center">
+
+        {/* Mask controls */}
+        {availableMasks.length > 0 && (
+          <div className="space-y-2">
+            <h5 className="text-sm font-medium text-gray-700">Segmentation Masks:</h5>
+            {availableMasks.map((mask, index) => {
+              const maskId = `${mask.class}_${currentTimeIndex}_${currentLayerIndex}`;
+              const isVisible = visibleMasks[maskId] !== false;
+              
+              return (
+                <div key={maskId} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                  <div 
+                    className="flex items-center space-x-2 cursor-pointer"
+                    onClick={() => handleMaskClick(mask)}
+                  >
                     <div 
-                      className="h-3 w-3 rounded-full mr-1" 
-                      style={{ backgroundColor: item.color || '#3B82F6' }}
-                    ></div>
-                    <span className="text-xs text-gray-500">
-                      {item.confidenceScore ? `${Math.round(item.confidenceScore * 100)}%` : ''}
-                    </span>
+                      className="w-4 h-4 rounded"
+                      style={{ backgroundColor: getClassColor(mask.class) }}
+                    />
+                    <span className="text-sm font-medium">{mask.class}</span>
+                    {mask.confidence && (
+                      <span className="text-xs text-gray-500">
+                        ({(mask.confidence * 100).toFixed(1)}%)
+                      </span>
+                    )}
                   </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        
-        {/* Add Segment Button */}
-        <button
-          onClick={handleAddSegment}
-          className="mt-2 flex items-center text-sm text-blue-600 hover:text-blue-800"
-        >
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            className="h-4 w-4 mr-1" 
-            fill="none" 
-            viewBox="0 0 24 24" 
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Add segment
-        </button>
-      </div>
-      
-      <div className="text-xs text-gray-500 italic">
-        This panel displays AI-generated segmentation results (read-only)
+                  <button
+                    onClick={() => toggleMaskVisibility(maskId)}
+                    className={`px-2 py-1 text-xs rounded transition-colors ${
+                      isVisible 
+                        ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {isVisible ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* No masks available */}
+        {availableMasks.length === 0 && (
+          <div className="text-center py-8 text-gray-500">
+            <p>No segmentation masks available for this frame/slice</p>
+            <p className="text-sm mt-1">
+              Frame {currentTimeIndex + 1}, Slice {currentLayerIndex + 1}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
