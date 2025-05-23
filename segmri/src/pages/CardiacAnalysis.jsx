@@ -58,6 +58,7 @@ const CardiacAnalysisPage = () => {
   
   // Project data
   const [projectId, setProjectId] = useState(null);
+  const [uploadedFileName, setUploadedFileName] = useState('');
 
   // Debug message logging
   const addDebugMessage = useCallback((message) => {
@@ -65,6 +66,64 @@ const CardiacAnalysisPage = () => {
     setDebugMessages(prev => [...prev, { timestamp, message }]);
     DebugLogger.log('CardiacAnalysisPage', message);
   }, []);
+
+  // Fetch the most recent project ID after upload
+  const fetchMostRecentProject = async (uploadedFileName) => {
+    try {
+      addDebugMessage(`Fetching most recent project for file: ${uploadedFileName}`);
+      
+      const response = await api.get('/project/get-projects-list', {
+        params: {
+          // You can add filters here if needed, like name or date range
+          // For now, we'll get all projects and find the most recent one
+        }
+      });
+
+      DebugLogger.log('CardiacAnalysisPage', 'Projects list response', response.data);
+
+      if (response.data && response.data.projects && Array.isArray(response.data.projects)) {
+        const projects = response.data.projects;
+        
+        if (projects.length === 0) {
+          throw new Error('No projects found after upload');
+        }
+
+        // Find the most recent project or the one matching the uploaded filename
+        let mostRecentProject = null;
+        
+        if (uploadedFileName) {
+          // Try to find project by matching name or looking for the most recent
+          mostRecentProject = projects.find(p => 
+            p.name === uploadedFileName || 
+            p.name.includes(uploadedFileName.replace(/\.[^/.]+$/, '')) // Remove extension
+          );
+        }
+        
+        // If no match by name, get the most recent project (assuming they're sorted by date)
+        if (!mostRecentProject) {
+          mostRecentProject = projects.reduce((latest, current) => {
+            const latestDate = new Date(latest.createdAt || latest.updatedAt);
+            const currentDate = new Date(current.createdAt || current.updatedAt);
+            return currentDate > latestDate ? current : latest;
+          });
+        }
+
+        const projectId = mostRecentProject.projectId;
+        
+        if (projectId) {
+          addDebugMessage(`Found project ID: ${projectId} for file: ${uploadedFileName}`);
+          return projectId;
+        } else {
+          throw new Error('Project ID not found in project data');
+        }
+      } else {
+        throw new Error('Invalid response structure from projects list endpoint');
+      }
+    } catch (err) {
+      DebugLogger.error('CardiacAnalysisPage', 'Error fetching most recent project', err);
+      throw err;
+    }
+  };
 
   // Process segmentation data and set boundaries - updated to match backend structure
   const processSegmentationData = useCallback((data) => {
@@ -75,15 +134,27 @@ const CardiacAnalysisPage = () => {
       return;
     }
 
-    // The backend returns an array of segmentation mask documents
-    // We'll take the first one (most recent) for display
-    let segmentationDocument = null;
+    // Handle different response formats from the backend
+    let segmentationResults = null;
     
-    if (Array.isArray(data)) {
-      segmentationDocument = data[0]; // Take the first segmentation result
+    if (data.segmentations && Array.isArray(data.segmentations)) {
+      // Response format: { segmentations: [...] }
+      segmentationResults = data.segmentations;
+    } else if (Array.isArray(data)) {
+      // Response format: [...]
+      segmentationResults = data;
     } else if (data.frames) {
-      segmentationDocument = data; // Direct segmentation document
+      // Direct segmentation document
+      segmentationResults = [data];
     }
+
+    if (!segmentationResults || segmentationResults.length === 0) {
+      DebugLogger.error('CardiacAnalysisPage', 'No segmentation results found in data');
+      return;
+    }
+
+    // Take the first (most recent) segmentation result
+    const segmentationDocument = segmentationResults[0];
 
     if (!segmentationDocument || !segmentationDocument.frames) {
       DebugLogger.error('CardiacAnalysisPage', 'Invalid segmentation data structure');
@@ -162,70 +233,64 @@ const CardiacAnalysisPage = () => {
   }, [addDebugMessage]);
 
   // Handle file upload and start segmentation
-  // Handle file upload and start segmentation
-const handleFilesSelected = async (selectedFiles, status, message) => {
-  if (status === 'error') {
-    setUploadStatus('error');
-    setErrorMessage(message);
-    return;
-  }
-
-  setUploadStatus('uploading');
-  setFiles(selectedFiles);
-  addDebugMessage(`Starting upload of ${selectedFiles.length} files`);
-
-  const formData = new FormData();
-  selectedFiles.forEach(file => formData.append('files', file));
-
-  try {
-    const response = await api.put('/project/upload-new-project', formData, {
-      withCredentials: true,
-    });
-
-    // Check for success in multiple ways since backend might return different formats
-    const isSuccess = response.data.success === true || 
-                     response.status === 200 || 
-                     (response.data.message && response.data.message.includes('successfully'));
-    
-    if (isSuccess) {
-      // Extract project ID from the response structure
-      let projectId = null;
-      
-      // Check different possible locations for project ID
-      if (response.data.projectId) {
-        projectId = response.data.projectId;
-      } else if (response.data.project_id) {
-        projectId = response.data.project_id;
-      } else if (response.data.projects && Array.isArray(response.data.projects) && response.data.projects.length > 0) {
-        // Project ID is in the projects array
-        const project = response.data.projects[0];
-        projectId = project._id || project.id || project.projectId || project.project_id;
-      }
-      
-      if (projectId) {
-        setProjectId(projectId);
-        addDebugMessage(`Upload successful, project ID: ${projectId}`);
-
-        setUploadStatus('processing');
-        setIsProcessing(true);
-        
-        // Trigger segmentation after file upload
-        await triggerSegmentation(projectId);
-      } else {
-        // Success but no project ID found - log the full response structure for debugging
-        DebugLogger.log('CardiacAnalysisPage', 'Upload successful but no project ID found', response.data);
-        console.log('Full response structure:', JSON.stringify(response.data, null, 2));
-        throw new Error('Upload succeeded but no project ID was returned. Please check the response structure in console logs.');
-      }
-    } else {
-      throw new Error('Upload failed: ' + (response.data.message || 'Unknown error'));
+  const handleFilesSelected = async (selectedFiles, status, message) => {
+    if (status === 'error') {
+      setUploadStatus('error');
+      setErrorMessage(message);
+      return;
     }
-  } catch (err) {
-    setUploadStatus('error');
-    setErrorMessage(err.message);
-    DebugLogger.error('CardiacAnalysisPage', 'Upload failed', err);
-  }
-};
+
+    setUploadStatus('uploading');
+    setFiles(selectedFiles);
+    const fileName = selectedFiles[0]?.name || '';
+    setUploadedFileName(fileName);
+    addDebugMessage(`Starting upload of ${selectedFiles.length} files`);
+
+    const formData = new FormData();
+    selectedFiles.forEach(file => formData.append('files', file));
+
+    try {
+      const response = await api.put('/project/upload-new-project', formData, {
+        withCredentials: true,
+      });
+
+      DebugLogger.log('CardiacAnalysisPage', 'Upload response', response.data);
+
+      // Check for success in multiple ways since backend might return different formats
+      const isSuccess = response.data.success === true || 
+                       response.status === 200 || 
+                       (response.data.message && response.data.message.includes('successfully'));
+      
+      if (isSuccess) {
+        addDebugMessage('Upload successful, fetching project ID...');
+        
+        // Wait a moment for the database to be updated
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Fetch the actual project ID using the projects list endpoint
+        const projectId = await fetchMostRecentProject(fileName);
+        
+        if (projectId) {
+          setProjectId(projectId);
+          addDebugMessage(`Project ID obtained: ${projectId}`);
+
+          setUploadStatus('processing');
+          setIsProcessing(true);
+          
+          // Trigger segmentation after getting the project ID
+          await triggerSegmentation(projectId);
+        } else {
+          throw new Error('Could not obtain project ID after upload');
+        }
+      } else {
+        throw new Error('Upload failed: ' + (response.data.message || 'Unknown error'));
+      }
+    } catch (err) {
+      setUploadStatus('error');
+      setErrorMessage(err.message);
+      DebugLogger.error('CardiacAnalysisPage', 'Upload/Project ID fetch failed', err);
+    }
+  };
 
   // Trigger Segmentation
   const triggerSegmentation = async (projectId) => {
@@ -234,11 +299,8 @@ const handleFilesSelected = async (selectedFiles, status, message) => {
     try {
       DebugLogger.log('CardiacAnalysisPage', `Making POST request to /segmentation/start-segmentation/${projectId}`);
       
-      // Since your backend uses :projectId as a URL parameter, we need to send the request body
-      // but the projectId is already in the URL path
       const response = await api.post(`/segmentation/start-segmentation/${projectId}`, {
-        // Add any additional data your backend might expect in the request body
-        projectId: projectId // Some backends expect this in both URL and body
+        projectId: projectId
       });
       
       DebugLogger.log('CardiacAnalysisPage', 'Segmentation start response', response.data);
@@ -289,7 +351,14 @@ const handleFilesSelected = async (selectedFiles, status, message) => {
         const response = await api.get(`/segmentation/segmentation-results/${projectId}`);
         DebugLogger.log('CardiacAnalysisPage', `Poll attempt ${attempt} response`, response.data);
         
-        if (response.data && (Array.isArray(response.data) ? response.data.length > 0 : response.data.frames)) {
+        // Check if we have segmentation results
+        const hasResults = response.data && (
+          (response.data.segmentations && Array.isArray(response.data.segmentations) && response.data.segmentations.length > 0) ||
+          (Array.isArray(response.data) && response.data.length > 0) ||
+          (response.data.frames && Array.isArray(response.data.frames))
+        );
+        
+        if (hasResults) {
           addDebugMessage(`Segmentation results found on attempt ${attempt}`);
           return response.data;
         } else {
@@ -368,6 +437,7 @@ const handleFilesSelected = async (selectedFiles, status, message) => {
     setSelectedMask(null);
     setSegmentItems([]);
     setDebugMessages([]);
+    setUploadedFileName('');
     addDebugMessage('Application reset');
   };
 
@@ -379,9 +449,9 @@ const handleFilesSelected = async (selectedFiles, status, message) => {
     }
 
     try {
-      await api.patch('/save-project', {
+      await api.patch('/project/save-project', {
         projectId: projectId,
-        isSaved: true // Mark as saved
+        isSaved: true
       });
       alert('Project saved successfully.');
       addDebugMessage('Project saved successfully');
