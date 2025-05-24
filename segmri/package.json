@@ -17,6 +17,7 @@
     "daikon": "^1.2.46",
     "framer-motion": "^12.7.3",
     "heroicons": "^2.2.0",
+    "js-untar": "^2.0.0",
     "lucide-react": "^0.501.0",
     "nifti-reader-js": "^0.8.0",
     "react": "^19.1.0",

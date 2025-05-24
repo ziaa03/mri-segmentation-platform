@@ -1,6 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Eye, EyeOff, Download, Upload, Info, RotateCcw, ZoomIn, ZoomOut, Play, Pause, Grid, Layers } from 'lucide-react';
-import Untar from "untar.js";
 
 // Enhanced RLE Decoder utility functions
 const decodeRLE = (rleString, height, width) => {
@@ -172,6 +171,55 @@ const fetchPresignedUrl = async (projectId) => {
   }
 };
 
+// Simple TAR file parser for browser environment
+const parseTarFile = (buffer) => {
+  const files = [];
+  const view = new Uint8Array(buffer);
+  let offset = 0;
+  
+  while (offset < view.length) {
+    // TAR header is 512 bytes
+    const header = view.slice(offset, offset + 512);
+    
+    // Check if we've reached the end (two consecutive zero blocks)
+    if (header.every(byte => byte === 0)) {
+      break;
+    }
+    
+    // Extract filename (first 100 bytes, null-terminated)
+    let nameBytes = header.slice(0, 100);
+    let nameEnd = nameBytes.indexOf(0);
+    if (nameEnd === -1) nameEnd = 100;
+    const name = new TextDecoder().decode(nameBytes.slice(0, nameEnd));
+    
+    // Extract file size (124-135, octal string)
+    const sizeBytes = header.slice(124, 135);
+    const sizeStr = new TextDecoder().decode(sizeBytes).replace(/\0/g, '').trim();
+    const size = parseInt(sizeStr, 8) || 0;
+    
+    // Extract file type (156th byte)
+    const typeFlag = header[156];
+    const isRegularFile = typeFlag === 0 || typeFlag === 48; // '0' in ASCII
+    
+    offset += 512; // Move past header
+    
+    if (isRegularFile && size > 0 && name) {
+      // Extract file data
+      const fileData = view.slice(offset, offset + size);
+      files.push({
+        name: name,
+        buffer: fileData.buffer.slice(fileData.byteOffset, fileData.byteOffset + fileData.byteLength),
+        size: size
+      });
+    }
+    
+    // Move to next file (pad to 512-byte boundary)
+    offset += Math.ceil(size / 512) * 512;
+  }
+  
+  return files;
+};
+
 const fetchAndExtractTarFile = async (presignedUrl) => {
   console.log('=== FETCHING TAR FILE ===');
   console.log('Presigned URL:', presignedUrl);
@@ -185,7 +233,8 @@ const fetchAndExtractTarFile = async (presignedUrl) => {
     const arrayBuffer = await response.arrayBuffer();
     console.log('Tar file downloaded, size:', arrayBuffer.byteLength);
     
-    const extractedFiles = await Untar.extractFromBuffer(arrayBuffer);
+    // Use custom TAR parser
+    const extractedFiles = parseTarFile(arrayBuffer);
     console.log('Files extracted:', extractedFiles.length);
     
     // Filter for image files (JPEG, PNG, etc.)
