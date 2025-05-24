@@ -13,6 +13,7 @@
     "@ant-design/icons": "^6.0.0",
     "antd": "^5.24.6",
     "axios": "^1.9.0",
+    "daikon": "^1.2.46",
     "framer-motion": "^12.7.3",
     "heroicons": "^2.2.0",
     "lucide-react": "^0.501.0",
@@ -21,7 +22,8 @@
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.5.1",
     "react-tooltip": "^5.28.1",
-    "swiper": "^11.2.6"
+    "swiper": "^11.2.6",
+    "untar.js": "^0.3.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",

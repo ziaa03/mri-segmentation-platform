@@ -304,7 +304,7 @@ const FileUpload = ({
                     Drop files here or click to browse
                   </p>
                   <p className="text-sm text-gray-500">
-                    Supports DICOM (.dcm), NIfTI (.nii, .nii.gz), MetaImage (.mha, .mhd)
+                    Supports DICOM (.dcm), NIfTI (.nii, .nii.gz)
                   </p>
                 </div>
               )}
@@ -320,9 +320,6 @@ const FileUpload = ({
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
                   <div>• DICOM (.dcm) - Medical imaging standard</div>
                   <div>• NIfTI (.nii, .nii.gz) - Neuroimaging format</div>
-                  <div>• MetaImage (.mha, .mhd) - ITK format</div>
-                  <div>• JPEG (.jpg, .jpeg) - Converted images</div>
-                  <div>• PNG (.png) - Converted images</div>
                   <div>• Max size: {maxSizeMB}MB per file</div>
                 </div>
               </div>

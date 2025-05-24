@@ -1,5 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Eye, EyeOff, Download, Upload, Info, RotateCcw, ZoomIn, ZoomOut, Play, Pause, Grid, Layers } from 'lucide-react';
+import Untar from "untar.js";
+import * as daikon from "daikon";
 
 // Enhanced RLE Decoder utility functions
 const decodeRLE = (rleString, height, width) => {
@@ -145,25 +147,6 @@ const renderMaskOnCanvas = (canvas, binaryMask, width, height, color, opacity = 
   }
 };
 
-// Test function to validate RLE decoding with your data
-const testRLEDecoding = () => {
-  const testRLE = "23673 3 23927 12 24182 18 24437 23 24693 25";
-  const mask = decodeRLE(testRLE, 512, 512);
-  
-  console.log('Test Results:');
-  console.log('- Total pixels:', 512 * 512);
-  console.log('- Filled pixels:', mask.reduce((sum, pixel) => sum + pixel, 0));
-  console.log('- Fill percentage:', ((mask.reduce((sum, pixel) => sum + pixel, 0) / (512 * 512)) * 100).toFixed(2) + '%');
-  
-  // Check some specific positions
-  const positions = [23673, 23674, 23675, 23676, 23927];
-  positions.forEach(pos => {
-    console.log(`- Position ${pos}: ${mask[pos] ? 'filled' : 'empty'}`);
-  });
-  
-  return mask;
-};
-
 const AISegmentationDisplay = ({
   segmentationData,
   currentTimeIndex,
@@ -171,7 +154,8 @@ const AISegmentationDisplay = ({
   segmentItems,
   onMaskSelected,
   selectedMask,
-  onUploadSelectedMask
+  onUploadSelectedMask,
+  projectId
 }) => {
   const canvasRef = useRef(null);
   const overlayCanvasRef = useRef(null);
@@ -185,6 +169,50 @@ const AISegmentationDisplay = ({
   const [showGrid, setShowGrid] = useState(false);
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
   const [playSpeed, setPlaySpeed] = useState(500);
+
+  // PRESIGNED URL for DICOM images
+  // State for DICOM images
+  const [dicomImages, setDicomImages] = useState([]);
+  const [dicomLoading, setDicomLoading] = useState(false);
+
+  // Fetch and extract DICOMs on mount or when projectId changes
+  useEffect(() => {
+    if (!projectId) return;
+    setDicomLoading(true);
+
+    // Use Axios instead of fetch
+    api.get(`/project/get-project-presigned-url`, {
+      params: { projectId },
+      withCredentials: true
+    })
+      .then(async response => {
+        const data = response.data;
+        if (!data.success) throw new Error("Failed to get presigned URL");
+        // Download TAR file as ArrayBuffer
+        const tarRes = await fetch(data.presignedUrl);
+        const tarBuffer = await tarRes.arrayBuffer();
+
+        // Extract TAR in browser
+        const files = await Untar(tarBuffer);
+        const dicomFiles = files.filter(f => f.name.endsWith(".dcm"));
+
+        // Parse DICOMs using daikon
+        const images = [];
+        for (const file of dicomFiles) {
+          try {
+            const data = new DataView(file.buffer);
+            const image = daikon.Series.parseImage(new daikon.File([data]));
+            if (image) images.push(image);
+          } catch (e) {
+            // skip invalid files
+          }
+        }
+        setDicomImages(images);
+        setDicomLoading(false);
+      })
+      .catch(() => setDicomLoading(false));
+  }, [projectId]);
+
 
   // Get current slice data with proper error handling
   const getCurrentSliceData = () => {
@@ -222,57 +250,28 @@ const AISegmentationDisplay = ({
 
   // Enhanced background rendering with realistic cardiac imaging simulation
   const renderBackground = useCallback((ctx, width, height) => {
-  console.log('Rendering background:', { width, height });
-  
-  // Clear canvas with a visible background
-  ctx.fillStyle = '#2a2a2a'; // Dark gray background
-  ctx.fillRect(0, 0, width, height);
-  
-  // Add a border to make canvas boundaries visible
-  ctx.strokeStyle = '#4a4a4a';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(1, 1, width - 2, height - 2);
-  
-  // Create a more visible cardiac structure simulation
-  ctx.save();
-  ctx.translate(width/2, height/2);
-  
-  // Main heart outline
-  ctx.strokeStyle = 'rgba(100, 100, 100, 0.5)';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.ellipse(0, 0, 120, 100, 0, 0, 2 * Math.PI);
-  ctx.stroke();
-  
-  // Left ventricle
-  ctx.beginPath();
-  ctx.ellipse(-30, -20, 60, 50, 0, 0, 2 * Math.PI);
-  ctx.stroke();
-  
-  // Right ventricle
-  ctx.beginPath();
-  ctx.ellipse(30, -20, 50, 40, 0, 0, 2 * Math.PI);
-  ctx.stroke();
-  
-  // Add crosshairs for reference
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(-width/2, 0);
-  ctx.lineTo(width/2, 0);
-  ctx.moveTo(0, -height/2);
-  ctx.lineTo(0, height/2);
-  ctx.stroke();
-  
-  ctx.restore();
-  
-  // Add coordinate reference in corner
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-  ctx.font = '12px Arial';
-  ctx.fillText(`${width}x${height}`, 10, height - 10);
-  
-  console.log('Background rendered successfully');
-}, []);
+    if (dicomImages.length > 0) {
+      // Pick the correct slice (e.g., currentLayerIndex)
+      const image = dicomImages[currentLayerIndex % dicomImages.length];
+      if (image) {
+        // Convert pixel data to ImageData and draw
+        const pixels = image.getInterpretedData();
+        const imgData = ctx.createImageData(width, height);
+        for (let i = 0; i < pixels.length; i++) {
+          const val = pixels[i];
+          imgData.data[i * 4 + 0] = val; // R
+          imgData.data[i * 4 + 1] = val; // G
+          imgData.data[i * 4 + 2] = val; // B
+          imgData.data[i * 4 + 3] = 255; // A
+        }
+        ctx.putImageData(imgData, 0, 0);
+        return;
+      }
+    }
+    // fallback: draw gray background
+    ctx.fillStyle = "#2a2a2a";
+    ctx.fillRect(0, 0, width, height);
+  }, [dicomImages, currentLayerIndex]);
 
   // Main render function
   const renderCanvas = useCallback(() => {
