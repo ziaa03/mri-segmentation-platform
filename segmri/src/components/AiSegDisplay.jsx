@@ -1,7 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Eye, EyeOff, Download, Upload, Info, RotateCcw, ZoomIn, ZoomOut, Play, Pause, Grid, Layers } from 'lucide-react';
 import Untar from "untar.js";
-import * as nifti from "nifti-reader-js";
 
 // Enhanced RLE Decoder utility functions
 const decodeRLE = (rleString, height, width) => {
@@ -147,7 +146,7 @@ const renderMaskOnCanvas = (canvas, binaryMask, width, height, color, opacity = 
   }
 };
 
-// MRI Data Loading Functions
+// Enhanced Medical Image Loading Functions
 const fetchPresignedUrl = async (projectId) => {
   try {
     const response = await fetch(`/project/get-project-presigned-url?projectId=${projectId}`, {
@@ -189,119 +188,149 @@ const fetchAndExtractTarFile = async (presignedUrl) => {
     const extractedFiles = await Untar.extractFromBuffer(arrayBuffer);
     console.log('Files extracted:', extractedFiles.length);
     
-    // Filter for NIfTI files
-    const niftiFiles = extractedFiles.filter(file => 
+    // Filter for image files (JPEG, PNG, etc.)
+    const imageFiles = extractedFiles.filter(file => 
       file.name && (
-        file.name.toLowerCase().endsWith('.nii') ||
-        file.name.toLowerCase().endsWith('.nii.gz') ||
-        file.name.toLowerCase().includes('.nii')
+        file.name.toLowerCase().endsWith('.jpg') ||
+        file.name.toLowerCase().endsWith('.jpeg') ||
+        file.name.toLowerCase().endsWith('.png')
       )
     );
     
-    console.log('NIfTI files found:', niftiFiles.length);
-    console.log('Sample file names:', niftiFiles.slice(0, 5).map(f => f.name));
+    console.log('Image files found:', imageFiles.length);
+    console.log('Sample file names:', imageFiles.slice(0, 5).map(f => f.name));
     
-    return niftiFiles;
+    return imageFiles;
   } catch (error) {
     console.error('Error fetching/extracting tar file:', error);
     throw error;
   }
 };
 
-const loadNiftiImage = async (niftiFile) => {
+const processExtractedImages = (extractedFiles) => {
+  console.log('=== PROCESSING EXTRACTED IMAGES ===');
+  
   try {
-    console.log('Loading NIfTI file:', niftiFile.name);
+    const processedImages = extractedFiles
+      .filter(file => file.name.endsWith('.jpg') || file.name.endsWith('.jpeg'))
+      .map(file => {
+        // Parse the filename pattern: {user_id}_{file_hash}_{frame_idx}_{slice_idx}.jpg
+        const parts = file.name.split('_');
+        
+        if (parts.length < 4) {
+          console.warn(`Unexpected filename format: ${file.name}`);
+          return null;
+        }
+        
+        const frameIdx = parseInt(parts[parts.length - 2]);
+        const sliceIdx = parseInt(parts[parts.length - 1].split('.')[0]);
+        
+        if (isNaN(frameIdx) || isNaN(sliceIdx)) {
+          console.warn(`Could not parse indices from filename: ${file.name}`);
+          return null;
+        }
+        
+        // Create blob URL for the image
+        const blob = new Blob([file.buffer], { type: 'image/jpeg' });
+        const url = URL.createObjectURL(blob);
+        
+        return {
+          name: file.name,
+          frame: frameIdx,
+          slice: sliceIdx,
+          url: url,
+          blob: blob,
+          size: file.buffer.byteLength
+        };
+      })
+      .filter(Boolean) // Remove null entries
+      .sort((a, b) => {
+        // Sort by frame then slice
+        if (a.frame !== b.frame) return a.frame - b.frame;
+        return a.slice - b.slice;
+      });
     
-    // Parse NIfTI header
-    const header = nifti.readHeader(niftiFile.buffer);
-    if (!header) {
-      throw new Error('Failed to parse NIfTI header');
-    }
-    
-    // Parse NIfTI image data
-    const image = nifti.readImage(header, niftiFile.buffer);
-    if (!image) {
-      throw new Error('Failed to parse NIfTI image data');
-    }
-    
-    console.log('NIfTI parsed successfully:', {
-      dims: header.dims,
-      pixDims: header.pixDims,
-      datatype: header.datatypeCode
+    console.log('Processed images:', {
+      total: processedImages.length,
+      frames: [...new Set(processedImages.map(img => img.frame))],
+      slices: [...new Set(processedImages.map(img => img.slice))],
+      sampleNames: processedImages.slice(0, 3).map(img => img.name)
     });
     
-    return { header, data: image };
+    return processedImages;
   } catch (error) {
-    console.error('Error loading NIfTI:', error);
-    throw error;
+    console.error('Error processing extracted images:', error);
+    return [];
   }
 };
 
-const renderNiftiToCanvas = (ctx, niftiImage, width, height, sliceIndex = 0) => {
-  try {
-    console.log('Rendering NIfTI to canvas');
-    
-    const { header, data } = niftiImage;
-    const [, cols, rows, slices] = header.dims;
-    
-    console.log('NIfTI dimensions:', { cols, rows, slices, dataLength: data.length });
-    
-    // Calculate slice offset
-    const sliceSize = cols * rows;
-    const actualSliceIndex = Math.min(sliceIndex, slices - 1);
-    const sliceOffset = actualSliceIndex * sliceSize;
-    
-    // Create canvas image data
-    const canvas = ctx.createImageData(width, height);
-    const canvasData = canvas.data;
-    
-    // Calculate scaling factors
-    const scaleX = cols / width;
-    const scaleY = rows / height;
-    
-    // Find min/max values for windowing in current slice
-    let min = Infinity, max = -Infinity;
-    for (let i = sliceOffset; i < sliceOffset + sliceSize; i++) {
-      if (i < data.length) {
-        if (data[i] < min) min = data[i];
-        if (data[i] > max) max = data[i];
+const renderImageToCanvas = (ctx, imageUrl, width, height, callback) => {
+  console.log('=== RENDERING IMAGE TO CANVAS ===');
+  console.log('Image URL:', imageUrl);
+  console.log('Canvas dimensions:', { width, height });
+  
+  const img = new Image();
+  
+  img.onload = () => {
+    try {
+      console.log('Image loaded:', {
+        naturalWidth: img.naturalWidth,
+        naturalHeight: img.naturalHeight,
+        targetSize: `${width}x${height}`
+      });
+      
+      // Clear canvas
+      ctx.clearRect(0, 0, width, height);
+      
+      // Set black background
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, width, height);
+      
+      // Calculate scaling to fit image while maintaining aspect ratio
+      const imgAspect = img.naturalWidth / img.naturalHeight;
+      const canvasAspect = width / height;
+      
+      let drawWidth, drawHeight, offsetX, offsetY;
+      
+      if (imgAspect > canvasAspect) {
+        // Image is wider - fit to width
+        drawWidth = width;
+        drawHeight = width / imgAspect;
+        offsetX = 0;
+        offsetY = (height - drawHeight) / 2;
+      } else {
+        // Image is taller - fit to height
+        drawWidth = height * imgAspect;
+        drawHeight = height;
+        offsetX = (width - drawWidth) / 2;
+        offsetY = 0;
       }
+      
+      // Draw the image
+      ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+      
+      console.log('✅ Image rendered successfully:', {
+        drawSize: `${Math.round(drawWidth)}x${Math.round(drawHeight)}`,
+        offset: `${Math.round(offsetX)}, ${Math.round(offsetY)}`
+      });
+      
+      if (callback) callback();
+      
+    } catch (error) {
+      console.error('Error rendering image:', error);
+      renderFallbackBackground(ctx, width, height);
+      if (callback) callback();
     }
-    
-    const range = max - min;
-    console.log('NIfTI value range:', { min, max, range, slice: actualSliceIndex });
-    
-    // Map NIfTI data to canvas
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const srcX = Math.floor(x * scaleX);
-        const srcY = Math.floor(y * scaleY);
-        const srcIndex = sliceOffset + srcY * cols + srcX;
-        
-        if (srcIndex < data.length) {
-          // Normalize to 0-255
-          const normalized = range > 0 ? ((data[srcIndex] - min) / range) * 255 : 0;
-          const pixelValue = Math.max(0, Math.min(255, Math.floor(normalized)));
-          
-          const canvasIndex = (y * width + x) * 4;
-          canvasData[canvasIndex] = pixelValue;     // Red
-          canvasData[canvasIndex + 1] = pixelValue; // Green
-          canvasData[canvasIndex + 2] = pixelValue; // Blue
-          canvasData[canvasIndex + 3] = 255;       // Alpha
-        }
-      }
-    }
-    
-    ctx.putImageData(canvas, 0, 0);
-    console.log('NIfTI rendered successfully');
-    
-  } catch (error) {
-    console.error('Error rendering NIfTI:', error);
+  };
+  
+  img.onerror = (error) => {
+    console.error('Error loading image:', error);
     renderFallbackBackground(ctx, width, height);
-  }
+    if (callback) callback();
+  };
+  
+  img.src = imageUrl;
 };
-
-
 
 const renderFallbackBackground = (ctx, width, height) => {
   console.log('Rendering fallback background');
@@ -352,6 +381,13 @@ const renderFallbackBackground = (ctx, width, height) => {
   ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
   ctx.font = '12px Arial';
   ctx.fillText(`${width}x${height}`, 10, height - 10);
+  
+  // Add "No Image" text
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+  ctx.font = 'bold 16px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('No Image Available', width/2, height/2 + 150);
+  ctx.textAlign = 'left';
 };
 
 const AISegmentationDisplay = ({
@@ -377,13 +413,13 @@ const AISegmentationDisplay = ({
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
   const [playSpeed, setPlaySpeed] = useState(500);
   
-  // New state for MRI data
-  const [mriFiles, setMriFiles] = useState(null);
-  const [currentNiftiImage, setCurrentNiftiImage] = useState(null);
-
-  const [isLoadingMRI, setIsLoadingMRI] = useState(false);
-  const [mriError, setMriError] = useState(null);
-
+  // New state for extracted images
+  const [extractedImages, setExtractedImages] = useState([]);
+  const [currentImage, setCurrentImage] = useState(null);
+  const [isLoadingImages, setIsLoadingImages] = useState(false);
+  const [imageError, setImageError] = useState(null);
+  const [availableFrames, setAvailableFrames] = useState([]);
+  const [availableSlices, setAvailableSlices] = useState([]);
 
   // Get current slice data with proper error handling
   const getCurrentSliceData = () => {
@@ -419,20 +455,24 @@ const AISegmentationDisplay = ({
     return classColors[className];
   };
 
-  // Enhanced background rendering with MRI data or fallback
+  // Enhanced background rendering with extracted medical images
   const renderBackground = useCallback((ctx, width, height) => {
-  console.log('Rendering background:', { width, height, hasNiftiImage: !!currentNiftiImage });
-  
-  if (currentNiftiImage) {
-    // Calculate which slice to show based on currentLayerIndex
-    const sliceIndex = currentLayerIndex || 0;
-    renderNiftiToCanvas(ctx, currentNiftiImage, width, height, sliceIndex);
-  } else {
-    renderFallbackBackground(ctx, width, height);
-  }
-  
-  console.log('Background rendered successfully');
-}, [currentNiftiImage, currentLayerIndex]);
+    console.log('Rendering background:', { 
+      width, 
+      height, 
+      hasCurrentImage: !!currentImage,
+      currentFrame: currentTimeIndex,
+      currentSlice: currentLayerIndex
+    });
+    
+    if (currentImage && currentImage.url) {
+      renderImageToCanvas(ctx, currentImage.url, width, height);
+    } else {
+      renderFallbackBackground(ctx, width, height);
+    }
+    
+    console.log('Background rendered successfully');
+  }, [currentImage, currentTimeIndex, currentLayerIndex]);
 
   // Main render function
   const renderCanvas = useCallback(() => {
@@ -551,80 +591,120 @@ const AISegmentationDisplay = ({
     
   }, [segmentationData, currentTimeIndex, currentLayerIndex, visibleMasks, maskOpacity, renderBackground]);
 
-  // Load MRI data when projectId changes
+  // Load extracted images when projectId changes
   useEffect(() => {
-    const loadMRIData = async () => {
+    const loadExtractedImages = async () => {
       if (!projectId) {
         console.log('No projectId provided, using fallback background');
         return;
       }
 
-      setIsLoadingMRI(true);
-      setMriError(null);
+      setIsLoadingImages(true);
+      setImageError(null);
       
       try {
-        console.log('=== LOADING MRI DATA ===');
+        console.log('=== LOADING EXTRACTED IMAGES ===');
         console.log('Project ID:', projectId);
         
         // Get presigned URL
         const presignedUrl = await fetchPresignedUrl(projectId);
         console.log('Got presigned URL');
         
-        const niftiFiles = await fetchAndExtractTarFile(presignedUrl);
-        console.log('Extracted NIfTI files:', niftiFiles.length);
+        // Extract TAR file
+        const extractedFiles = await fetchAndExtractTarFile(presignedUrl);
+        console.log('Extracted files:', extractedFiles.length);
 
-        setMriFiles(niftiFiles);
+        // Process images with naming pattern
+        const processedImages = processExtractedImages(extractedFiles);
+        console.log('Processed images:', processedImages.length);
 
-        // Load first NIfTI file as initial display
-        if (niftiFiles.length > 0) {
-          const firstNifti = await loadNiftiImage(niftiFiles[0]);
-          setCurrentNiftiImage(firstNifti);
-          console.log('✅ Initial NIfTI loaded successfully');
+        setExtractedImages(processedImages);
+
+        // Calculate available frames and slices
+        if (processedImages.length > 0) {
+          const frames = [...new Set(processedImages.map(img => img.frame))].sort((a, b) => a - b);
+          const slices = [...new Set(processedImages.map(img => img.slice))].sort((a, b) => a - b);
+          
+          setAvailableFrames(frames);
+          setAvailableSlices(slices);
+          
+          console.log('Available frames:', frames);
+          console.log('Available slices:', slices);
+          
+          // Set initial image
+          const initialImage = processedImages.find(img => 
+            img.frame === (frames[0] || 0) && img.slice === (slices[0] || 0)
+          );
+          
+          if (initialImage) {
+            setCurrentImage(initialImage);
+            console.log('✅ Initial image set:', initialImage.name);
+          }
         }
         
       } catch (error) {
-        console.error('❌ Error loading MRI data:', error);
-        setMriError(error.message);
+        console.error('❌ Error loading extracted images:', error);
+        setImageError(error.message);
       } finally {
-        setIsLoadingMRI(false);
+        setIsLoadingImages(false);
       }
     };
 
-    loadMRIData();
+    loadExtractedImages();
+    
+    // Cleanup: revoke object URLs when component unmounts or projectId changes
+    return () => {
+      extractedImages.forEach(img => {
+        if (img.url) {
+          URL.revokeObjectURL(img.url);
+        }
+      });
+    };
   }, [projectId]);
 
-  // Update current NIFTI image when time/layer indices change
+  // Update current image when time/layer indices change
   useEffect(() => {
-    const updateCurrentNifti = async () => {
-      if (!mriFiles || mriFiles.length === 0) {
-        return;
+    if (extractedImages.length === 0) {
+      return;
+    }
+
+    console.log('=== UPDATING CURRENT IMAGE ===');
+    console.log('Looking for image with frame:', currentTimeIndex, 'slice:', currentLayerIndex);
+    
+    // Find image that matches current frame and slice
+    const targetImage = extractedImages.find(img => 
+      img.frame === currentTimeIndex && img.slice === currentLayerIndex
+    );
+    
+    if (targetImage) {
+      setCurrentImage(targetImage);
+      console.log('✅ Found matching image:', targetImage.name);
+    } else {
+      // Find closest available image
+      const availableFrames = [...new Set(extractedImages.map(img => img.frame))].sort((a, b) => a - b);
+      const availableSlices = [...new Set(extractedImages.map(img => img.slice))].sort((a, b) => a - b);
+      
+      const closestFrame = availableFrames.reduce((prev, curr) => 
+        Math.abs(curr - currentTimeIndex) < Math.abs(prev - currentTimeIndex) ? curr : prev
+      );
+      
+      const closestSlice = availableSlices.reduce((prev, curr) => 
+        Math.abs(curr - currentLayerIndex) < Math.abs(prev - currentLayerIndex) ? curr : prev
+      );
+      
+      const fallbackImage = extractedImages.find(img => 
+        img.frame === closestFrame && img.slice === closestSlice
+      );
+      
+      if (fallbackImage) {
+        setCurrentImage(fallbackImage);
+        console.log('⚠️ Using closest available image:', fallbackImage.name);
+      } else {
+        setCurrentImage(null);
+        console.log('❌ No suitable image found');
       }
-
-      try {
-        // Calculate which NIFIT file to load based on indices
-        // You may need to adjust this logic based on your file naming convention
-        let targetIndex = 0;
-        
-        if (mriFiles.length > 1) {
-          // Try to map time and layer indices to file index
-          // This is a simple approach - you might need more sophisticated mapping
-          const totalSlices = Math.max(1, Math.sqrt(mriFiles.length));
-          targetIndex = (currentTimeIndex * totalSlices + currentLayerIndex) % mriFiles.length;
-        }
-        
-        console.log(`Loading NIfTI file ${targetIndex + 1}/${mriFiles.length} for frame ${currentTimeIndex + 1}, slice ${currentLayerIndex + 1}`);
-
-        const niftiImage = await loadNiftiImage(mriFiles[targetIndex]);
-        setCurrentNiftiImage(niftiImage);
-        
-      } catch (error) {
-        console.error('Error updating current NIFTI:', error);
-        // Keep previous image on error
-      }
-    };
-
-    updateCurrentNifti();
-  }, [mriFiles, currentTimeIndex, currentLayerIndex]);
+    }
+  }, [extractedImages, currentTimeIndex, currentLayerIndex]);
 
   // Render when data changes
   useEffect(() => {
@@ -767,20 +847,26 @@ const AISegmentationDisplay = ({
             <h4 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
               <Layers size={20} className="text-blue-600" />
               AI Segmentation Display
-              {isLoadingMRI && (
+              {isLoadingImages && (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
               )}
             </h4>
             <p className="text-sm text-gray-600 mt-1">
               Frame {currentTimeIndex + 1} • Slice {currentLayerIndex + 1} • 
               {availableMasks.length} masks • {boundingBoxes.length} boxes
-              {mriFiles && ` • ${mriFiles.length} MRI files`}
-              {isLoadingMRI && ' • Loading MRI data...'}
+              {extractedImages.length > 0 && ` • ${extractedImages.length} images`}
+              {isLoadingImages && ' • Loading images...'}
             </p>
-            {mriError && (
+            {imageError && (
               <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
                 <Info size={14} />
-                MRI Load Error: {mriError}
+                Image Load Error: {imageError}
+              </p>
+            )}
+            {currentImage && (
+              <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
+                <Info size={14} />
+                Current: {currentImage.name} ({(currentImage.size / 1024).toFixed(1)} KB)
               </p>
             )}
           </div>
@@ -862,14 +948,14 @@ const AISegmentationDisplay = ({
               }}
             />
             
-            {/* Debug overlay - remove in production */}
+            {/* Enhanced Debug overlay */}
             <div className="absolute top-2 left-2 bg-black/70 text-white text-xs p-2 rounded">
-              <div>Frame: {currentTimeIndex + 1}</div>
-              <div>Slice: {currentLayerIndex + 1}</div>
+              <div>Frame: {currentTimeIndex + 1} / {availableFrames.length || '?'}</div>
+              <div>Slice: {currentLayerIndex + 1} / {availableSlices.length || '?'}</div>
               <div>Masks: {availableMasks.length}</div>
               <div>Zoom: {Math.round(zoomLevel * 100)}%</div>
-              <div>MRI: {isLoadingMRI ? 'Loading...' : mriFiles ? `${mriFiles.length} files` : 'No data'}</div>
-              <div>NIfTI: {currentNiftiImage ? '✅' : '❌'}</div>
+              <div>Images: {isLoadingImages ? 'Loading...' : `${extractedImages.length} loaded`}</div>
+              <div>Current: {currentImage ? '✅' : '❌'}</div>
             </div>
           </div>
           
@@ -913,6 +999,29 @@ const AISegmentationDisplay = ({
             </div>
           </div>
         </div>
+
+        {/* Image Navigation Controls */}
+        {extractedImages.length > 0 && (
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <h5 className="text-sm font-semibold text-gray-800 mb-3">
+              Image Navigation
+            </h5>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs text-gray-600 block mb-1">Available Frames:</label>
+                <div className="text-sm text-gray-800">
+                  {availableFrames.join(', ') || 'None'}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-600 block mb-1">Available Slices:</label>
+                <div className="text-sm text-gray-800">
+                  {availableSlices.join(', ') || 'None'}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Enhanced Mask Controls */}
         {availableMasks.length > 0 && (
@@ -1062,6 +1171,9 @@ const AISegmentationDisplay = ({
             <p className="text-sm mt-1">
               Frame {currentTimeIndex + 1}, Slice {currentLayerIndex + 1}
             </p>
+            {isLoadingImages && (
+              <p className="text-sm mt-2 text-blue-600">Loading images...</p>
+            )}
           </div>
         )}
       </div>
