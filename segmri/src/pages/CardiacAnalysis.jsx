@@ -4,7 +4,6 @@ import FileUpload from '../components/FileUpload';
 import VisualizationControls from '../components/VisualizationControls';
 import AISegmentationDisplay from '../components/AiSegDisplay';
 import EditableSegmentation from '../components/EditableSeg';
-import AnalysisResults from '../components/AnalysisResults';
 import Notification from '../components/Notifications';
 import api from '../api/AxiosInstance';
 
@@ -15,7 +14,7 @@ import {
   decodeRLE 
 } from '../utils/RLE-Decoder';
 
-// Add a debug logger utility
+// Enhanced debug logger utility
 const DebugLogger = {
   isDebugMode: true, // Set this to false in production
   log: function(component, message, data = null) {
@@ -34,6 +33,15 @@ const DebugLogger = {
       console.error(formattedMessage, error);
     } else {
       console.error(formattedMessage);
+    }
+  },
+  warn: function(component, message, data = null) {
+    if (!this.isDebugMode) return;
+    const formattedMessage = `[WARN][${component}] ${message}`;
+    if (data) {
+      console.warn(formattedMessage, data);
+    } else {
+      console.warn(formattedMessage);
     }
   }
 };
@@ -67,7 +75,7 @@ const CardiacAnalysisPage = () => {
   const [projectId, setProjectId] = useState(null);
   const [uploadedFileName, setUploadedFileName] = useState('');
 
-  //Segmentation Masks
+  // Segmentation Masks
   const [uploadingMasks, setUploadingMasks] = useState(false);
   const [maskUploadResults, setMaskUploadResults] = useState([]);
 
@@ -136,124 +144,130 @@ const CardiacAnalysisPage = () => {
     }
   };
 
-  // Add this function to handle single mask upload
-const handleUploadCurrentMasks = async () => {
-  if (!projectId || !segmentationData) {
-    alert('No active project or segmentation data available.');
-    return;
-  }
-
-  setUploadingMasks(true);
-  addDebugMessage(`Starting mask upload for frame ${currentTimeIndex}, slice ${currentLayerIndex}`);
-
-  try {
-    const results = await processAndUploadMasks(
-      segmentationData,
-      currentTimeIndex,
-      currentLayerIndex,
-      { projectId, api }
-    );
-
-    setMaskUploadResults(prev => [...prev, ...results]);
-    
-    const successCount = results.filter(r => r.success).length;
-    const totalCount = results.length;
-    
-    addDebugMessage(`Mask upload completed: ${successCount}/${totalCount} successful`);
-    alert(`Uploaded ${successCount}/${totalCount} masks successfully`);
-
-  } catch (error) {
-    addDebugMessage(`Mask upload failed: ${error.message}`);
-    alert('Failed to upload masks: ' + error.message);
-  } finally {
-    setUploadingMasks(false);
-  }
-};
-
-// Add this function to handle batch upload of all masks
-const handleUploadAllMasks = async () => {
-  if (!projectId || !segmentationData) {
-    alert('No active project or segmentation data available.');
-    return;
-  }
-
-  const confirmUpload = window.confirm(
-    'This will upload all decoded masks to S3. This may take several minutes. Continue?'
-  );
-  
-  if (!confirmUpload) return;
-
-  setUploadingMasks(true);
-  addDebugMessage('Starting batch upload of all masks...');
-
-  try {
-    const allResults = await batchUploadAllMasks(segmentationData, projectId, api);
-    
-    // Flatten results for display
-    const flatResults = allResults.flatMap(frameResult => 
-      frameResult.results ? frameResult.results.map(r => ({
-        ...r,
-        frameIndex: frameResult.frameIndex,
-        sliceIndex: frameResult.sliceIndex
-      })) : []
-    );
-
-    setMaskUploadResults(flatResults);
-    
-    const successCount = flatResults.filter(r => r.success).length;
-    const totalCount = flatResults.length;
-    
-    addDebugMessage(`Batch upload completed: ${successCount}/${totalCount} masks uploaded`);
-    alert(`Batch upload completed: ${successCount}/${totalCount} masks uploaded successfully`);
-
-  } catch (error) {
-    addDebugMessage(`Batch upload failed: ${error.message}`);
-    alert('Batch upload failed: ' + error.message);
-  } finally {
-    setUploadingMasks(false);
-  }
-};
-
-// Add this function to handle individual mask upload (when user selects a specific mask)
-const handleUploadSelectedMask = async (maskData) => {
-  if (!projectId || !maskData.rle) {
-    alert('No project ID or mask data available.');
-    return;
-  }
-
-  setUploadingMasks(true);
-  addDebugMessage(`Uploading selected mask: ${maskData.class}`);
-
-  try {
-    // Decode the RLE data
-    const binaryMask = decodeRLE(maskData.rle, 512, 512);
-    
-    // Upload to S3
-    const result = await uploadMaskToS3(binaryMask, 512, 512, {
-      projectId,
-      frameIndex: currentTimeIndex,
-      sliceIndex: currentLayerIndex,
-      className: maskData.class,
-      format: 'png',
-      api
-    });
-
-    if (result.success) {
-      addDebugMessage(`Successfully uploaded mask: ${maskData.class} to ${result.s3Url}`);
-      alert(`Mask uploaded successfully!\nFile: ${result.filename}\nSize: ${result.size} bytes`);
-    } else {
-      throw new Error(result.error);
+  // Enhanced mask upload function
+  const handleUploadCurrentMasks = async () => {
+    if (!projectId || !segmentationData) {
+      alert('No active project or segmentation data available.');
+      return;
     }
 
-  } catch (error) {
-    addDebugMessage(`Failed to upload selected mask: ${error.message}`);
-    alert('Failed to upload mask: ' + error.message);
-  } finally {
-    setUploadingMasks(false);
-  }
-};
+    setUploadingMasks(true);
+    addDebugMessage(`Starting mask upload for frame ${currentTimeIndex}, slice ${currentLayerIndex}`);
 
-  // Process segmentation data and set boundaries - updated to match backend structure
+    try {
+      const results = await processAndUploadMasks(
+        segmentationData,
+        currentTimeIndex,
+        currentLayerIndex,
+        { projectId, api }
+      );
+
+      setMaskUploadResults(prev => [...prev, ...results]);
+      
+      const successCount = results.filter(r => r.success).length;
+      const totalCount = results.length;
+      
+      addDebugMessage(`Mask upload completed: ${successCount}/${totalCount} successful`);
+      alert(`Uploaded ${successCount}/${totalCount} masks successfully`);
+
+    } catch (error) {
+      addDebugMessage(`Mask upload failed: ${error.message}`);
+      alert('Failed to upload masks: ' + error.message);
+    } finally {
+      setUploadingMasks(false);
+    }
+  };
+
+  // Batch upload of all masks
+  const handleUploadAllMasks = async () => {
+    if (!projectId || !segmentationData) {
+      alert('No active project or segmentation data available.');
+      return;
+    }
+
+    const confirmUpload = window.confirm(
+      'This will upload all decoded masks to S3. This may take several minutes. Continue?'
+    );
+    
+    if (!confirmUpload) return;
+
+    setUploadingMasks(true);
+    addDebugMessage('Starting batch upload of all masks...');
+
+    try {
+      const allResults = await batchUploadAllMasks(segmentationData, projectId, api);
+      
+      // Flatten results for display
+      const flatResults = allResults.flatMap(frameResult => 
+        frameResult.results ? frameResult.results.map(r => ({
+          ...r,
+          frameIndex: frameResult.frameIndex,
+          sliceIndex: frameResult.sliceIndex
+        })) : []
+      );
+
+      setMaskUploadResults(flatResults);
+      
+      const successCount = flatResults.filter(r => r.success).length;
+      const totalCount = flatResults.length;
+      
+      addDebugMessage(`Batch upload completed: ${successCount}/${totalCount} masks uploaded`);
+      alert(`Batch upload completed: ${successCount}/${totalCount} masks uploaded successfully`);
+
+    } catch (error) {
+      addDebugMessage(`Batch upload failed: ${error.message}`);
+      alert('Batch upload failed: ' + error.message);
+    } finally {
+      setUploadingMasks(false);
+    }
+  };
+
+  // Handle individual mask upload
+  const handleUploadSelectedMask = async (maskData) => {
+    if (!projectId) {
+      alert('No project ID available.');
+      return;
+    }
+
+    const rleData = maskData.segmentationmaskcontents || maskData.rle;
+    if (!rleData) {
+      alert('No RLE data available for this mask.');
+      return;
+    }
+
+    setUploadingMasks(true);
+    addDebugMessage(`Uploading selected mask: ${maskData.class}`);
+
+    try {
+      // Decode the RLE data
+      const binaryMask = decodeRLE(rleData, 512, 512);
+      
+      // Upload to S3
+      const result = await uploadMaskToS3(binaryMask, 512, 512, {
+        projectId,
+        frameIndex: currentTimeIndex,
+        sliceIndex: currentLayerIndex,
+        className: maskData.class,
+        format: 'png',
+        api
+      });
+
+      if (result.success) {
+        addDebugMessage(`Successfully uploaded mask: ${maskData.class} to ${result.s3Url}`);
+        alert(`Mask uploaded successfully!\nFile: ${result.filename}\nSize: ${result.size} bytes`);
+      } else {
+        throw new Error(result.error);
+      }
+
+    } catch (error) {
+      addDebugMessage(`Failed to upload selected mask: ${error.message}`);
+      alert('Failed to upload mask: ' + error.message);
+    } finally {
+      setUploadingMasks(false);
+    }
+  };
+
+  // Enhanced segmentation data processing
   const processSegmentationData = useCallback((data) => {
     DebugLogger.log('CardiacAnalysisPage', 'Processing segmentation data', data);
     
@@ -278,6 +292,7 @@ const handleUploadSelectedMask = async (maskData) => {
 
     if (!segmentationResults || segmentationResults.length === 0) {
       DebugLogger.error('CardiacAnalysisPage', 'No segmentation results found in data');
+      setErrorMessage('No segmentation results found in response');
       return;
     }
 
@@ -285,16 +300,19 @@ const handleUploadSelectedMask = async (maskData) => {
     const segmentationDocument = segmentationResults[0];
 
     if (!segmentationDocument || !segmentationDocument.frames) {
-      DebugLogger.error('CardiacAnalysisPage', 'Invalid segmentation data structure');
+      DebugLogger.error('CardiacAnalysisPage', 'Invalid segmentation data structure', segmentationDocument);
+      setErrorMessage('Invalid segmentation data structure');
       return;
     }
+
+    DebugLogger.log('CardiacAnalysisPage', 'Processing segmentation document', segmentationDocument);
 
     // Transform the backend structure to match what the frontend expects
     const transformedData = {
       masks: [], // Will be populated with transformed frame/slice data
       segments: [], // Will be populated with available classes
-      name: segmentationDocument.name,
-      description: segmentationDocument.description
+      name: segmentationDocument.name || 'AI Segmentation Results',
+      description: segmentationDocument.description || 'Automated cardiac segmentation'
     };
 
     // Extract all unique classes from the segmentation data
@@ -302,16 +320,28 @@ const handleUploadSelectedMask = async (maskData) => {
     const classColors = {
       'RV': '#FF6B6B',    // Red for Right Ventricle
       'LVC': '#4ECDC4',   // Teal for Left Ventricle Cavity  
-      'MYO': '#45B7D1'    // Blue for Myocardium
+      'LV': '#4ECDC4',    // Alias for LVC
+      'MYO': '#45B7D1',   // Blue for Myocardium
+      'LA': '#9C27B0',    // Purple for Left Atrium
+      'RA': '#FF5722'     // Deep orange for Right Atrium
     };
+
+    let maxFrameIndex = -1;
+    let maxSliceIndex = -1;
 
     // Process frames and slices to create masks array structure
     segmentationDocument.frames.forEach(frame => {
-      if (!transformedData.masks[frame.frameindex]) {
-        transformedData.masks[frame.frameindex] = [];
+      const frameIndex = frame.frameindex;
+      maxFrameIndex = Math.max(maxFrameIndex, frameIndex);
+      
+      if (!transformedData.masks[frameIndex]) {
+        transformedData.masks[frameIndex] = [];
       }
 
       frame.slices.forEach(slice => {
+        const sliceIndex = slice.sliceindex;
+        maxSliceIndex = Math.max(maxSliceIndex, sliceIndex);
+
         // Collect unique classes from this slice
         slice.componentboundingboxes?.forEach(box => {
           if (box.class) uniqueClasses.add(box.class);
@@ -320,13 +350,37 @@ const handleUploadSelectedMask = async (maskData) => {
           if (mask.class) uniqueClasses.add(mask.class);
         });
 
+        // Transform bounding boxes to match expected format
+        const transformedBoundingBoxes = (slice.componentboundingboxes || []).map(box => ({
+          class: box.class,
+          confidence: box.confidence || 0,
+          x_min: box.x_min,
+          y_min: box.y_min,
+          x_max: box.x_max,
+          y_max: box.y_max,
+          bbox: [box.x_min, box.y_min, box.x_max, box.y_max] // For compatibility
+        }));
+
+        // Transform segmentation masks to match expected format
+        const transformedSegmentationMasks = (slice.segmentationmasks || []).map(mask => ({
+          class: mask.class,
+          segmentationmaskcontents: mask.segmentationmaskcontents, // Keep original field name
+          rle: mask.segmentationmaskcontents, // Alias for backward compatibility
+          confidence: mask.confidence || 1.0
+        }));
+
         // Store slice data in the masks array
-        transformedData.masks[frame.frameindex][slice.sliceindex] = {
-          boundingBoxes: slice.componentboundingboxes || [],
-          segmentationMasks: slice.segmentationmasks || [],
-          frameIndex: frame.frameindex,
-          sliceIndex: slice.sliceindex
+        transformedData.masks[frameIndex][sliceIndex] = {
+          boundingBoxes: transformedBoundingBoxes,
+          segmentationMasks: transformedSegmentationMasks,
+          frameIndex: frameIndex,
+          sliceIndex: sliceIndex
         };
+
+        DebugLogger.log('CardiacAnalysisPage', `Processed frame ${frameIndex}, slice ${sliceIndex}`, {
+          boundingBoxes: transformedBoundingBoxes.length,
+          segmentationMasks: transformedSegmentationMasks.length
+        });
       });
     });
 
@@ -340,15 +394,16 @@ const handleUploadSelectedMask = async (maskData) => {
 
     // Set the transformed data
     setSegmentationData(transformedData);
-
-    // Calculate max indices
-    const maxFrameIndex = Math.max(...segmentationDocument.frames.map(f => f.frameindex));
-    const maxSliceIndex = Math.max(...segmentationDocument.frames.flatMap(f => 
-      f.slices.map(s => s.sliceindex)
-    ));
-
     setMaxTimeIndex(Math.max(0, maxFrameIndex));
     setMaxLayerIndex(Math.max(0, maxSliceIndex));
+    
+    // Reset navigation to first frame/slice if current indices are out of bounds
+    if (currentTimeIndex > maxFrameIndex) {
+      setCurrentTimeIndex(0);
+    }
+    if (currentLayerIndex > maxSliceIndex) {
+      setCurrentLayerIndex(0);
+    }
     
     DebugLogger.log('CardiacAnalysisPage', `Set boundaries - Time: 0-${maxFrameIndex}, Layer: 0-${maxSliceIndex}`);
 
@@ -357,8 +412,8 @@ const handleUploadSelectedMask = async (maskData) => {
     DebugLogger.log('CardiacAnalysisPage', 'Set segment items', transformedData.segments);
 
     setProcessingComplete(true);
-    addDebugMessage('Segmentation processing completed successfully');
-  }, [addDebugMessage]);
+    addDebugMessage(`Segmentation processing completed successfully. Found ${uniqueClasses.size} classes across ${maxFrameIndex + 1} frames and ${maxSliceIndex + 1} slices.`);
+  }, [addDebugMessage, currentTimeIndex, currentLayerIndex]);
 
   // Handle file upload and start segmentation
   const handleFilesSelected = async (selectedFiles, status, message) => {
@@ -445,7 +500,7 @@ const handleUploadSelectedMask = async (maskData) => {
         
         // Add a delay before fetching results to allow processing time
         addDebugMessage('Waiting for segmentation to complete...');
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+        await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
         
         // Poll for segmentation results
         const segmentationResults = await pollForSegmentationResults(projectId);
@@ -468,9 +523,9 @@ const handleUploadSelectedMask = async (maskData) => {
     }
   };
 
-  // Poll for segmentation results (since processing might take time)
-  const pollForSegmentationResults = async (projectId, maxAttempts = 10, interval = 3000) => {
-    addDebugMessage(`Starting to poll for segmentation results (max ${maxAttempts} attempts)`);
+  // Enhanced polling for segmentation results
+  const pollForSegmentationResults = async (projectId, maxAttempts = 15, interval = 4000) => {
+    addDebugMessage(`Starting to poll for segmentation results (max ${maxAttempts} attempts, ${interval/1000}s interval)`);
     
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
@@ -488,12 +543,29 @@ const handleUploadSelectedMask = async (maskData) => {
         
         if (hasResults) {
           addDebugMessage(`Segmentation results found on attempt ${attempt}`);
-          return response.data;
+          
+          // Additional validation to ensure we have actual mask data
+          const hasActualMasks = response.data.segmentations ? 
+            response.data.segmentations.some(seg => 
+              seg.frames && seg.frames.some(frame => 
+                frame.slices && frame.slices.some(slice => 
+                  slice.segmentationmasks && slice.segmentationmasks.length > 0
+                )
+              )
+            ) : false;
+          
+          if (hasActualMasks || (response.data.frames && response.data.frames.length > 0)) {
+            addDebugMessage('Validated that results contain actual mask data');
+            return response.data;
+          } else {
+            addDebugMessage(`Results found but no actual mask data yet on attempt ${attempt}`);
+          }
         } else {
           addDebugMessage(`No results yet on attempt ${attempt}, waiting ${interval/1000}s...`);
-          if (attempt < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, interval));
-          }
+        }
+        
+        if (attempt < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, interval));
         }
       } catch (err) {
         DebugLogger.error('CardiacAnalysisPage', `Poll attempt ${attempt} failed`, err);
@@ -504,35 +576,14 @@ const handleUploadSelectedMask = async (maskData) => {
       }
     }
     
-    addDebugMessage('Polling completed without finding results');
+    addDebugMessage('Polling completed without finding complete results');
     return null;
-  };
-
-  // Fetch segmentation results from backend (single attempt version)
-  const fetchSegmentationResults = async (projectId) => {
-    addDebugMessage(`Fetching segmentation results for project ${projectId}`);
-    
-    try {
-      const response = await api.get(`/segmentation/segmentation-results/${projectId}`);
-      DebugLogger.log('CardiacAnalysisPage', 'Direct fetch response', response.data);
-      
-      if (response.data) {
-        addDebugMessage('Segmentation results fetched successfully');
-        return response.data;
-      } else {
-        throw new Error('Empty response from segmentation results endpoint');
-      }
-    } catch (err) {
-      setErrorMessage('Failed to fetch segmentation results: ' + err.message);
-      DebugLogger.error('CardiacAnalysisPage', 'Error fetching segmentation results', err);
-      return null;
-    }
   };
 
   // Handle mask selection
   const handleMaskSelected = useCallback((maskData) => {
     setSelectedMask(maskData);
-    addDebugMessage(`Mask selected: ${maskData.id || maskData.name || maskData.class}`);
+    addDebugMessage(`Mask selected: ${maskData.class} at frame ${maskData.frameIndex}, slice ${maskData.sliceIndex}`);
   }, [addDebugMessage]);
 
   // Visualization Controls Handlers
@@ -566,6 +617,7 @@ const handleUploadSelectedMask = async (maskData) => {
     setSegmentItems([]);
     setDebugMessages([]);
     setUploadedFileName('');
+    setMaskUploadResults([]);
     addDebugMessage('Application reset');
   };
 
@@ -616,7 +668,7 @@ const handleUploadSelectedMask = async (maskData) => {
   };
 
   return (
-    <div className="py-16 px-8 bg-[#FFFCF6] min-h-screen w-full">
+    <div className="py-16 px-8 bg-gradient-to-br from-blue-50 via-white to-indigo-50 min-h-screen w-full">
       <div className="mx-auto max-w-[98%]">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -624,10 +676,17 @@ const handleUploadSelectedMask = async (maskData) => {
           transition={{ duration: 0.8 }}
           className="flex flex-col items-center text-center mb-12"
         >
-          <h2 className="text-4xl font-light text-[#3A4454] mb-6">Cardiac Analysis</h2>
+          <h2 className="text-4xl font-light text-[#3A4454] mb-6">
+            AI-Powered Cardiac Analysis
+          </h2>
           <p className="text-xl text-[#3A4454] opacity-80 max-w-3xl">
-            Upload your cardiac MRI images for AI-powered segmentation and visualization
+            Upload your cardiac MRI images for advanced AI segmentation and detailed visualization
           </p>
+          {processingComplete && segmentationData && (
+            <div className="mt-4 text-sm text-green-600 bg-green-50 px-4 py-2 rounded-lg">
+              ✓ Analysis complete • {segmentItems.length} anatomical structures detected
+            </div>
+          )}
         </motion.div>
 
         {!processingComplete && (
@@ -645,23 +704,28 @@ const handleUploadSelectedMask = async (maskData) => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -30 }}
             transition={{ duration: 0.6 }}
-            className="bg-white rounded-xl shadow-lg overflow-hidden"
+            className="bg-white rounded-xl shadow-xl overflow-hidden border border-gray-200"
           >
-            <div className="p-6 border-b border-gray-200">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
               <div className="flex items-center justify-between">
-                <h3 className="text-2xl font-light text-[#3A4454]">AI Segmentation Results</h3>
+                <div>
+                  <h3 className="text-2xl font-light">AI Segmentation Results</h3>
+                  <p className="text-blue-100 mt-1">
+                    Interactive visualization and analysis tools
+                  </p>
+                </div>
                 <button
                   onClick={handleReset}
-                  className="flex items-center text-[#5B7B9A] hover:text-[#3A4454] transition-colors duration-200"
+                  className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors duration-200 backdrop-blur-sm"
                 >
-                  Upload new file
+                  New Analysis
                 </button>
               </div>
             </div>
 
             <div className="p-6">
-              <div className="flex">
-                <div className="w-1/4 pr-8">
+              <div className="flex gap-6">
+                <div className="w-1/4">
                   <VisualizationControls
                     currentTimeIndex={currentTimeIndex}
                     maxTimeIndex={maxTimeIndex}
@@ -677,7 +741,7 @@ const handleUploadSelectedMask = async (maskData) => {
                   />
                 </div>
 
-                <div className="w-1/2 px-4">
+                <div className="w-1/2">
                   <AISegmentationDisplay
                     segmentationData={segmentationData}
                     currentTimeIndex={currentTimeIndex}
@@ -685,31 +749,73 @@ const handleUploadSelectedMask = async (maskData) => {
                     segmentItems={segmentItems}
                     onMaskSelected={handleMaskSelected}
                     selectedMask={selectedMask}
+                    onUploadSelectedMask={handleUploadSelectedMask}
                   />
                 </div>
 
-                <div className="w-1/4 pl-8">
+                <div className="w-1/4">
                   <EditableSegmentation selectedMask={selectedMask} />
                 </div>
               </div>
-
-              <AnalysisResults />
             </div>
           </motion.div>
         )}
 
-        {/* Debug Panel - Remove in production */}
+        {/* Enhanced Debug Panel */}
         {DebugLogger.isDebugMode && debugMessages.length > 0 && (
-          <div className="mt-8 bg-gray-100 p-4 rounded-lg">
-            <h4 className="font-medium mb-2">Debug Messages:</h4>
-            <div className="max-h-40 overflow-y-auto text-sm">
-              {debugMessages.slice(-10).map((msg, index) => (
-                <div key={index} className="text-gray-600">
-                  <span className="text-gray-400">{msg.timestamp.split('T')[1].split('.')[0]}</span>: {msg.message}
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="mt-8 bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-medium text-green-300">Debug Console</h4>
+              <button
+                onClick={() => setDebugMessages([])}
+                className="text-gray-400 hover:text-green-400 text-xs"
+              >
+                Clear
+              </button>
+            </div>
+            <div className="max-h-40 overflow-y-auto space-y-1">
+              {debugMessages.slice(-15).map((msg, index) => (
+                <div key={index} className="text-xs">
+                  <span className="text-gray-500">
+                    [{msg.timestamp.split('T')[1].split('.')[0]}]
+                  </span>
+                  <span className="ml-2">{msg.message}</span>
                 </div>
               ))}
             </div>
-          </div>
+          </motion.div>
+        )}
+
+        {/* Upload Results Summary */}
+        {maskUploadResults.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4"
+          >
+            <h4 className="text-lg font-medium text-blue-900 mb-3">
+              Upload Results Summary
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+              {maskUploadResults.slice(-10).map((result, index) => (
+                <div 
+                  key={index} 
+                  className={`p-2 rounded ${
+                    result.success 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-red-100 text-red-800'
+                  }`}
+                >
+                  {result.success ? '✓' : '✗'} {result.className} 
+                  {result.frameIndex !== undefined && ` (F${result.frameIndex}/S${result.sliceIndex})`}
+                </div>
+              ))}
+            </div>
+          </motion.div>
         )}
 
         <Notification

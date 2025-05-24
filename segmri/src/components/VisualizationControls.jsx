@@ -1,4 +1,18 @@
 import React from 'react';
+import { 
+  Play, 
+  Pause, 
+  SkipBack, 
+  SkipForward, 
+  Save, 
+  Download, 
+  Upload, 
+  Cloud,
+  Layers,
+  Clock,
+  Settings,
+  Info
+} from 'lucide-react';
 
 const VisualizationControls = ({
   currentTimeIndex,
@@ -9,97 +23,237 @@ const VisualizationControls = ({
   onLayerSliderChange,
   onSave,
   onExport,
-  projectName,
-  projectDescription,
-  setProjectName,
-  setProjectDescription
+  onUploadCurrentMasks,
+  onUploadAllMasks,
+  uploadingMasks
 }) => {
+  const handlePreviousFrame = () => {
+    if (currentTimeIndex > 0) {
+      onTimeSliderChange({ target: { value: currentTimeIndex - 1 } });
+    }
+  };
+
+  const handleNextFrame = () => {
+    if (currentTimeIndex < maxTimeIndex) {
+      onTimeSliderChange({ target: { value: currentTimeIndex + 1 } });
+    }
+  };
+
+  const handlePreviousSlice = () => {
+    if (currentLayerIndex > 0) {
+      onLayerSliderChange({ target: { value: currentLayerIndex - 1 } });
+    }
+  };
+
+  const handleNextSlice = () => {
+    if (currentLayerIndex < maxLayerIndex) {
+      onLayerSliderChange({ target: { value: currentLayerIndex + 1 } });
+    }
+  };
+
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md">
-      <h3 className="text-xl font-medium mb-6 text-[#3A4454]">Slice & Frame Controls</h3>
-      
-      {/* Project Details */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Project Name</label>
-        <input
-          type="text"
-          value={projectName}
-          onChange={(e) => setProjectName(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        
-        <label className="block text-sm font-medium text-gray-700 mt-4 mb-1">Description</label>
-        <textarea
-          value={projectDescription}
-          onChange={(e) => setProjectDescription(e.target.value)}
-          rows={3}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+    <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-4 border-b border-gray-200">
+        <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <Settings size={18} className="text-gray-700" />
+          Navigation Controls
+        </h4>
+        <p className="text-sm text-gray-600 mt-1">
+          Browse through frames and slices
+        </p>
       </div>
 
-      {/* Slice Control */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-2">
-          <label className="text-sm font-medium text-gray-700">Slice</label>
-          <span className="text-sm text-gray-500">{currentLayerIndex + 1}/{maxLayerIndex + 1}</span>
+      <div className="p-4 space-y-6">
+        {/* Time Frame Navigation */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <Clock size={16} />
+              Time Frame
+            </label>
+            <span className="text-sm text-gray-500">
+              {currentTimeIndex + 1} / {maxTimeIndex + 1}
+            </span>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handlePreviousFrame}
+              disabled={currentTimeIndex <= 0}
+              className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Previous Frame"
+            >
+              <SkipBack size={16} />
+            </button>
+            
+            <input
+              type="range"
+              min="0"
+              max={maxTimeIndex}
+              value={currentTimeIndex}
+              onChange={onTimeSliderChange}
+              className="flex-1 accent-blue-500"
+            />
+            
+            <button
+              onClick={handleNextFrame}
+              disabled={currentTimeIndex >= maxTimeIndex}
+              className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Next Frame"
+            >
+              <SkipForward size={16} />
+            </button>
+          </div>
         </div>
-        <input
-          type="range"
-          min={0}
-          max={maxLayerIndex}
-          value={currentLayerIndex}
-          onChange={onLayerSliderChange}
-          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-        />
-        <div className="flex justify-between text-xs text-gray-500 mt-1">
-          <span>1</span>
-          <span>{Math.floor(maxLayerIndex / 2) + 1}</span>
-          <span>{maxLayerIndex + 1}</span>
-        </div>
-      </div>
 
-      {/* Frame Control */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-2">
-          <label className="text-sm font-medium text-gray-700">Frame</label>
-          <span className="text-sm text-gray-500">{currentTimeIndex + 1}/{maxTimeIndex + 1}</span>
+        {/* Layer/Slice Navigation */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <Layers size={16} />
+              Slice Layer
+            </label>
+            <span className="text-sm text-gray-500">
+              {currentLayerIndex + 1} / {maxLayerIndex + 1}
+            </span>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handlePreviousSlice}
+              disabled={currentLayerIndex <= 0}
+              className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Previous Slice"
+            >
+              <SkipBack size={16} />
+            </button>
+            
+            <input
+              type="range"
+              min="0"
+              max={maxLayerIndex}
+              value={currentLayerIndex}
+              onChange={onLayerSliderChange}
+              className="flex-1 accent-blue-500"
+            />
+            
+            <button
+              onClick={handleNextSlice}
+              disabled={currentLayerIndex >= maxLayerIndex}
+              className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Next Slice"
+            >
+              <SkipForward size={16} />
+            </button>
+          </div>
         </div>
-        <input
-          type="range"
-          min={0}
-          max={maxTimeIndex}
-          value={currentTimeIndex}
-          onChange={onTimeSliderChange}
-          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-        />
-        <div className="flex justify-between text-xs text-gray-500 mt-1">
-          <span>1</span>
-          <span>{Math.floor(maxTimeIndex / 2) + 1}</span>
-          <span>{maxTimeIndex + 1}</span>
-        </div>
-      </div>
 
-      {/* Action Buttons */}
-      <div className="flex flex-col space-y-3">
-        <button
-          onClick={onSave}
-          className="flex items-center justify-center w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-          </svg>
-          Save
-        </button>
-        
-        <button
-          onClick={onExport}
-          className="flex items-center justify-center w-full px-4 py-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition-colors"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          Export
-        </button>
+        {/* Quick Navigation Info */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className="text-xs text-blue-800 space-y-1">
+            <div className="flex justify-between">
+              <span>Total Frames:</span>
+              <span className="font-medium">{maxTimeIndex + 1}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Total Slices:</span>
+              <span className="font-medium">{maxLayerIndex + 1}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Current Position:</span>
+              <span className="font-medium">F{currentTimeIndex + 1}/S{currentLayerIndex + 1}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Project Actions */}
+        <div className="space-y-3 pt-4 border-t border-gray-200">
+          <h5 className="text-sm font-medium text-gray-700">Project Actions</h5>
+          
+          <div className="grid grid-cols-1 gap-2">
+            <button
+              onClick={onSave}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+            >
+              <Save size={16} />
+              Save Project
+            </button>
+            
+            <button
+              onClick={onExport}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            >
+              <Download size={16} />
+              Export Results
+            </button>
+          </div>
+        </div>
+
+        {/* Upload Actions */}
+        <div className="space-y-3 pt-4 border-t border-gray-200">
+          <div className="flex items-center justify-between">
+            <h5 className="text-sm font-medium text-gray-700">Upload to Cloud</h5>
+            {uploadingMasks && (
+              <div className="animate-spin text-blue-600">
+                <Cloud size={16} />
+              </div>
+            )}
+          </div>
+          
+          <div className="grid grid-cols-1 gap-2">
+            <button
+              onClick={onUploadCurrentMasks}
+              disabled={uploadingMasks}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Upload size={16} />
+              {uploadingMasks ? 'Uploading...' : 'Upload Current'}
+            </button>
+            
+            <button
+              onClick={onUploadAllMasks}
+              disabled={uploadingMasks}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Cloud size={16} />
+              {uploadingMasks ? 'Processing...' : 'Upload All Masks'}
+            </button>
+          </div>
+          
+          <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
+            <div className="flex items-start gap-2">
+              <Info size={12} className="text-gray-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <p><strong>Current:</strong> Upload masks from current frame/slice only</p>
+                <p><strong>All:</strong> Batch upload all decoded masks to S3 storage</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Keyboard Shortcuts */}
+        <div className="space-y-3 pt-4 border-t border-gray-200">
+          <h5 className="text-sm font-medium text-gray-700">Keyboard Shortcuts</h5>
+          <div className="text-xs text-gray-600 space-y-1">
+            <div className="flex justify-between">
+              <span>← / →</span>
+              <span>Navigate frames</span>
+            </div>
+            <div className="flex justify-between">
+              <span>↑ / ↓</span>
+              <span>Navigate slices</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Space</span>
+              <span>Toggle playback</span>
+            </div>
+            <div className="flex justify-between">
+              <span>S</span>
+              <span>Save project</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
