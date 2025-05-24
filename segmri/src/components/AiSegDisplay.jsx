@@ -1,7 +1,7 @@
+
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Eye, EyeOff, Download, Upload, Info, RotateCcw, ZoomIn, ZoomOut, Play, Pause, Grid, Layers } from 'lucide-react';
 import Untar from "untar.js";
-import * as daikon from "daikon";
 
 // Enhanced RLE Decoder utility functions
 const decodeRLE = (rleString, height, width) => {
@@ -191,68 +191,163 @@ const fetchAndExtractTarFile = async (presignedUrl) => {
     const extractedFiles = await Untar.extractFromBuffer(arrayBuffer);
     console.log('Files extracted:', extractedFiles.length);
     
-    // Filter and organize DICOM files
-    const dicomFiles = extractedFiles.filter(file => 
+    // Filter and organize NIfTI files
+    const niftiFiles = extractedFiles.filter(file => 
       file.name && (
-        file.name.toLowerCase().endsWith('.dcm') ||
-        file.name.toLowerCase().endsWith('.dicom') ||
-        file.name.includes('IM-') || // Common DICOM naming pattern
-        file.name.includes('IMG') ||
-        (!file.name.includes('.') && file.buffer && file.buffer.byteLength > 1000) // DICOM files often have no extension
+        file.name.toLowerCase().endsWith('.nii') ||
+        file.name.toLowerCase().endsWith('.nii.gz') ||
+        file.name.toLowerCase().endsWith('.nifti') ||
+        // Also check for files without extension that might be NIfTI
+        (!file.name.includes('.') && file.buffer && file.buffer.byteLength > 300) // NIfTI header is ~352 bytes minimum
       )
     );
     
-    console.log('DICOM files found:', dicomFiles.length);
-    console.log('Sample file names:', dicomFiles.slice(0, 5).map(f => f.name));
+    console.log('NIfTI files found:', niftiFiles.length);
+    console.log('Sample file names:', niftiFiles.slice(0, 5).map(f => f.name));
+    console.log('File sizes:', niftiFiles.slice(0, 5).map(f => ({ name: f.name, size: f.buffer.byteLength })));
     
-    return dicomFiles;
+    return niftiFiles;
   } catch (error) {
     console.error('Error fetching/extracting tar file:', error);
     throw error;
   }
 };
 
-const loadDicomImage = async (dicomFile) => {
+// Simple NIfTI header parser (first 348 bytes contain the header)
+const parseNiftiHeader = (buffer) => {
+  const dataView = new DataView(buffer);
+  
+  // Check NIfTI magic number
+  const magic1 = new TextDecoder().decode(new Uint8Array(buffer, 344, 4));
+  const magic2 = new TextDecoder().decode(new Uint8Array(buffer, 0, 4));
+  
+  const isNifti = magic1 === 'n+1\0' || magic1 === 'ni1\0' || magic2 === 'n+1\0' || magic2 === 'ni1\0';
+  
+  if (!isNifti) {
+    throw new Error('Not a valid NIfTI file');
+  }
+  
+  // Parse dimensions (starts at byte 40)
+  const ndim = dataView.getInt16(40, true); // little endian
+  const dims = [];
+  for (let i = 0; i < Math.min(ndim, 7); i++) {
+    dims.push(dataView.getInt16(42 + i * 2, true));
+  }
+  
+  // Parse datatype (byte 70)
+  const datatype = dataView.getInt16(70, true);
+  
+  // Parse voxel offset (byte 108) - where image data starts
+  const voxOffset = dataView.getFloat32(108, true);
+  
+  console.log('NIfTI Header parsed:', {
+    magic: magic1,
+    dimensions: dims,
+    datatype: datatype,
+    voxelOffset: voxOffset,
+    ndim: ndim
+  });
+  
+  return {
+    dimensions: dims,
+    datatype: datatype,
+    voxelOffset: voxOffset || 352, // Default NIfTI header size
+    isValid: true
+  };
+};
+
+const loadNiftiImage = (niftiFile, sliceIndex = 0) => {
   try {
-    console.log('Loading DICOM file:', dicomFile.name);
+    console.log('Loading NIfTI file:', niftiFile.name, 'slice:', sliceIndex);
     
-    // Parse DICOM using daikon
-    const image = daikon.Series.parseImage(new DataView(dicomFile.buffer));
+    const header = parseNiftiHeader(niftiFile.buffer);
     
-    if (!image) {
-      throw new Error('Failed to parse DICOM image');
+    if (!header.isValid) {
+      throw new Error('Invalid NIfTI header');
     }
     
-    console.log('DICOM parsed successfully:', {
-      width: image.getCols(),
-      height: image.getRows(),
-      slices: image.getImageData ? 1 : 'unknown'
+    const dims = header.dimensions;
+    const width = dims[1] || 512;  // X dimension
+    const height = dims[2] || 512; // Y dimension
+    const depth = dims[3] || 1;    // Z dimension (slices)
+    
+    console.log('NIfTI dimensions:', { width, height, depth });
+    
+    // Calculate slice to extract
+    const targetSlice = Math.min(sliceIndex, depth - 1);
+    const sliceSize = width * height;
+    const dataOffset = header.voxelOffset;
+    
+    // For now, assume 16-bit signed integers (datatype 4) or 32-bit floats (datatype 16)
+    let bytesPerVoxel = 2; // Default to 16-bit
+    if (header.datatype === 16) bytesPerVoxel = 4; // 32-bit float
+    if (header.datatype === 2) bytesPerVoxel = 1;  // 8-bit
+    
+    const sliceDataOffset = dataOffset + (targetSlice * sliceSize * bytesPerVoxel);
+    const sliceBuffer = niftiFile.buffer.slice(sliceDataOffset, sliceDataOffset + (sliceSize * bytesPerVoxel));
+    
+    if (sliceBuffer.byteLength < sliceSize * bytesPerVoxel) {
+      console.warn('Insufficient data for requested slice, using available data');
+    }
+    
+    // Parse slice data
+    const dataView = new DataView(sliceBuffer);
+    const imageData = new Float32Array(sliceSize);
+    
+    for (let i = 0; i < Math.min(sliceSize, sliceBuffer.byteLength / bytesPerVoxel); i++) {
+      if (bytesPerVoxel === 2) {
+        imageData[i] = dataView.getInt16(i * 2, true); // 16-bit signed
+      } else if (bytesPerVoxel === 4) {
+        imageData[i] = dataView.getFloat32(i * 4, true); // 32-bit float
+      } else {
+        imageData[i] = dataView.getUint8(i); // 8-bit
+      }
+    }
+    
+    console.log('NIfTI slice loaded:', {
+      width,
+      height,
+      depth,
+      targetSlice,
+      dataLength: imageData.length,
+      valueRange: {
+        min: Math.min(...imageData),
+        max: Math.max(...imageData)
+      }
     });
     
-    return image;
+    return {
+      width,
+      height,
+      depth,
+      imageData,
+      sliceIndex: targetSlice,
+      isValid: true
+    };
+    
   } catch (error) {
-    console.error('Error loading DICOM:', error);
+    console.error('Error loading NIfTI:', error);
     throw error;
   }
 };
 
-const renderDicomToCanvas = (ctx, dicomImage, width, height) => {
+const renderNiftiToCanvas = (ctx, niftiImage, width, height) => {
   try {
-    console.log('Rendering DICOM to canvas');
+    console.log('Rendering NIfTI to canvas');
     
-    const imageData = dicomImage.getImageData();
-    const cols = dicomImage.getCols();
-    const rows = dicomImage.getRows();
+    const imageData = niftiImage.imageData;
+    const srcWidth = niftiImage.width;
+    const srcHeight = niftiImage.height;
     
-    console.log('DICOM dimensions:', { cols, rows, dataLength: imageData.length });
+    console.log('NIfTI dimensions:', { srcWidth, srcHeight, dataLength: imageData.length });
     
     // Create canvas image data
     const canvas = ctx.createImageData(width, height);
     const canvasData = canvas.data;
     
     // Calculate scaling factors
-    const scaleX = cols / width;
-    const scaleY = rows / height;
+    const scaleX = srcWidth / width;
+    const scaleY = srcHeight / height;
     
     // Find min/max values for windowing
     let min = Infinity, max = -Infinity;
@@ -262,18 +357,18 @@ const renderDicomToCanvas = (ctx, dicomImage, width, height) => {
     }
     
     const range = max - min;
-    console.log('DICOM value range:', { min, max, range });
+    console.log('NIfTI value range:', { min, max, range });
     
-    // Map DICOM data to canvas
+    // Map NIfTI data to canvas
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        // Get corresponding DICOM pixel
+        // Get corresponding NIfTI pixel
         const srcX = Math.floor(x * scaleX);
         const srcY = Math.floor(y * scaleY);
-        const srcIndex = srcY * cols + srcX;
+        const srcIndex = srcY * srcWidth + srcX;
         
         if (srcIndex < imageData.length) {
-          // Normalize to 0-255
+          // Normalize to 0-255 with better contrast
           const normalized = range > 0 ? ((imageData[srcIndex] - min) / range) * 255 : 0;
           const pixelValue = Math.max(0, Math.min(255, Math.floor(normalized)));
           
@@ -287,10 +382,10 @@ const renderDicomToCanvas = (ctx, dicomImage, width, height) => {
     }
     
     ctx.putImageData(canvas, 0, 0);
-    console.log('DICOM rendered successfully');
+    console.log('NIfTI rendered successfully');
     
   } catch (error) {
-    console.error('Error rendering DICOM:', error);
+    console.error('Error rendering NIfTI:', error);
     // Fallback to original background
     renderFallbackBackground(ctx, width, height);
   }
@@ -374,7 +469,7 @@ const AISegmentationDisplay = ({
   const [mriFiles, setMriFiles] = useState(null);
   const [isLoadingMRI, setIsLoadingMRI] = useState(false);
   const [mriError, setMriError] = useState(null);
-  const [currentDicomImage, setCurrentDicomImage] = useState(null);
+  const [currentNiftiImage, setCurrentNiftiImage] = useState(null);
 
   // Get current slice data with proper error handling
   const getCurrentSliceData = () => {
@@ -412,18 +507,18 @@ const AISegmentationDisplay = ({
 
   // Enhanced background rendering with MRI data or fallback
   const renderBackground = useCallback((ctx, width, height) => {
-    console.log('Rendering background:', { width, height, hasDicomImage: !!currentDicomImage });
+    console.log('Rendering background:', { width, height, hasNiftiImage: !!currentNiftiImage });
     
-    if (currentDicomImage) {
-      // Render actual DICOM data
-      renderDicomToCanvas(ctx, currentDicomImage, width, height);
+    if (currentNiftiImage) {
+      // Render actual NIfTI data
+      renderNiftiToCanvas(ctx, currentNiftiImage, width, height);
     } else {
       // Fallback to simulated background
       renderFallbackBackground(ctx, width, height);
     }
     
     console.log('Background rendered successfully');
-  }, [currentDicomImage]);
+  }, [currentNiftiImage]);
 
   // Main render function
   const renderCanvas = useCallback(() => {
@@ -562,16 +657,16 @@ const AISegmentationDisplay = ({
         console.log('Got presigned URL');
         
         // Fetch and extract tar file
-        const dicomFiles = await fetchAndExtractTarFile(presignedUrl);
-        console.log('Extracted DICOM files:', dicomFiles.length);
+        const niftiFiles = await fetchAndExtractTarFile(presignedUrl);
+        console.log('Extracted NIfTI files:', niftiFiles.length);
         
-        setMriFiles(dicomFiles);
+        setMriFiles(niftiFiles);
         
-        // Load first DICOM file as initial display
-        if (dicomFiles.length > 0) {
-          const firstDicom = await loadDicomImage(dicomFiles[0]);
-          setCurrentDicomImage(firstDicom);
-          console.log('✅ Initial DICOM loaded successfully');
+        // Load first NIfTI file as initial display
+        if (niftiFiles.length > 0) {
+          const firstNifti = loadNiftiImage(niftiFiles[0], 0);
+          setCurrentNiftiImage(firstNifti);
+          console.log('✅ Initial NIfTI loaded successfully');
         }
         
       } catch (error) {
@@ -585,37 +680,39 @@ const AISegmentationDisplay = ({
     loadMRIData();
   }, [projectId]);
 
-  // Update current DICOM image when time/layer indices change
+  // Update current NIfTI image when time/layer indices change
   useEffect(() => {
-    const updateCurrentDicom = async () => {
+    const updateCurrentNifti = () => {
       if (!mriFiles || mriFiles.length === 0) {
         return;
       }
 
       try {
-        // Calculate which DICOM file to load based on indices
-        // You may need to adjust this logic based on your file naming convention
-        let targetIndex = 0;
+        // Calculate which NIfTI file and slice to load based on indices
+        let targetFileIndex = 0;
+        let targetSliceIndex = currentLayerIndex;
         
         if (mriFiles.length > 1) {
-          // Try to map time and layer indices to file index
-          // This is a simple approach - you might need more sophisticated mapping
-          const totalSlices = Math.max(1, Math.sqrt(mriFiles.length));
-          targetIndex = (currentTimeIndex * totalSlices + currentLayerIndex) % mriFiles.length;
+          // If multiple files, use time index to select file
+          targetFileIndex = currentTimeIndex % mriFiles.length;
+        } else if (mriFiles.length === 1) {
+          // If single file, use both indices to select slice within the volume
+          const estimatedSlicesPerTimepoint = 10; // You may need to adjust this
+          targetSliceIndex = (currentTimeIndex * estimatedSlicesPerTimepoint + currentLayerIndex) % 100; // Reasonable max
         }
         
-        console.log(`Loading DICOM file ${targetIndex + 1}/${mriFiles.length} for frame ${currentTimeIndex + 1}, slice ${currentLayerIndex + 1}`);
+        console.log(`Loading NIfTI file ${targetFileIndex + 1}/${mriFiles.length}, slice ${targetSliceIndex} for frame ${currentTimeIndex + 1}, layer ${currentLayerIndex + 1}`);
         
-        const dicomImage = await loadDicomImage(mriFiles[targetIndex]);
-        setCurrentDicomImage(dicomImage);
+        const niftiImage = loadNiftiImage(mriFiles[targetFileIndex], targetSliceIndex);
+        setCurrentNiftiImage(niftiImage);
         
       } catch (error) {
-        console.error('Error updating current DICOM:', error);
+        console.error('Error updating current NIfTI:', error);
         // Keep previous image on error
       }
     };
 
-    updateCurrentDicom();
+    updateCurrentNifti();
   }, [mriFiles, currentTimeIndex, currentLayerIndex]);
 
   // Render when data changes
@@ -1059,35 +1156,6 @@ const AISegmentationDisplay = ({
       </div>
     </div>
   );
-};
-
-// Test function to manually trigger a mask render (call this from browser console)
-window.testMaskRender = () => {
-  console.log('=== MANUAL MASK RENDER TEST ===');
-  
-  // Create test RLE data (your format)
-  const testRLE = "23673 3 23927 12 24182 18 24437 23 24693 25";
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 512;
-  
-  const mask = decodeRLE(testRLE, 512, 512);
-  renderMaskOnCanvas(canvas, mask, 512, 512, '#FF6B6B', 0.7);
-  
-  // Add to page for visual inspection
-  canvas.style.border = '2px solid red';
-  canvas.style.position = 'fixed';
-  canvas.style.top = '10px';
-  canvas.style.right = '10px';
-  canvas.style.zIndex = '9999';
-  document.body.appendChild(canvas);
-  
-  console.log('Test canvas added to page (top right)');
-  
-  setTimeout(() => {
-    document.body.removeChild(canvas);
-    console.log('Test canvas removed');
-  }, 5000);
 };
 
 export default AISegmentationDisplay;
