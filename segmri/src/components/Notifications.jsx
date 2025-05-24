@@ -75,14 +75,14 @@ const Notification = ({
       case 'processing':
         return {
           icon: Brain,
-          iconClass: 'text-purple-600 animate-pulse',
+          iconClass: 'text-purple-600',
           bgClass: 'bg-purple-50 border-purple-200',
           textClass: 'text-purple-800',
-          title: 'AI Analysis in Progress',
-          message: 'Our AI is analyzing your cardiac images and generating segmentations...',
+          title: 'AI Processing Started',
+          message: 'Your images have been submitted for GPU processing. Use "Check Results" to see when complete.',
           showProgress: false,
-          showClose: false,
-          showSpinner: true
+          showClose: true,
+          showSpinner: false
         };
       
       case 'success':
@@ -189,33 +189,17 @@ const Notification = ({
                 </div>
               )}
 
-              {/* Process Steps for Processing */}
+              {/* Processing Status Message */}
               {uploadStatus === 'processing' && (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs text-purple-600 mb-2">
-                    <span>Processing Pipeline</span>
-                    <span className="flex items-center gap-1">
+                  <div className="text-xs text-purple-600 bg-purple-100 p-2 rounded">
+                    <div className="flex items-center gap-2">
                       <Clock size={12} />
-                      Est. 2-5 min
-                    </span>
-                  </div>
-                  <div className="space-y-1">
-                    {progressSteps.map((step, index) => (
-                      <div key={index} className="flex items-center gap-2 text-xs">
-                        <div className={`w-2 h-2 rounded-full ${
-                          step.status === 'complete' ? 'bg-green-500' :
-                          step.status === 'active' ? 'bg-purple-500 animate-pulse' :
-                          'bg-gray-300'
-                        }`} />
-                        <span className={`${
-                          step.status === 'complete' ? 'text-green-700' :
-                          step.status === 'active' ? 'text-purple-700 font-medium' :
-                          'text-gray-500'
-                        }`}>
-                          {step.label}
-                        </span>
-                      </div>
-                    ))}
+                      <span>Processing typically takes 2-10 minutes</span>
+                    </div>
+                    <div className="mt-1">
+                      <strong>Next step:</strong> Use "Check Results" button to see when complete
+                    </div>
                   </div>
                 </div>
               )}

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import { Settings } from 'lucide-react';
 import FileUpload from '../components/FileUpload';
 import VisualizationControls from '../components/VisualizationControls';
 import AISegmentationDisplay from '../components/AiSegDisplay';
 import EditableSegmentation from '../components/EditableSeg';
+
 import Notification from '../components/Notifications';
 import api from '../api/AxiosInstance';
 
@@ -497,20 +499,11 @@ const CardiacAnalysisPage = () => {
       if (isSuccess) {
         addDebugMessage('Segmentation started successfully');
         setProcessingStatus('segmenting');
+        setUploadStatus('processing');
         
-        // Add a delay before fetching results to allow processing time
-        addDebugMessage('Waiting for segmentation to complete...');
-        await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
+        // Don't poll immediately - let user manually check for results
+        addDebugMessage('Segmentation job submitted. Processing will take several minutes...');
         
-        // Poll for segmentation results
-        const segmentationResults = await pollForSegmentationResults(projectId);
-        
-        if (segmentationResults) {
-          processSegmentationData(segmentationResults);
-          setUploadStatus('success');
-        } else {
-          throw new Error('No segmentation results received after polling');
-        }
       } else {
         DebugLogger.error('CardiacAnalysisPage', 'Segmentation start failed', response.data);
         throw new Error('Segmentation failed to start: ' + (response.data.message || 'Unknown error'));
@@ -523,61 +516,58 @@ const CardiacAnalysisPage = () => {
     }
   };
 
-  // Enhanced polling for segmentation results
-  const pollForSegmentationResults = async (projectId, maxAttempts = 15, interval = 4000) => {
-    addDebugMessage(`Starting to poll for segmentation results (max ${maxAttempts} attempts, ${interval/1000}s interval)`);
-    
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        addDebugMessage(`Polling attempt ${attempt}/${maxAttempts} for project ${projectId}`);
-        
-        const response = await api.get(`/segmentation/segmentation-results/${projectId}`);
-        DebugLogger.log('CardiacAnalysisPage', `Poll attempt ${attempt} response`, response.data);
-        
-        // Check if we have segmentation results
-        const hasResults = response.data && (
-          (response.data.segmentations && Array.isArray(response.data.segmentations) && response.data.segmentations.length > 0) ||
-          (Array.isArray(response.data) && response.data.length > 0) ||
-          (response.data.frames && Array.isArray(response.data.frames))
-        );
-        
-        if (hasResults) {
-          addDebugMessage(`Segmentation results found on attempt ${attempt}`);
-          
-          // Additional validation to ensure we have actual mask data
-          const hasActualMasks = response.data.segmentations ? 
-            response.data.segmentations.some(seg => 
-              seg.frames && seg.frames.some(frame => 
-                frame.slices && frame.slices.some(slice => 
-                  slice.segmentationmasks && slice.segmentationmasks.length > 0
-                )
-              )
-            ) : false;
-          
-          if (hasActualMasks || (response.data.frames && response.data.frames.length > 0)) {
-            addDebugMessage('Validated that results contain actual mask data');
-            return response.data;
-          } else {
-            addDebugMessage(`Results found but no actual mask data yet on attempt ${attempt}`);
-          }
-        } else {
-          addDebugMessage(`No results yet on attempt ${attempt}, waiting ${interval/1000}s...`);
-        }
-        
-        if (attempt < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, interval));
-        }
-      } catch (err) {
-        DebugLogger.error('CardiacAnalysisPage', `Poll attempt ${attempt} failed`, err);
-        if (attempt === maxAttempts) {
-          throw err;
-        }
-        await new Promise(resolve => setTimeout(resolve, interval));
-      }
+  // Manual check for results (called by user action)
+  const checkForResults = async () => {
+    if (!projectId) {
+      alert('No active project to check.');
+      return;
     }
-    
-    addDebugMessage('Polling completed without finding complete results');
-    return null;
+
+    addDebugMessage('Manually checking for segmentation results...');
+    setIsProcessing(true);
+
+    try {
+      const response = await api.get(`/segmentation/segmentation-results/${projectId}`);
+      DebugLogger.log('CardiacAnalysisPage', 'Manual check response', response.data);
+      
+      // Check if we have segmentation results
+      const hasResults = response.data && (
+        (response.data.segmentations && Array.isArray(response.data.segmentations) && response.data.segmentations.length > 0) ||
+        (Array.isArray(response.data) && response.data.length > 0) ||
+        (response.data.frames && Array.isArray(response.data.frames))
+      );
+      
+      if (hasResults) {
+        // Additional validation to ensure we have actual mask data
+        const hasActualMasks = response.data.segmentations ? 
+          response.data.segmentations.some(seg => 
+            seg.frames && seg.frames.some(frame => 
+              frame.slices && frame.slices.some(slice => 
+                slice.segmentationmasks && slice.segmentationmasks.length > 0
+              )
+            )
+          ) : false;
+        
+        if (hasActualMasks || (response.data.frames && response.data.frames.length > 0)) {
+          addDebugMessage('Segmentation results found and validated!');
+          processSegmentationData(response.data);
+          setUploadStatus('success');
+          setIsProcessing(false);
+        } else {
+          addDebugMessage('Results found but no actual mask data yet. Processing may still be in progress.');
+          alert('Segmentation is still processing. Please wait a few more minutes and try again.');
+          setIsProcessing(false);
+        }
+      } else {
+        addDebugMessage('No segmentation results found yet.');
+        alert('No results found yet. Segmentation may still be processing. Please wait and try again in a few minutes.');
+        setIsProcessing(false);
+      }
+    } catch (err) {
+      addDebugMessage(`Error checking for results: ${err.message}`);
+      alert('Error checking for results: ' + err.message);
+      setIsProcessing(false);
+    }
   };
 
   // Handle mask selection
@@ -698,6 +688,52 @@ const CardiacAnalysisPage = () => {
           />
         )}
 
+        {!processingComplete && uploadStatus === 'processing' && (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="bg-white rounded-xl shadow-xl overflow-hidden border border-gray-200"
+          >
+            <div className="bg-gradient-to-r from-orange-500 to-red-500 p-6 text-white">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-light">AI Processing in Progress</h3>
+                  <p className="text-orange-100 mt-1">
+                    Your images are being analyzed by our GPU servers
+                  </p>
+                </div>
+                <div className="animate-pulse">
+                  <Settings size={32} />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <div className="flex">
+                <div className="w-full">
+                  <VisualizationControls
+                    currentTimeIndex={0}
+                    maxTimeIndex={0}
+                    currentLayerIndex={0}
+                    maxLayerIndex={0}
+                    onTimeSliderChange={() => {}}
+                    onLayerSliderChange={() => {}}
+                    onSave={() => {}}
+                    onExport={() => {}}
+                    onUploadCurrentMasks={() => {}}
+                    onUploadAllMasks={() => {}}
+                    onCheckResults={checkForResults}
+                    uploadingMasks={false}
+                    isProcessing={isProcessing}
+                    processingComplete={processingComplete}
+                  />
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {processingComplete && (
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -737,7 +773,10 @@ const CardiacAnalysisPage = () => {
                     onExport={handleExport}
                     onUploadCurrentMasks={handleUploadCurrentMasks}
                     onUploadAllMasks={handleUploadAllMasks}
+                    onCheckResults={checkForResults}
                     uploadingMasks={uploadingMasks}
+                    isProcessing={isProcessing}
+                    processingComplete={processingComplete}
                   />
                 </div>
 
@@ -757,6 +796,8 @@ const CardiacAnalysisPage = () => {
                   <EditableSegmentation selectedMask={selectedMask} />
                 </div>
               </div>
+
+
             </div>
           </motion.div>
         )}
