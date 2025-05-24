@@ -1,7 +1,7 @@
-
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Eye, EyeOff, Download, Upload, Info, RotateCcw, ZoomIn, ZoomOut, Play, Pause, Grid, Layers } from 'lucide-react';
 import Untar from "untar.js";
+import * as nifti from "nifti-reader-js";
 
 // Enhanced RLE Decoder utility functions
 const decodeRLE = (rleString, height, width) => {
@@ -178,7 +178,6 @@ const fetchAndExtractTarFile = async (presignedUrl) => {
   console.log('Presigned URL:', presignedUrl);
   
   try {
-    // Fetch the tar file
     const response = await fetch(presignedUrl);
     if (!response.ok) {
       throw new Error(`Failed to fetch tar file: ${response.statusText}`);
@@ -187,24 +186,20 @@ const fetchAndExtractTarFile = async (presignedUrl) => {
     const arrayBuffer = await response.arrayBuffer();
     console.log('Tar file downloaded, size:', arrayBuffer.byteLength);
     
-    // Extract using untar.js
     const extractedFiles = await Untar.extractFromBuffer(arrayBuffer);
     console.log('Files extracted:', extractedFiles.length);
     
-    // Filter and organize NIfTI files
+    // Filter for NIfTI files
     const niftiFiles = extractedFiles.filter(file => 
       file.name && (
         file.name.toLowerCase().endsWith('.nii') ||
         file.name.toLowerCase().endsWith('.nii.gz') ||
-        file.name.toLowerCase().endsWith('.nifti') ||
-        // Also check for files without extension that might be NIfTI
-        (!file.name.includes('.') && file.buffer && file.buffer.byteLength > 300) // NIfTI header is ~352 bytes minimum
+        file.name.toLowerCase().includes('.nii')
       )
     );
     
     console.log('NIfTI files found:', niftiFiles.length);
     console.log('Sample file names:', niftiFiles.slice(0, 5).map(f => f.name));
-    console.log('File sizes:', niftiFiles.slice(0, 5).map(f => ({ name: f.name, size: f.buffer.byteLength })));
     
     return niftiFiles;
   } catch (error) {
@@ -213,163 +208,79 @@ const fetchAndExtractTarFile = async (presignedUrl) => {
   }
 };
 
-// Simple NIfTI header parser (first 348 bytes contain the header)
-const parseNiftiHeader = (buffer) => {
-  const dataView = new DataView(buffer);
-  
-  // Check NIfTI magic number
-  const magic1 = new TextDecoder().decode(new Uint8Array(buffer, 344, 4));
-  const magic2 = new TextDecoder().decode(new Uint8Array(buffer, 0, 4));
-  
-  const isNifti = magic1 === 'n+1\0' || magic1 === 'ni1\0' || magic2 === 'n+1\0' || magic2 === 'ni1\0';
-  
-  if (!isNifti) {
-    throw new Error('Not a valid NIfTI file');
-  }
-  
-  // Parse dimensions (starts at byte 40)
-  const ndim = dataView.getInt16(40, true); // little endian
-  const dims = [];
-  for (let i = 0; i < Math.min(ndim, 7); i++) {
-    dims.push(dataView.getInt16(42 + i * 2, true));
-  }
-  
-  // Parse datatype (byte 70)
-  const datatype = dataView.getInt16(70, true);
-  
-  // Parse voxel offset (byte 108) - where image data starts
-  const voxOffset = dataView.getFloat32(108, true);
-  
-  console.log('NIfTI Header parsed:', {
-    magic: magic1,
-    dimensions: dims,
-    datatype: datatype,
-    voxelOffset: voxOffset,
-    ndim: ndim
-  });
-  
-  return {
-    dimensions: dims,
-    datatype: datatype,
-    voxelOffset: voxOffset || 352, // Default NIfTI header size
-    isValid: true
-  };
-};
-
-const loadNiftiImage = (niftiFile, sliceIndex = 0) => {
+const loadNiftiImage = async (niftiFile) => {
   try {
-    console.log('Loading NIfTI file:', niftiFile.name, 'slice:', sliceIndex);
+    console.log('Loading NIfTI file:', niftiFile.name);
     
-    const header = parseNiftiHeader(niftiFile.buffer);
-    
-    if (!header.isValid) {
-      throw new Error('Invalid NIfTI header');
+    // Parse NIfTI header
+    const header = nifti.readHeader(niftiFile.buffer);
+    if (!header) {
+      throw new Error('Failed to parse NIfTI header');
     }
     
-    const dims = header.dimensions;
-    const width = dims[1] || 512;  // X dimension
-    const height = dims[2] || 512; // Y dimension
-    const depth = dims[3] || 1;    // Z dimension (slices)
-    
-    console.log('NIfTI dimensions:', { width, height, depth });
-    
-    // Calculate slice to extract
-    const targetSlice = Math.min(sliceIndex, depth - 1);
-    const sliceSize = width * height;
-    const dataOffset = header.voxelOffset;
-    
-    // For now, assume 16-bit signed integers (datatype 4) or 32-bit floats (datatype 16)
-    let bytesPerVoxel = 2; // Default to 16-bit
-    if (header.datatype === 16) bytesPerVoxel = 4; // 32-bit float
-    if (header.datatype === 2) bytesPerVoxel = 1;  // 8-bit
-    
-    const sliceDataOffset = dataOffset + (targetSlice * sliceSize * bytesPerVoxel);
-    const sliceBuffer = niftiFile.buffer.slice(sliceDataOffset, sliceDataOffset + (sliceSize * bytesPerVoxel));
-    
-    if (sliceBuffer.byteLength < sliceSize * bytesPerVoxel) {
-      console.warn('Insufficient data for requested slice, using available data');
+    // Parse NIfTI image data
+    const image = nifti.readImage(header, niftiFile.buffer);
+    if (!image) {
+      throw new Error('Failed to parse NIfTI image data');
     }
     
-    // Parse slice data
-    const dataView = new DataView(sliceBuffer);
-    const imageData = new Float32Array(sliceSize);
-    
-    for (let i = 0; i < Math.min(sliceSize, sliceBuffer.byteLength / bytesPerVoxel); i++) {
-      if (bytesPerVoxel === 2) {
-        imageData[i] = dataView.getInt16(i * 2, true); // 16-bit signed
-      } else if (bytesPerVoxel === 4) {
-        imageData[i] = dataView.getFloat32(i * 4, true); // 32-bit float
-      } else {
-        imageData[i] = dataView.getUint8(i); // 8-bit
-      }
-    }
-    
-    console.log('NIfTI slice loaded:', {
-      width,
-      height,
-      depth,
-      targetSlice,
-      dataLength: imageData.length,
-      valueRange: {
-        min: Math.min(...imageData),
-        max: Math.max(...imageData)
-      }
+    console.log('NIfTI parsed successfully:', {
+      dims: header.dims,
+      pixDims: header.pixDims,
+      datatype: header.datatypeCode
     });
     
-    return {
-      width,
-      height,
-      depth,
-      imageData,
-      sliceIndex: targetSlice,
-      isValid: true
-    };
-    
+    return { header, data: image };
   } catch (error) {
     console.error('Error loading NIfTI:', error);
     throw error;
   }
 };
 
-const renderNiftiToCanvas = (ctx, niftiImage, width, height) => {
+const renderNiftiToCanvas = (ctx, niftiImage, width, height, sliceIndex = 0) => {
   try {
     console.log('Rendering NIfTI to canvas');
     
-    const imageData = niftiImage.imageData;
-    const srcWidth = niftiImage.width;
-    const srcHeight = niftiImage.height;
+    const { header, data } = niftiImage;
+    const [, cols, rows, slices] = header.dims;
     
-    console.log('NIfTI dimensions:', { srcWidth, srcHeight, dataLength: imageData.length });
+    console.log('NIfTI dimensions:', { cols, rows, slices, dataLength: data.length });
+    
+    // Calculate slice offset
+    const sliceSize = cols * rows;
+    const actualSliceIndex = Math.min(sliceIndex, slices - 1);
+    const sliceOffset = actualSliceIndex * sliceSize;
     
     // Create canvas image data
     const canvas = ctx.createImageData(width, height);
     const canvasData = canvas.data;
     
     // Calculate scaling factors
-    const scaleX = srcWidth / width;
-    const scaleY = srcHeight / height;
+    const scaleX = cols / width;
+    const scaleY = rows / height;
     
-    // Find min/max values for windowing
+    // Find min/max values for windowing in current slice
     let min = Infinity, max = -Infinity;
-    for (let i = 0; i < imageData.length; i++) {
-      if (imageData[i] < min) min = imageData[i];
-      if (imageData[i] > max) max = imageData[i];
+    for (let i = sliceOffset; i < sliceOffset + sliceSize; i++) {
+      if (i < data.length) {
+        if (data[i] < min) min = data[i];
+        if (data[i] > max) max = data[i];
+      }
     }
     
     const range = max - min;
-    console.log('NIfTI value range:', { min, max, range });
+    console.log('NIfTI value range:', { min, max, range, slice: actualSliceIndex });
     
     // Map NIfTI data to canvas
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        // Get corresponding NIfTI pixel
         const srcX = Math.floor(x * scaleX);
         const srcY = Math.floor(y * scaleY);
-        const srcIndex = srcY * srcWidth + srcX;
+        const srcIndex = sliceOffset + srcY * cols + srcX;
         
-        if (srcIndex < imageData.length) {
-          // Normalize to 0-255 with better contrast
-          const normalized = range > 0 ? ((imageData[srcIndex] - min) / range) * 255 : 0;
+        if (srcIndex < data.length) {
+          // Normalize to 0-255
+          const normalized = range > 0 ? ((data[srcIndex] - min) / range) * 255 : 0;
           const pixelValue = Math.max(0, Math.min(255, Math.floor(normalized)));
           
           const canvasIndex = (y * width + x) * 4;
@@ -386,10 +297,11 @@ const renderNiftiToCanvas = (ctx, niftiImage, width, height) => {
     
   } catch (error) {
     console.error('Error rendering NIfTI:', error);
-    // Fallback to original background
     renderFallbackBackground(ctx, width, height);
   }
 };
+
+
 
 const renderFallbackBackground = (ctx, width, height) => {
   console.log('Rendering fallback background');
@@ -467,9 +379,11 @@ const AISegmentationDisplay = ({
   
   // New state for MRI data
   const [mriFiles, setMriFiles] = useState(null);
+  const [currentNiftiImage, setCurrentNiftiImage] = useState(null);
+
   const [isLoadingMRI, setIsLoadingMRI] = useState(false);
   const [mriError, setMriError] = useState(null);
-  const [currentNiftiImage, setCurrentNiftiImage] = useState(null);
+
 
   // Get current slice data with proper error handling
   const getCurrentSliceData = () => {
@@ -507,18 +421,18 @@ const AISegmentationDisplay = ({
 
   // Enhanced background rendering with MRI data or fallback
   const renderBackground = useCallback((ctx, width, height) => {
-    console.log('Rendering background:', { width, height, hasNiftiImage: !!currentNiftiImage });
-    
-    if (currentNiftiImage) {
-      // Render actual NIfTI data
-      renderNiftiToCanvas(ctx, currentNiftiImage, width, height);
-    } else {
-      // Fallback to simulated background
-      renderFallbackBackground(ctx, width, height);
-    }
-    
-    console.log('Background rendered successfully');
-  }, [currentNiftiImage]);
+  console.log('Rendering background:', { width, height, hasNiftiImage: !!currentNiftiImage });
+  
+  if (currentNiftiImage) {
+    // Calculate which slice to show based on currentLayerIndex
+    const sliceIndex = currentLayerIndex || 0;
+    renderNiftiToCanvas(ctx, currentNiftiImage, width, height, sliceIndex);
+  } else {
+    renderFallbackBackground(ctx, width, height);
+  }
+  
+  console.log('Background rendered successfully');
+}, [currentNiftiImage, currentLayerIndex]);
 
   // Main render function
   const renderCanvas = useCallback(() => {
@@ -656,15 +570,14 @@ const AISegmentationDisplay = ({
         const presignedUrl = await fetchPresignedUrl(projectId);
         console.log('Got presigned URL');
         
-        // Fetch and extract tar file
         const niftiFiles = await fetchAndExtractTarFile(presignedUrl);
         console.log('Extracted NIfTI files:', niftiFiles.length);
-        
+
         setMriFiles(niftiFiles);
-        
+
         // Load first NIfTI file as initial display
         if (niftiFiles.length > 0) {
-          const firstNifti = loadNiftiImage(niftiFiles[0], 0);
+          const firstNifti = await loadNiftiImage(niftiFiles[0]);
           setCurrentNiftiImage(firstNifti);
           console.log('✅ Initial NIfTI loaded successfully');
         }
@@ -680,34 +593,32 @@ const AISegmentationDisplay = ({
     loadMRIData();
   }, [projectId]);
 
-  // Update current NIfTI image when time/layer indices change
+  // Update current NIFTI image when time/layer indices change
   useEffect(() => {
-    const updateCurrentNifti = () => {
+    const updateCurrentNifti = async () => {
       if (!mriFiles || mriFiles.length === 0) {
         return;
       }
 
       try {
-        // Calculate which NIfTI file and slice to load based on indices
-        let targetFileIndex = 0;
-        let targetSliceIndex = currentLayerIndex;
+        // Calculate which NIFIT file to load based on indices
+        // You may need to adjust this logic based on your file naming convention
+        let targetIndex = 0;
         
         if (mriFiles.length > 1) {
-          // If multiple files, use time index to select file
-          targetFileIndex = currentTimeIndex % mriFiles.length;
-        } else if (mriFiles.length === 1) {
-          // If single file, use both indices to select slice within the volume
-          const estimatedSlicesPerTimepoint = 10; // You may need to adjust this
-          targetSliceIndex = (currentTimeIndex * estimatedSlicesPerTimepoint + currentLayerIndex) % 100; // Reasonable max
+          // Try to map time and layer indices to file index
+          // This is a simple approach - you might need more sophisticated mapping
+          const totalSlices = Math.max(1, Math.sqrt(mriFiles.length));
+          targetIndex = (currentTimeIndex * totalSlices + currentLayerIndex) % mriFiles.length;
         }
         
-        console.log(`Loading NIfTI file ${targetFileIndex + 1}/${mriFiles.length}, slice ${targetSliceIndex} for frame ${currentTimeIndex + 1}, layer ${currentLayerIndex + 1}`);
-        
-        const niftiImage = loadNiftiImage(mriFiles[targetFileIndex], targetSliceIndex);
+        console.log(`Loading NIfTI file ${targetIndex + 1}/${mriFiles.length} for frame ${currentTimeIndex + 1}, slice ${currentLayerIndex + 1}`);
+
+        const niftiImage = await loadNiftiImage(mriFiles[targetIndex]);
         setCurrentNiftiImage(niftiImage);
         
       } catch (error) {
-        console.error('Error updating current NIfTI:', error);
+        console.error('Error updating current NIFTI:', error);
         // Keep previous image on error
       }
     };
@@ -958,7 +869,7 @@ const AISegmentationDisplay = ({
               <div>Masks: {availableMasks.length}</div>
               <div>Zoom: {Math.round(zoomLevel * 100)}%</div>
               <div>MRI: {isLoadingMRI ? 'Loading...' : mriFiles ? `${mriFiles.length} files` : 'No data'}</div>
-              <div>DICOM: {currentDicomImage ? '✅' : '❌'}</div>
+              <div>NIfTI: {currentNiftiImage ? '✅' : '❌'}</div>
             </div>
           </div>
           
