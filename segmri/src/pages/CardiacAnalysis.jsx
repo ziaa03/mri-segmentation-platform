@@ -275,175 +275,235 @@ const CardiacAnalysisPage = () => {
 
   // Enhanced segmentation data processing
   const processSegmentationData = useCallback((data) => {
-  console.log('=== PROCESSING SEGMENTATION DATA ===');
-  console.log('Input data:', data);
-  
-  if (!data) {
-    console.error('No segmentation data received');
-    return;
-  }
-
-  // Handle different response formats from the backend
-  let segmentationResults = null;
-  
-  if (data.segmentations && Array.isArray(data.segmentations)) {
-    segmentationResults = data.segmentations;
-    console.log('Using segmentations array format');
-  } else if (Array.isArray(data)) {
-    segmentationResults = data;
-    console.log('Using direct array format');
-  } else if (data.frames) {
-    segmentationResults = [data];
-    console.log('Using direct segmentation document format');
-  }
-
-  if (!segmentationResults || segmentationResults.length === 0) {
-    console.error('No segmentation results found in data');
-    setErrorMessage('No segmentation results found in response');
-    return;
-  }
-
-  console.log(`Found ${segmentationResults.length} segmentation document(s)`);
-
-  // Take the first (most recent) segmentation result
-  const segmentationDocument = segmentationResults[0];
-
-  if (!segmentationDocument || !segmentationDocument.frames) {
-    console.error('Invalid segmentation data structure', segmentationDocument);
-    setErrorMessage('Invalid segmentation data structure');
-    return;
-  }
-
-  console.log('Processing segmentation document:', {
-    name: segmentationDocument.name,
-    frameCount: segmentationDocument.frames.length
-  });
-
-  // Transform and validate the data structure
-  const transformedData = {
-    masks: [],
-    segments: [],
-    name: segmentationDocument.name || 'AI Segmentation Results',
-    description: segmentationDocument.description || 'Automated cardiac segmentation'
-  };
-
-  const uniqueClasses = new Set();
-  let maxFrameIndex = -1;
-  let maxSliceIndex = -1;
-  let totalMasks = 0;
-  let masksWithRLE = 0;
-
-  // Process frames and slices
-  segmentationDocument.frames.forEach((frame, frameIdx) => {
-    const frameIndex = frame.frameindex;
-    maxFrameIndex = Math.max(maxFrameIndex, frameIndex);
+    console.log('=== PROCESSING SEGMENTATION DATA ===');
+    console.log('Input data:', data);
     
-    console.log(`Processing frame ${frameIndex} (${frameIdx + 1}/${segmentationDocument.frames.length})`);
-    
-    if (!transformedData.masks[frameIndex]) {
-      transformedData.masks[frameIndex] = [];
+    if (!data) {
+      console.error('No segmentation data received');
+      return;
     }
 
-    frame.slices.forEach((slice, sliceIdx) => {
-      const sliceIndex = slice.sliceindex;
-      maxSliceIndex = Math.max(maxSliceIndex, sliceIndex);
+    // Handle different response formats from the backend
+    let segmentationResults = null;
+    
+    if (data.segmentations && Array.isArray(data.segmentations)) {
+      segmentationResults = data.segmentations;
+      console.log('Using segmentations array format');
+    } else if (Array.isArray(data)) {
+      segmentationResults = data;
+      console.log('Using direct array format');
+    } else if (data.frames) {
+      segmentationResults = [data];
+      console.log('Using direct segmentation document format');
+    }
 
-      console.log(`  Processing slice ${sliceIndex} (${sliceIdx + 1}/${frame.slices.length})`);
-      console.log(`    Bounding boxes: ${slice.componentboundingboxes?.length || 0}`);
-      console.log(`    Segmentation masks: ${slice.segmentationmasks?.length || 0}`);
+    if (!segmentationResults || segmentationResults.length === 0) {
+      console.error('No segmentation results found in data');
+      setErrorMessage('No segmentation results found in response');
+      return;
+    }
 
-      // Collect unique classes and validate data
-      slice.componentboundingboxes?.forEach(box => {
-        if (box.class) uniqueClasses.add(box.class);
-      });
-      
-      slice.segmentationmasks?.forEach(mask => {
-        if (mask.class) uniqueClasses.add(mask.class);
-        totalMasks++;
-        if (mask.segmentationmaskcontents) {
-          masksWithRLE++;
-          console.log(`    Mask ${mask.class}: ${mask.segmentationmaskcontents.length} chars`);
-        } else {
-          console.warn(`    Mask ${mask.class}: NO RLE DATA`);
-        }
-      });
+    console.log(`Found ${segmentationResults.length} segmentation document(s)`);
 
-      // Transform data structures
-      const transformedBoundingBoxes = (slice.componentboundingboxes || []).map(box => ({
-        class: box.class,
-        confidence: box.confidence || 0,
-        x_min: box.x_min,
-        y_min: box.y_min,
-        x_max: box.x_max,
-        y_max: box.y_max,
-        bbox: [box.x_min, box.y_min, box.x_max, box.y_max]
-      }));
+    // Take the first (most recent) segmentation result
+    const segmentationDocument = segmentationResults[0];
 
-      const transformedSegmentationMasks = (slice.segmentationmasks || []).map(mask => ({
-        class: mask.class,
-        segmentationmaskcontents: mask.segmentationmaskcontents,
-        rle: mask.segmentationmaskcontents, // Alias for backward compatibility
-        confidence: mask.confidence || 1.0
-      }));
+    if (!segmentationDocument || !segmentationDocument.frames) {
+      console.error('Invalid segmentation data structure', segmentationDocument);
+      setErrorMessage('Invalid segmentation data structure');
+      return;
+    }
 
-      // Store slice data
-      transformedData.masks[frameIndex][sliceIndex] = {
-        boundingBoxes: transformedBoundingBoxes,
-        segmentationMasks: transformedSegmentationMasks,
-        frameIndex: frameIndex,
-        sliceIndex: sliceIndex
-      };
+    console.log('Processing segmentation document:', {
+      name: segmentationDocument.name,
+      frameCount: segmentationDocument.frames.length
     });
-  });
 
-  console.log('=== PROCESSING SUMMARY ===');
-  console.log(`Frames: ${maxFrameIndex + 1}, Slices: ${maxSliceIndex + 1}`);
-  console.log(`Total masks: ${totalMasks}, With RLE: ${masksWithRLE}`);
-  console.log(`Unique classes: ${Array.from(uniqueClasses).join(', ')}`);
+    // Transform and validate the data structure
+    const transformedData = {
+      masks: [],
+      segments: [],
+      name: segmentationDocument.name || 'AI Segmentation Results',
+      description: segmentationDocument.description || 'Automated cardiac segmentation'
+    };
 
-  if (masksWithRLE === 0) {
-    console.error('No masks with RLE data found!');
-    setErrorMessage('No segmentation mask data found in results');
-    return;
-  }
+    const uniqueClasses = new Set();
+    let maxFrameIndex = -1;
+    let maxSliceIndex = -1;
+    let totalMasks = 0;
+    let masksWithRLE = 0;
 
-  // Create segments array
-  const classColors = {
-    'RV': '#FF6B6B',    // Red for Right Ventricle
-    'LVC': '#4ECDC4',   // Teal for Left Ventricle Cavity  
-    'LV': '#4ECDC4',    // Alias for LVC
-    'MYO': '#45B7D1',   // Blue for Myocardium
-    'LA': '#9C27B0',    // Purple for Left Atrium
-    'RA': '#FF5722'     // Deep orange for Right Atrium
+    // Process frames and slices
+    segmentationDocument.frames.forEach((frame, frameIdx) => {
+      const frameIndex = frame.frameindex;
+      maxFrameIndex = Math.max(maxFrameIndex, frameIndex);
+      
+      console.log(`Processing frame ${frameIndex} (${frameIdx + 1}/${segmentationDocument.frames.length})`);
+      
+      if (!transformedData.masks[frameIndex]) {
+        transformedData.masks[frameIndex] = [];
+      }
+
+      frame.slices.forEach((slice, sliceIdx) => {
+        const sliceIndex = slice.sliceindex;
+        maxSliceIndex = Math.max(maxSliceIndex, sliceIndex);
+
+        console.log(`  Processing slice ${sliceIndex} (${sliceIdx + 1}/${frame.slices.length})`);
+        console.log(`    Bounding boxes: ${slice.componentboundingboxes?.length || 0}`);
+        console.log(`    Segmentation masks: ${slice.segmentationmasks?.length || 0}`);
+
+        // Collect unique classes and validate data
+        slice.componentboundingboxes?.forEach(box => {
+          if (box.class) uniqueClasses.add(box.class);
+        });
+        
+        slice.segmentationmasks?.forEach(mask => {
+          if (mask.class) uniqueClasses.add(mask.class);
+          totalMasks++;
+          if (mask.segmentationmaskcontents) {
+            masksWithRLE++;
+            console.log(`    Mask ${mask.class}: ${mask.segmentationmaskcontents.length} chars`);
+          } else {
+            console.warn(`    Mask ${mask.class}: NO RLE DATA`);
+          }
+        });
+
+        // Transform data structures
+        const transformedBoundingBoxes = (slice.componentboundingboxes || []).map(box => ({
+          class: box.class,
+          confidence: box.confidence || 0,
+          x_min: box.x_min,
+          y_min: box.y_min,
+          x_max: box.x_max,
+          y_max: box.y_max,
+          bbox: [box.x_min, box.y_min, box.x_max, box.y_max]
+        }));
+
+        const transformedSegmentationMasks = (slice.segmentationmasks || []).map(mask => ({
+          class: mask.class,
+          segmentationmaskcontents: mask.segmentationmaskcontents,
+          rle: mask.segmentationmaskcontents, // Alias for backward compatibility
+          confidence: mask.confidence || 1.0
+        }));
+
+        // Store slice data
+        transformedData.masks[frameIndex][sliceIndex] = {
+          boundingBoxes: transformedBoundingBoxes,
+          segmentationMasks: transformedSegmentationMasks,
+          frameIndex: frameIndex,
+          sliceIndex: sliceIndex
+        };
+      });
+    });
+
+    console.log('=== PROCESSING SUMMARY ===');
+    console.log(`Frames: ${maxFrameIndex + 1}, Slices: ${maxSliceIndex + 1}`);
+    console.log(`Total masks: ${totalMasks}, With RLE: ${masksWithRLE}`);
+    console.log(`Unique classes: ${Array.from(uniqueClasses).join(', ')}`);
+
+    if (masksWithRLE === 0) {
+      console.error('No masks with RLE data found!');
+      setErrorMessage('No segmentation mask data found in results');
+      return;
+    }
+
+    // Create segments array
+    const classColors = {
+      'RV': '#FF6B6B',    // Red for Right Ventricle
+      'LVC': '#4ECDC4',   // Teal for Left Ventricle Cavity  
+      'LV': '#4ECDC4',    // Alias for LVC
+      'MYO': '#45B7D1',   // Blue for Myocardium
+      'LA': '#9C27B0',    // Purple for Left Atrium
+      'RA': '#FF5722'     // Deep orange for Right Atrium
+    };
+
+    transformedData.segments = Array.from(uniqueClasses).map((className, index) => ({
+      id: className,
+      name: className,
+      color: classColors[className] || `hsl(${index * 120}, 70%, 50%)`,
+      class: className
+    }));
+
+    // Set the transformed data
+    setSegmentationData(transformedData);
+    setMaxTimeIndex(Math.max(0, maxFrameIndex));
+    setMaxLayerIndex(Math.max(0, maxSliceIndex));
+    
+    // Reset navigation if needed
+    if (currentTimeIndex > maxFrameIndex) {
+      setCurrentTimeIndex(0);
+    }
+    if (currentLayerIndex > maxSliceIndex) {
+      setCurrentLayerIndex(0);
+    }
+    
+    setSegmentItems(transformedData.segments);
+    setProcessingComplete(true);
+    
+    console.log('✅ Segmentation data processing completed successfully');
+    addDebugMessage(`✅ Processing completed: ${uniqueClasses.size} classes, ${masksWithRLE} masks with RLE data`);
+
+  }, [addDebugMessage, currentTimeIndex, currentLayerIndex]);
+
+  // Handle file upload and start segmentation
+  const handleFilesSelected = async (selectedFiles, status, message) => {
+    if (status === 'error') {
+      setUploadStatus('error');
+      setErrorMessage(message);
+      return;
+    }
+
+    setUploadStatus('uploading');
+    setFiles(selectedFiles);
+    const fileName = selectedFiles[0]?.name || '';
+    setUploadedFileName(fileName);
+    addDebugMessage(`Starting upload of ${selectedFiles.length} files`);
+
+    const formData = new FormData();
+    selectedFiles.forEach(file => formData.append('files', file));
+
+    try {
+      const response = await api.put('/project/upload-new-project', formData, {
+        withCredentials: true,
+      });
+
+      DebugLogger.log('CardiacAnalysisPage', 'Upload response', response.data);
+
+      // Check for success in multiple ways since backend might return different formats
+      const isSuccess = response.data.success === true || 
+                       response.status === 200 || 
+                       (response.data.message && response.data.message.includes('successfully'));
+      
+      if (isSuccess) {
+        addDebugMessage('Upload successful, fetching project ID...');
+        
+        // Wait a moment for the database to be updated
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Fetch the actual project ID using the projects list endpoint
+        const projectId = await fetchMostRecentProject(fileName);
+        
+        if (projectId) {
+          setProjectId(projectId);
+          addDebugMessage(`Project ID obtained: ${projectId}`);
+
+          setUploadStatus('processing');
+          setIsProcessing(true);
+          
+          // Trigger segmentation after getting the project ID
+          await triggerSegmentation(projectId);
+        } else {
+          throw new Error('Could not obtain project ID after upload');
+        }
+      } else {
+        throw new Error('Upload failed: ' + (response.data.message || 'Unknown error'));
+      }
+    } catch (err) {
+      setUploadStatus('error');
+      setErrorMessage(err.message);
+      DebugLogger.error('CardiacAnalysisPage', 'Upload/Project ID fetch failed', err);
+    }
   };
-
-  transformedData.segments = Array.from(uniqueClasses).map((className, index) => ({
-    id: className,
-    name: className,
-    color: classColors[className] || `hsl(${index * 120}, 70%, 50%)`,
-    class: className
-  }));
-
-  // Set the transformed data
-  setSegmentationData(transformedData);
-  setMaxTimeIndex(Math.max(0, maxFrameIndex));
-  setMaxLayerIndex(Math.max(0, maxSliceIndex));
-  
-  // Reset navigation if needed
-  if (currentTimeIndex > maxFrameIndex) {
-    setCurrentTimeIndex(0);
-  }
-  if (currentLayerIndex > maxSliceIndex) {
-    setCurrentLayerIndex(0);
-  }
-  
-  setSegmentItems(transformedData.segments);
-  setProcessingComplete(true);
-  
-  console.log('✅ Segmentation data processing completed successfully');
-  addDebugMessage(`✅ Processing completed: ${uniqueClasses.size} classes, ${masksWithRLE} masks with RLE data`);
-
-}, [addDebugMessage, currentTimeIndex, currentLayerIndex]);
 
   // Trigger Segmentation
   const triggerSegmentation = async (projectId) => {
