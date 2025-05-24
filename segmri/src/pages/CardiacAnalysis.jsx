@@ -81,6 +81,10 @@ const CardiacAnalysisPage = () => {
   const [uploadingMasks, setUploadingMasks] = useState(false);
   const [maskUploadResults, setMaskUploadResults] = useState([]);
 
+  const [jobStatus, setJobStatus] = useState(null);
+  const [jobId, setJobId] = useState(null);
+  const [statusCheckInterval, setStatusCheckInterval] = useState(null);
+
   // Debug message logging
   const addDebugMessage = useCallback((message) => {
     const timestamp = new Date().toISOString();
@@ -271,304 +275,476 @@ const CardiacAnalysisPage = () => {
 
   // Enhanced segmentation data processing
   const processSegmentationData = useCallback((data) => {
-    DebugLogger.log('CardiacAnalysisPage', 'Processing segmentation data', data);
-    
-    if (!data) {
-      DebugLogger.error('CardiacAnalysisPage', 'No segmentation data received');
-      return;
-    }
+  console.log('=== PROCESSING SEGMENTATION DATA ===');
+  console.log('Input data:', data);
+  
+  if (!data) {
+    console.error('No segmentation data received');
+    return;
+  }
 
-    // Handle different response formats from the backend
-    let segmentationResults = null;
-    
-    if (data.segmentations && Array.isArray(data.segmentations)) {
-      // Response format: { segmentations: [...] }
-      segmentationResults = data.segmentations;
-    } else if (Array.isArray(data)) {
-      // Response format: [...]
-      segmentationResults = data;
-    } else if (data.frames) {
-      // Direct segmentation document
-      segmentationResults = [data];
-    }
+  // Handle different response formats from the backend
+  let segmentationResults = null;
+  
+  if (data.segmentations && Array.isArray(data.segmentations)) {
+    segmentationResults = data.segmentations;
+    console.log('Using segmentations array format');
+  } else if (Array.isArray(data)) {
+    segmentationResults = data;
+    console.log('Using direct array format');
+  } else if (data.frames) {
+    segmentationResults = [data];
+    console.log('Using direct segmentation document format');
+  }
 
-    if (!segmentationResults || segmentationResults.length === 0) {
-      DebugLogger.error('CardiacAnalysisPage', 'No segmentation results found in data');
-      setErrorMessage('No segmentation results found in response');
-      return;
-    }
+  if (!segmentationResults || segmentationResults.length === 0) {
+    console.error('No segmentation results found in data');
+    setErrorMessage('No segmentation results found in response');
+    return;
+  }
 
-    // Take the first (most recent) segmentation result
-    const segmentationDocument = segmentationResults[0];
+  console.log(`Found ${segmentationResults.length} segmentation document(s)`);
 
-    if (!segmentationDocument || !segmentationDocument.frames) {
-      DebugLogger.error('CardiacAnalysisPage', 'Invalid segmentation data structure', segmentationDocument);
-      setErrorMessage('Invalid segmentation data structure');
-      return;
-    }
+  // Take the first (most recent) segmentation result
+  const segmentationDocument = segmentationResults[0];
 
-    DebugLogger.log('CardiacAnalysisPage', 'Processing segmentation document', segmentationDocument);
+  if (!segmentationDocument || !segmentationDocument.frames) {
+    console.error('Invalid segmentation data structure', segmentationDocument);
+    setErrorMessage('Invalid segmentation data structure');
+    return;
+  }
 
-    // Transform the backend structure to match what the frontend expects
-    const transformedData = {
-      masks: [], // Will be populated with transformed frame/slice data
-      segments: [], // Will be populated with available classes
-      name: segmentationDocument.name || 'AI Segmentation Results',
-      description: segmentationDocument.description || 'Automated cardiac segmentation'
-    };
+  console.log('Processing segmentation document:', {
+    name: segmentationDocument.name,
+    frameCount: segmentationDocument.frames.length
+  });
 
-    // Extract all unique classes from the segmentation data
-    const uniqueClasses = new Set();
-    const classColors = {
-      'RV': '#FF6B6B',    // Red for Right Ventricle
-      'LVC': '#4ECDC4',   // Teal for Left Ventricle Cavity  
-      'LV': '#4ECDC4',    // Alias for LVC
-      'MYO': '#45B7D1',   // Blue for Myocardium
-      'LA': '#9C27B0',    // Purple for Left Atrium
-      'RA': '#FF5722'     // Deep orange for Right Atrium
-    };
-
-    let maxFrameIndex = -1;
-    let maxSliceIndex = -1;
-
-    // Process frames and slices to create masks array structure
-    segmentationDocument.frames.forEach(frame => {
-      const frameIndex = frame.frameindex;
-      maxFrameIndex = Math.max(maxFrameIndex, frameIndex);
-      
-      if (!transformedData.masks[frameIndex]) {
-        transformedData.masks[frameIndex] = [];
-      }
-
-      frame.slices.forEach(slice => {
-        const sliceIndex = slice.sliceindex;
-        maxSliceIndex = Math.max(maxSliceIndex, sliceIndex);
-
-        // Collect unique classes from this slice
-        slice.componentboundingboxes?.forEach(box => {
-          if (box.class) uniqueClasses.add(box.class);
-        });
-        slice.segmentationmasks?.forEach(mask => {
-          if (mask.class) uniqueClasses.add(mask.class);
-        });
-
-        // Transform bounding boxes to match expected format
-        const transformedBoundingBoxes = (slice.componentboundingboxes || []).map(box => ({
-          class: box.class,
-          confidence: box.confidence || 0,
-          x_min: box.x_min,
-          y_min: box.y_min,
-          x_max: box.x_max,
-          y_max: box.y_max,
-          bbox: [box.x_min, box.y_min, box.x_max, box.y_max] // For compatibility
-        }));
-
-        // Transform segmentation masks to match expected format
-        const transformedSegmentationMasks = (slice.segmentationmasks || []).map(mask => ({
-          class: mask.class,
-          segmentationmaskcontents: mask.segmentationmaskcontents, // Keep original field name
-          rle: mask.segmentationmaskcontents, // Alias for backward compatibility
-          confidence: mask.confidence || 1.0
-        }));
-
-        // Store slice data in the masks array
-        transformedData.masks[frameIndex][sliceIndex] = {
-          boundingBoxes: transformedBoundingBoxes,
-          segmentationMasks: transformedSegmentationMasks,
-          frameIndex: frameIndex,
-          sliceIndex: sliceIndex
-        };
-
-        DebugLogger.log('CardiacAnalysisPage', `Processed frame ${frameIndex}, slice ${sliceIndex}`, {
-          boundingBoxes: transformedBoundingBoxes.length,
-          segmentationMasks: transformedSegmentationMasks.length
-        });
-      });
-    });
-
-    // Create segments array from unique classes
-    transformedData.segments = Array.from(uniqueClasses).map((className, index) => ({
-      id: className,
-      name: className,
-      color: classColors[className] || `hsl(${index * 120}, 70%, 50%)`,
-      class: className
-    }));
-
-    // Set the transformed data
-    setSegmentationData(transformedData);
-    setMaxTimeIndex(Math.max(0, maxFrameIndex));
-    setMaxLayerIndex(Math.max(0, maxSliceIndex));
-    
-    // Reset navigation to first frame/slice if current indices are out of bounds
-    if (currentTimeIndex > maxFrameIndex) {
-      setCurrentTimeIndex(0);
-    }
-    if (currentLayerIndex > maxSliceIndex) {
-      setCurrentLayerIndex(0);
-    }
-    
-    DebugLogger.log('CardiacAnalysisPage', `Set boundaries - Time: 0-${maxFrameIndex}, Layer: 0-${maxSliceIndex}`);
-
-    // Set segment items
-    setSegmentItems(transformedData.segments);
-    DebugLogger.log('CardiacAnalysisPage', 'Set segment items', transformedData.segments);
-
-    setProcessingComplete(true);
-    addDebugMessage(`Segmentation processing completed successfully. Found ${uniqueClasses.size} classes across ${maxFrameIndex + 1} frames and ${maxSliceIndex + 1} slices.`);
-  }, [addDebugMessage, currentTimeIndex, currentLayerIndex]);
-
-  // Handle file upload and start segmentation
-  const handleFilesSelected = async (selectedFiles, status, message) => {
-    if (status === 'error') {
-      setUploadStatus('error');
-      setErrorMessage(message);
-      return;
-    }
-
-    setUploadStatus('uploading');
-    setFiles(selectedFiles);
-    const fileName = selectedFiles[0]?.name || '';
-    setUploadedFileName(fileName);
-    addDebugMessage(`Starting upload of ${selectedFiles.length} files`);
-
-    const formData = new FormData();
-    selectedFiles.forEach(file => formData.append('files', file));
-
-    try {
-      const response = await api.put('/project/upload-new-project', formData, {
-        withCredentials: true,
-      });
-
-      DebugLogger.log('CardiacAnalysisPage', 'Upload response', response.data);
-
-      // Check for success in multiple ways since backend might return different formats
-      const isSuccess = response.data.success === true || 
-                       response.status === 200 || 
-                       (response.data.message && response.data.message.includes('successfully'));
-      
-      if (isSuccess) {
-        addDebugMessage('Upload successful, fetching project ID...');
-        
-        // Wait a moment for the database to be updated
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Fetch the actual project ID using the projects list endpoint
-        const projectId = await fetchMostRecentProject(fileName);
-        
-        if (projectId) {
-          setProjectId(projectId);
-          addDebugMessage(`Project ID obtained: ${projectId}`);
-
-          setUploadStatus('processing');
-          setIsProcessing(true);
-          
-          // Trigger segmentation after getting the project ID
-          await triggerSegmentation(projectId);
-        } else {
-          throw new Error('Could not obtain project ID after upload');
-        }
-      } else {
-        throw new Error('Upload failed: ' + (response.data.message || 'Unknown error'));
-      }
-    } catch (err) {
-      setUploadStatus('error');
-      setErrorMessage(err.message);
-      DebugLogger.error('CardiacAnalysisPage', 'Upload/Project ID fetch failed', err);
-    }
+  // Transform and validate the data structure
+  const transformedData = {
+    masks: [],
+    segments: [],
+    name: segmentationDocument.name || 'AI Segmentation Results',
+    description: segmentationDocument.description || 'Automated cardiac segmentation'
   };
+
+  const uniqueClasses = new Set();
+  let maxFrameIndex = -1;
+  let maxSliceIndex = -1;
+  let totalMasks = 0;
+  let masksWithRLE = 0;
+
+  // Process frames and slices
+  segmentationDocument.frames.forEach((frame, frameIdx) => {
+    const frameIndex = frame.frameindex;
+    maxFrameIndex = Math.max(maxFrameIndex, frameIndex);
+    
+    console.log(`Processing frame ${frameIndex} (${frameIdx + 1}/${segmentationDocument.frames.length})`);
+    
+    if (!transformedData.masks[frameIndex]) {
+      transformedData.masks[frameIndex] = [];
+    }
+
+    frame.slices.forEach((slice, sliceIdx) => {
+      const sliceIndex = slice.sliceindex;
+      maxSliceIndex = Math.max(maxSliceIndex, sliceIndex);
+
+      console.log(`  Processing slice ${sliceIndex} (${sliceIdx + 1}/${frame.slices.length})`);
+      console.log(`    Bounding boxes: ${slice.componentboundingboxes?.length || 0}`);
+      console.log(`    Segmentation masks: ${slice.segmentationmasks?.length || 0}`);
+
+      // Collect unique classes and validate data
+      slice.componentboundingboxes?.forEach(box => {
+        if (box.class) uniqueClasses.add(box.class);
+      });
+      
+      slice.segmentationmasks?.forEach(mask => {
+        if (mask.class) uniqueClasses.add(mask.class);
+        totalMasks++;
+        if (mask.segmentationmaskcontents) {
+          masksWithRLE++;
+          console.log(`    Mask ${mask.class}: ${mask.segmentationmaskcontents.length} chars`);
+        } else {
+          console.warn(`    Mask ${mask.class}: NO RLE DATA`);
+        }
+      });
+
+      // Transform data structures
+      const transformedBoundingBoxes = (slice.componentboundingboxes || []).map(box => ({
+        class: box.class,
+        confidence: box.confidence || 0,
+        x_min: box.x_min,
+        y_min: box.y_min,
+        x_max: box.x_max,
+        y_max: box.y_max,
+        bbox: [box.x_min, box.y_min, box.x_max, box.y_max]
+      }));
+
+      const transformedSegmentationMasks = (slice.segmentationmasks || []).map(mask => ({
+        class: mask.class,
+        segmentationmaskcontents: mask.segmentationmaskcontents,
+        rle: mask.segmentationmaskcontents, // Alias for backward compatibility
+        confidence: mask.confidence || 1.0
+      }));
+
+      // Store slice data
+      transformedData.masks[frameIndex][sliceIndex] = {
+        boundingBoxes: transformedBoundingBoxes,
+        segmentationMasks: transformedSegmentationMasks,
+        frameIndex: frameIndex,
+        sliceIndex: sliceIndex
+      };
+    });
+  });
+
+  console.log('=== PROCESSING SUMMARY ===');
+  console.log(`Frames: ${maxFrameIndex + 1}, Slices: ${maxSliceIndex + 1}`);
+  console.log(`Total masks: ${totalMasks}, With RLE: ${masksWithRLE}`);
+  console.log(`Unique classes: ${Array.from(uniqueClasses).join(', ')}`);
+
+  if (masksWithRLE === 0) {
+    console.error('No masks with RLE data found!');
+    setErrorMessage('No segmentation mask data found in results');
+    return;
+  }
+
+  // Create segments array
+  const classColors = {
+    'RV': '#FF6B6B',    // Red for Right Ventricle
+    'LVC': '#4ECDC4',   // Teal for Left Ventricle Cavity  
+    'LV': '#4ECDC4',    // Alias for LVC
+    'MYO': '#45B7D1',   // Blue for Myocardium
+    'LA': '#9C27B0',    // Purple for Left Atrium
+    'RA': '#FF5722'     // Deep orange for Right Atrium
+  };
+
+  transformedData.segments = Array.from(uniqueClasses).map((className, index) => ({
+    id: className,
+    name: className,
+    color: classColors[className] || `hsl(${index * 120}, 70%, 50%)`,
+    class: className
+  }));
+
+  // Set the transformed data
+  setSegmentationData(transformedData);
+  setMaxTimeIndex(Math.max(0, maxFrameIndex));
+  setMaxLayerIndex(Math.max(0, maxSliceIndex));
+  
+  // Reset navigation if needed
+  if (currentTimeIndex > maxFrameIndex) {
+    setCurrentTimeIndex(0);
+  }
+  if (currentLayerIndex > maxSliceIndex) {
+    setCurrentLayerIndex(0);
+  }
+  
+  setSegmentItems(transformedData.segments);
+  setProcessingComplete(true);
+  
+  console.log('✅ Segmentation data processing completed successfully');
+  addDebugMessage(`✅ Processing completed: ${uniqueClasses.size} classes, ${masksWithRLE} masks with RLE data`);
+
+}, [addDebugMessage, currentTimeIndex, currentLayerIndex]);
 
   // Trigger Segmentation
   const triggerSegmentation = async (projectId) => {
-    addDebugMessage(`Starting segmentation for project ${projectId}`);
+  addDebugMessage(`Starting segmentation for project ${projectId}`);
+  
+  try {
+    const response = await api.post(`/segmentation/start-segmentation/${projectId}`, {
+      projectId: projectId
+    });
     
-    try {
-      DebugLogger.log('CardiacAnalysisPage', `Making POST request to /segmentation/start-segmentation/${projectId}`);
-      
-      const response = await api.post(`/segmentation/start-segmentation/${projectId}`, {
-        projectId: projectId
-      });
-      
-      DebugLogger.log('CardiacAnalysisPage', 'Segmentation start response', response.data);
+    DebugLogger.log('CardiacAnalysisPage', 'Segmentation start response', response.data);
 
-      // Check for success in multiple ways
-      const isSuccess = response.data.success === true || 
-                       response.status === 200 || 
-                       (response.data.message && response.data.message.includes('successfully')) ||
-                       (response.data.message && response.data.message.includes('started'));
-
-      if (isSuccess) {
-        addDebugMessage('Segmentation started successfully');
-        setProcessingStatus('segmenting');
-        setUploadStatus('processing');
-        
-        // Don't poll immediately - let user manually check for results
-        addDebugMessage('Segmentation job submitted. Processing will take several minutes...');
-        
-      } else {
-        DebugLogger.error('CardiacAnalysisPage', 'Segmentation start failed', response.data);
-        throw new Error('Segmentation failed to start: ' + (response.data.message || 'Unknown error'));
-      }
-    } catch (err) {
-      setErrorMessage('Segmentation failed: ' + err.message);
-      setUploadStatus('error');
-      setIsProcessing(false);
-      DebugLogger.error('CardiacAnalysisPage', 'Segmentation failed', err);
+    if (response.data.uuid) {
+      setJobId(response.data.uuid);
+      setJobStatus('SUBMITTED');
+      addDebugMessage(`Segmentation job submitted with ID: ${response.data.uuid}`);
+      
+      // Start automatic status checking
+      startStatusPolling(projectId, response.data.uuid);
+      
+      setProcessingStatus('segmenting');
+      setUploadStatus('processing');
+    } else {
+      throw new Error('No job UUID received from segmentation start');
     }
-  };
+  } catch (err) {
+    setErrorMessage('Segmentation failed: ' + err.message);
+    setUploadStatus('error');
+    setIsProcessing(false);
+    DebugLogger.error('CardiacAnalysisPage', 'Segmentation failed', err);
+  }
+};
 
-  // Manual check for results (called by user action)
-  const checkForResults = async () => {
-    if (!projectId) {
-      alert('No active project to check.');
-      return;
-    }
 
-    addDebugMessage('Manually checking for segmentation results...');
-    setIsProcessing(true);
+// New function to poll job status
+const startStatusPolling = (projectId, jobUuid) => {
+  // Clear any existing interval
+  if (statusCheckInterval) {
+    clearInterval(statusCheckInterval);
+  }
 
+  const pollInterval = setInterval(async () => {
     try {
-      const response = await api.get(`/segmentation/segmentation-results/${projectId}`);
-      DebugLogger.log('CardiacAnalysisPage', 'Manual check response', response.data);
+      addDebugMessage(`Checking status for job: ${jobUuid}`);
       
-      // Check if we have segmentation results
-      const hasResults = response.data && (
-        (response.data.segmentations && Array.isArray(response.data.segmentations) && response.data.segmentations.length > 0) ||
-        (Array.isArray(response.data) && response.data.length > 0) ||
-        (response.data.frames && Array.isArray(response.data.frames))
-      );
+      // First check if results are available
+      const resultsResponse = await api.get(`/segmentation/segmentation-results/${projectId}`);
       
-      if (hasResults) {
-        // Additional validation to ensure we have actual mask data
-        const hasActualMasks = response.data.segmentations ? 
-          response.data.segmentations.some(seg => 
-            seg.frames && seg.frames.some(frame => 
-              frame.slices && frame.slices.some(slice => 
-                slice.segmentationmasks && slice.segmentationmasks.length > 0
-              )
+      if (resultsResponse.data && resultsResponse.data.segmentations && 
+          resultsResponse.data.segmentations.length > 0) {
+        
+        // Validate that we have actual mask content
+        const hasActualMasks = resultsResponse.data.segmentations.some(seg => 
+          seg.frames && seg.frames.some(frame => 
+            frame.slices && frame.slices.some(slice => 
+              slice.segmentationmasks && slice.segmentationmasks.length > 0 &&
+              slice.segmentationmasks.some(mask => mask.segmentationmaskcontents)
             )
-          ) : false;
-        
-        if (hasActualMasks || (response.data.frames && response.data.frames.length > 0)) {
-          addDebugMessage('Segmentation results found and validated!');
-          processSegmentationData(response.data);
+          )
+        );
+
+        if (hasActualMasks) {
+          clearInterval(pollInterval);
+          setStatusCheckInterval(null);
+          setJobStatus('COMPLETED');
+          addDebugMessage('✅ Segmentation job completed successfully!');
+          
+          // Show completion notification
+          showCompletionNotification();
+          
+          // Process the results
+          processSegmentationData(resultsResponse.data);
           setUploadStatus('success');
           setIsProcessing(false);
-        } else {
-          addDebugMessage('Results found but no actual mask data yet. Processing may still be in progress.');
-          alert('Segmentation is still processing. Please wait a few more minutes and try again.');
-          setIsProcessing(false);
+          return;
         }
-      } else {
-        addDebugMessage('No segmentation results found yet.');
-        alert('No results found yet. Segmentation may still be processing. Please wait and try again in a few minutes.');
-        setIsProcessing(false);
       }
-    } catch (err) {
-      addDebugMessage(`Error checking for results: ${err.message}`);
-      alert('Error checking for results: ' + err.message);
-      setIsProcessing(false);
+
+      // If no results yet, continue polling
+      addDebugMessage('Job still processing...');
+      
+    } catch (error) {
+      addDebugMessage(`Status check error: ${error.message}`);
+    }
+  }, 10000); // Check every 10 seconds
+
+  setStatusCheckInterval(pollInterval);
+
+  // Stop polling after 10 minutes to prevent infinite polling
+  setTimeout(() => {
+    if (pollInterval) {
+      clearInterval(pollInterval);
+      setStatusCheckInterval(null);
+      addDebugMessage('⚠️ Status polling stopped after 10 minutes. Please check manually.');
+    }
+  }, 600000);
+};
+
+// New function to show completion notification
+const showCompletionNotification = () => {
+  // You can use a toast library or create a custom notification
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('🎉 Cardiac Analysis Complete!', {
+      body: 'Your AI segmentation results are ready for review.',
+      icon: '/favicon.ico'
+    });
+  }
+  
+  // Also show an alert for immediate feedback
+  setTimeout(() => {
+    alert('🎉 Segmentation Complete!\n\nYour cardiac analysis results are now available for visualization and download.');
+  }, 500);
+};
+
+// Enhanced status display component
+const StatusDisplay = () => {
+  if (!jobStatus) return null;
+
+  const statusConfig = {
+    'SUBMITTED': { color: 'blue', message: 'Job submitted to GPU servers...', icon: '⏳' },
+    'IN_PROGRESS': { color: 'yellow', message: 'AI processing your images...', icon: '🔄' },
+    'COMPLETED': { color: 'green', message: 'Analysis complete!', icon: '✅' },
+    'FAILED': { color: 'red', message: 'Processing failed', icon: '❌' }
+  };
+
+  const config = statusConfig[jobStatus] || statusConfig['SUBMITTED'];
+
+  return (
+    <div className={`bg-${config.color}-50 border border-${config.color}-200 rounded-lg p-4 mb-4`}>
+      <div className="flex items-center gap-3">
+        <div className="text-2xl">{config.icon}</div>
+        <div>
+          <div className={`font-medium text-${config.color}-800`}>
+            Segmentation Status: {jobStatus}
+          </div>
+          <div className={`text-sm text-${config.color}-600`}>
+            {config.message}
+            {jobId && <div className="mt-1 font-mono text-xs">Job ID: {jobId}</div>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Don't forget to clear intervals on component unmount
+useEffect(() => {
+  return () => {
+    if (statusCheckInterval) {
+      clearInterval(statusCheckInterval);
     }
   };
+}, [statusCheckInterval]);
+
+
+  // Check for results 
+  const checkForResults = async () => {
+  if (!projectId) {
+    alert('No active project to check.');
+    return;
+  }
+
+  addDebugMessage('Manually checking for segmentation results...');
+  setIsProcessing(true);
+
+  try {
+    console.log('Making request to:', `/segmentation/segmentation-results/${projectId}`);
+    
+    const response = await api.get(`/segmentation/segmentation-results/${projectId}`);
+    
+    // Detailed response logging
+    console.log('=== SEGMENTATION RESULTS RESPONSE ===');
+    console.log('Response status:', response.status);
+    console.log('Response headers:', response.headers);
+    console.log('Response data:', response.data);
+    console.log('Response data type:', typeof response.data);
+    console.log('Is array:', Array.isArray(response.data));
+    
+    if (response.data) {
+      console.log('Response data keys:', Object.keys(response.data));
+      
+      // Check segmentations array
+      if (response.data.segmentations) {
+        console.log('Segmentations found:', response.data.segmentations.length);
+        response.data.segmentations.forEach((seg, i) => {
+          console.log(`Segmentation ${i}:`, {
+            name: seg.name,
+            frameCount: seg.frames?.length || 0,
+            firstFrameSlices: seg.frames?.[0]?.slices?.length || 0
+          });
+          
+          // Deep dive into first frame/slice if available
+          if (seg.frames?.[0]?.slices?.[0]) {
+            const firstSlice = seg.frames[0].slices[0];
+            console.log('First slice masks:', firstSlice.segmentationmasks?.length || 0);
+            
+            if (firstSlice.segmentationmasks?.[0]) {
+              const firstMask = firstSlice.segmentationmasks[0];
+              console.log('First mask:', {
+                class: firstMask.class,
+                hasContent: !!firstMask.segmentationmaskcontents,
+                contentLength: firstMask.segmentationmaskcontents?.length || 0,
+                contentPreview: firstMask.segmentationmaskcontents?.substring(0, 100) + '...'
+              });
+            }
+          }
+        });
+      }
+    }
+    
+    // More flexible validation
+    const hasResults = response.data && (
+      (response.data.segmentations && Array.isArray(response.data.segmentations) && response.data.segmentations.length > 0) ||
+      (Array.isArray(response.data) && response.data.length > 0) ||
+      (response.data.frames && Array.isArray(response.data.frames))
+    );
+    
+    console.log('Has results:', hasResults);
+    
+    if (hasResults) {
+      // More thorough validation for actual mask data
+      let hasActualMasks = false;
+      let maskCount = 0;
+      let rleDataSamples = [];
+      
+      if (response.data.segmentations) {
+        response.data.segmentations.forEach(seg => {
+          if (seg.frames) {
+            seg.frames.forEach(frame => {
+              if (frame.slices) {
+                frame.slices.forEach(slice => {
+                  if (slice.segmentationmasks) {
+                    slice.segmentationmasks.forEach(mask => {
+                      maskCount++;
+                      if (mask.segmentationmaskcontents) {
+                        hasActualMasks = true;
+                        if (rleDataSamples.length < 3) {
+                          rleDataSamples.push({
+                            class: mask.class,
+                            contentLength: mask.segmentationmaskcontents.length,
+                            preview: mask.segmentationmaskcontents.substring(0, 50)
+                          });
+                        }
+                      }
+                    });
+                  }
+                });
+              }
+            });
+          }
+        });
+      }
+      
+      console.log('Validation results:', {
+        hasActualMasks,
+        totalMaskCount: maskCount,
+        rleDataSamples
+      });
+      
+      if (hasActualMasks) {
+        addDebugMessage(`✅ Segmentation results validated! Found ${maskCount} masks with RLE data.`);
+        console.log('Processing segmentation data...');
+        
+        processSegmentationData(response.data);
+        setUploadStatus('success');
+        setIsProcessing(false);
+        
+        // Show success message
+        alert(`🎉 Segmentation Complete!\n\nFound ${maskCount} masks ready for visualization.`);
+        
+      } else {
+        addDebugMessage(`⚠️ Found ${maskCount} masks but no RLE content. Processing may still be in progress.`);
+        console.warn('Results structure exists but no RLE data found');
+        alert(`Found ${maskCount} mask records but no segmentation content yet.\nProcessing may still be in progress. Please wait a few more minutes.`);
+        setIsProcessing(false);
+      }
+    } else {
+      addDebugMessage('❌ No segmentation results structure found.');
+      console.warn('No results found in expected format');
+      alert('No results found yet. Please ensure:\n1. The segmentation job was submitted successfully\n2. Sufficient time has passed (5-10 minutes)\n3. The project ID is correct');
+      setIsProcessing(false);
+    }
+  } catch (err) {
+    console.error('=== SEGMENTATION RESULTS ERROR ===');
+    console.error('Error:', err);
+    console.error('Error response:', err.response?.data);
+    console.error('Error status:', err.response?.status);
+    
+    addDebugMessage(`❌ Error checking for results: ${err.message}`);
+    
+    let errorMessage = 'Error checking for results: ' + err.message;
+    if (err.response?.status === 404) {
+      errorMessage += '\n\nThis might mean:\n• Project not found\n• No segmentation job was started\n• Results not yet available';
+    } else if (err.response?.status === 500) {
+      errorMessage += '\n\nServer error - please try again in a few minutes.';
+    }
+    
+    alert(errorMessage);
+    setIsProcessing(false);
+  }
+};
 
   // Handle mask selection
   const handleMaskSelected = useCallback((maskData) => {
