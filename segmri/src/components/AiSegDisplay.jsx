@@ -3,8 +3,11 @@ import { Eye, EyeOff, Download, Upload, Info, RotateCcw, ZoomIn, ZoomOut, Play, 
 
 // Enhanced RLE Decoder utility functions
 const decodeRLE = (rleString, height, width) => {
+  console.log('=== RLE DECODING START ===');
+  console.log('Input:', { rleString: rleString?.substring(0, 100) + '...', height, width });
+  
   if (!rleString || typeof rleString !== 'string') {
-    console.warn('Invalid RLE string provided:', rleString);
+    console.warn('Invalid RLE string provided');
     return new Uint8Array(height * width);
   }
 
@@ -12,25 +15,23 @@ const decodeRLE = (rleString, height, width) => {
   const mask = new Uint8Array(size);
 
   try {
-    // Clean the RLE string
-    const cleanRLE = rleString.trim();
+    // Your RLE format: "startIdx length startIdx length ..."
+    const values = rleString.trim().split(/\s+/).map(x => parseInt(x, 10)).filter(x => !isNaN(x));
     
-    // Your format appears to be: "startIdx length startIdx length ..."
-    // Example: "23673 3 23927 12 24182 18 24437 23 24693 25"
-    const values = cleanRLE.split(/\s+/).map(x => parseInt(x, 10)).filter(x => !isNaN(x));
-    
-    console.log('RLE values:', values.slice(0, 20), '...'); // Debug log
+    console.log('RLE values count:', values.length);
+    console.log('First 10 values:', values.slice(0, 10));
     
     if (values.length % 2 !== 0) {
       console.warn('RLE data length is not even, may be incomplete');
     }
+    
+    let totalPixelsFilled = 0;
     
     // Process pairs of (startIndex, length)
     for (let i = 0; i < values.length - 1; i += 2) {
       const startIdx = values[i];
       const runLength = values[i + 1];
       
-      // Validate indices
       if (startIdx < 0 || startIdx >= size) {
         console.warn(`Start index ${startIdx} out of bounds for image size ${size}`);
         continue;
@@ -42,25 +43,36 @@ const decodeRLE = (rleString, height, width) => {
       for (let j = startIdx; j < endIdx; j++) {
         if (j < size) {
           mask[j] = 1;
+          totalPixelsFilled++;
         }
       }
     }
     
-    const filledPixels = mask.reduce((sum, pixel) => sum + pixel, 0);
-    console.log(`RLE decoded: ${filledPixels} pixels filled out of ${size} total`);
+    console.log('RLE decode results:', {
+      totalPixelsFilled,
+      percentage: ((totalPixelsFilled / size) * 100).toFixed(2) + '%',
+      imageSize: `${width}x${height}`,
+      totalPixels: size
+    });
     
     return mask;
     
   } catch (error) {
     console.error('Error decoding RLE:', error);
-    console.error('RLE string was:', rleString.substring(0, 100) + '...');
     return new Uint8Array(size);
   }
 };
 
 const renderMaskOnCanvas = (canvas, binaryMask, width, height, color, opacity = 0.6) => {
-  if (!canvas || !binaryMask) {
-    console.error('Invalid canvas or mask data');
+  console.log('=== MASK RENDERING START ===');
+  console.log('Canvas:', canvas);
+  console.log('Mask size:', binaryMask.length);
+  console.log('Expected size:', width * height);
+  console.log('Color:', color);
+  console.log('Opacity:', opacity);
+
+  if (!canvas) {
+    console.error('Canvas is null or undefined');
     return;
   }
 
@@ -68,6 +80,13 @@ const renderMaskOnCanvas = (canvas, binaryMask, width, height, color, opacity = 
   if (!ctx) {
     console.error('Could not get canvas context');
     return;
+  }
+
+  // Ensure canvas dimensions are set
+  if (canvas.width !== width || canvas.height !== height) {
+    console.log('Setting canvas dimensions:', { width, height });
+    canvas.width = width;
+    canvas.height = height;
   }
 
   try {
@@ -81,9 +100,14 @@ const renderMaskOnCanvas = (canvas, binaryMask, width, height, color, opacity = 
     const b = parseInt(hexColor.substr(4, 2), 16) || 0;
     const alpha = Math.floor(255 * opacity);
 
-    let pixelCount = 0;
+    console.log('Color values:', { r, g, b, alpha });
 
-    for (let i = 0; i < binaryMask.length; i++) {
+    let pixelCount = 0;
+    let firstPixelPos = -1;
+    let lastPixelPos = -1;
+
+    // Fill the image data
+    for (let i = 0; i < binaryMask.length && i < width * height; i++) {
       if (binaryMask[i] === 1) {
         const pixelIndex = i * 4;
         if (pixelIndex + 3 < data.length) {
@@ -92,14 +116,29 @@ const renderMaskOnCanvas = (canvas, binaryMask, width, height, color, opacity = 
           data[pixelIndex + 2] = b;     // Blue
           data[pixelIndex + 3] = alpha; // Alpha
           pixelCount++;
+          
+          if (firstPixelPos === -1) firstPixelPos = i;
+          lastPixelPos = i;
         }
       }
     }
 
-    console.log(`Rendered ${pixelCount} pixels in color ${color}`);
+    console.log('Mask rendering stats:', {
+      pixelCount,
+      firstPixelPos,
+      lastPixelPos,
+      firstPixelCoords: firstPixelPos >= 0 ? {
+        x: firstPixelPos % width,
+        y: Math.floor(firstPixelPos / width)
+      } : null
+    });
 
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.putImageData(imageData, 0, 0);
+    if (pixelCount > 0) {
+      ctx.putImageData(imageData, 0, 0);
+      console.log('✅ Mask rendered successfully');
+    } else {
+      console.warn('⚠️ No pixels were rendered (pixelCount = 0)');
+    }
     
   } catch (error) {
     console.error('Error rendering mask on canvas:', error);
@@ -183,84 +222,82 @@ const AISegmentationDisplay = ({
 
   // Enhanced background rendering with realistic cardiac imaging simulation
   const renderBackground = useCallback((ctx, width, height) => {
-    // Clear canvas
-    ctx.clearRect(0, 0, width, height);
-    
-    // Create realistic cardiac MRI background
-    const gradient = ctx.createRadialGradient(width/2, height/2, 50, width/2, height/2, width/2);
-    gradient.addColorStop(0, '#555555');
-    gradient.addColorStop(0.3, '#333333');
-    gradient.addColorStop(0.7, '#222222');
-    gradient.addColorStop(1, '#111111');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
-
-    // Add cardiac structure simulation
-    ctx.save();
-    ctx.translate(width/2, height/2);
-    
-    // Simulate heart chambers outline
-    ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 120, 100, 0, 0, 2 * Math.PI);
-    ctx.stroke();
-    
-    ctx.beginPath();
-    ctx.ellipse(-30, -20, 60, 50, 0, 0, 2 * Math.PI);
-    ctx.stroke();
-    
-    ctx.beginPath();
-    ctx.ellipse(30, -20, 50, 40, 0, 0, 2 * Math.PI);
-    ctx.stroke();
-    
-    ctx.restore();
-
-    // Add noise for texture
-    const imageData = ctx.getImageData(0, 0, width, height);
-    const data = imageData.data;
-    
-    for (let i = 0; i < data.length; i += 4) {
-      const noise = (Math.random() - 0.5) * 30;
-      data[i] = Math.max(0, Math.min(255, data[i] + noise));     // R
-      data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + noise)); // G
-      data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + noise)); // B
-    }
-    
-    ctx.putImageData(imageData, 0, 0);
-
-    // Add grid if enabled
-    if (showGrid) {
-      ctx.strokeStyle = 'rgba(100, 100, 100, 0.2)';
-      ctx.lineWidth = 1;
-      const gridSize = 50;
-      
-      for (let x = 0; x <= width; x += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-        ctx.stroke();
-      }
-      
-      for (let y = 0; y <= height; y += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-        ctx.stroke();
-      }
-    }
-  }, [showGrid]);
+  console.log('Rendering background:', { width, height });
+  
+  // Clear canvas with a visible background
+  ctx.fillStyle = '#2a2a2a'; // Dark gray background
+  ctx.fillRect(0, 0, width, height);
+  
+  // Add a border to make canvas boundaries visible
+  ctx.strokeStyle = '#4a4a4a';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, width - 2, height - 2);
+  
+  // Create a more visible cardiac structure simulation
+  ctx.save();
+  ctx.translate(width/2, height/2);
+  
+  // Main heart outline
+  ctx.strokeStyle = 'rgba(100, 100, 100, 0.5)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 120, 100, 0, 0, 2 * Math.PI);
+  ctx.stroke();
+  
+  // Left ventricle
+  ctx.beginPath();
+  ctx.ellipse(-30, -20, 60, 50, 0, 0, 2 * Math.PI);
+  ctx.stroke();
+  
+  // Right ventricle
+  ctx.beginPath();
+  ctx.ellipse(30, -20, 50, 40, 0, 0, 2 * Math.PI);
+  ctx.stroke();
+  
+  // Add crosshairs for reference
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-width/2, 0);
+  ctx.lineTo(width/2, 0);
+  ctx.moveTo(0, -height/2);
+  ctx.lineTo(0, height/2);
+  ctx.stroke();
+  
+  ctx.restore();
+  
+  // Add coordinate reference in corner
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.font = '12px Arial';
+  ctx.fillText(`${width}x${height}`, 10, height - 10);
+  
+  console.log('Background rendered successfully');
+}, []);
 
   // Main render function
   const renderCanvas = useCallback(() => {
+  console.log('=== CANVAS RENDERING START ===');
+  
   const canvas = canvasRef.current;
   const overlayCanvas = overlayCanvasRef.current;
+  
+  console.log('Canvas refs:', { 
+    canvas: !!canvas, 
+    overlayCanvas: !!overlayCanvas,
+    canvasWidth: canvas?.width,
+    canvasHeight: canvas?.height
+  });
+
   if (!canvas || !overlayCanvas) {
     console.error('Canvas references not available');
     return;
   }
 
   const sliceData = getCurrentSliceData();
+  console.log('Current slice data:', sliceData);
+  console.log('Current indices:', { currentTimeIndex, currentLayerIndex });
+  console.log('Available masks:', sliceData?.segmentationMasks?.length || 0);
+
   const ctx = canvas.getContext('2d');
   const overlayCtx = overlayCanvas.getContext('2d');
   const width = 512;
@@ -272,75 +309,118 @@ const AISegmentationDisplay = ({
   overlayCanvas.width = width;
   overlayCanvas.height = height;
   
+  console.log('Canvas dimensions set:', { width, height });
+  
   // Render background
   renderBackground(ctx, width, height);
   
   // Clear overlay
   overlayCtx.clearRect(0, 0, width, height);
+  console.log('Overlay cleared');
 
   if (!sliceData) {
-    console.log('No slice data available for current position');
+    console.log('No slice data available - rendering background only');
     return;
   }
 
-  console.log('Rendering slice data:', sliceData);
-  console.log('Available masks:', sliceData.segmentationMasks?.length || 0);
+  console.log('Processing segmentation masks...');
+  console.log('Visible masks state:', visibleMasks);
 
   // Render segmentation masks on overlay
   sliceData.segmentationMasks?.forEach((maskData, index) => {
     const maskId = `${maskData.class}_${currentTimeIndex}_${currentLayerIndex}`;
+    const isVisible = visibleMasks[maskId] !== false;
     
-    console.log(`Processing mask ${index + 1}:`, {
+    console.log(`Processing mask ${index + 1}/${sliceData.segmentationMasks.length}:`, {
       class: maskData.class,
       maskId: maskId,
-      visible: visibleMasks[maskId] !== false,
-      hasRLE: !!maskData.segmentationmaskcontents
+      isVisible: isVisible,
+      hasRLE: !!maskData.segmentationmaskcontents,
+      rleLength: maskData.segmentationmaskcontents?.length || 0
     });
     
-    if (visibleMasks[maskId] !== false) {
+    if (isVisible) {
       try {
         const rleData = maskData.segmentationmaskcontents || maskData.rle;
         if (rleData) {
-          console.log(`Decoding RLE for ${maskData.class}:`, rleData.substring(0, 50) + '...');
+          console.log(`🎭 Rendering mask: ${maskData.class}`);
+          console.log('RLE preview:', rleData.substring(0, 100) + '...');
           
           const binaryMask = decodeRLE(rleData, height, width);
           const classColor = getClassColor(maskData.class);
           
-          console.log(`Rendering mask ${maskData.class} with color ${classColor}`);
+          console.log(`Rendering with color: ${classColor}, opacity: ${maskOpacity}`);
           renderMaskOnCanvas(overlayCanvas, binaryMask, width, height, classColor, maskOpacity);
         } else {
-          console.warn(`No RLE data found for mask: ${maskData.class}`);
+          console.warn(`❌ No RLE data found for mask: ${maskData.class}`);
         }
       } catch (error) {
-        console.error('Error processing mask:', maskData.class, error);
+        console.error(`❌ Error processing mask ${maskData.class}:`, error);
       }
+    } else {
+      console.log(`👁️‍🗨️ Mask ${maskData.class} is hidden`);
     }
   });
 
-  // Enhanced bounding box rendering
+  // Render bounding boxes
   sliceData.boundingBoxes?.forEach((box, index) => {
     console.log(`Rendering bounding box ${index + 1}:`, box);
     
     if (box.x_min !== undefined && box.y_min !== undefined && 
         box.x_max !== undefined && box.y_max !== undefined) {
+      
       overlayCtx.strokeStyle = getClassColor(box.class);
-      overlayCtx.lineWidth = 2;
+      overlayCtx.lineWidth = 3; // Make it more visible
       overlayCtx.strokeRect(box.x_min, box.y_min, box.x_max - box.x_min, box.y_max - box.y_min);
       
       // Add label with background
       overlayCtx.fillStyle = getClassColor(box.class);
-      overlayCtx.font = '12px Arial';
+      overlayCtx.font = 'bold 14px Arial';
       
-      // Add text background
       const textMetrics = overlayCtx.measureText(box.class);
-      overlayCtx.fillRect(box.x_min, box.y_min - 20, textMetrics.width + 4, 16);
+      overlayCtx.fillRect(box.x_min, box.y_min - 25, textMetrics.width + 8, 20);
       
       overlayCtx.fillStyle = 'white';
-      overlayCtx.fillText(box.class, box.x_min + 2, box.y_min - 8);
+      overlayCtx.fillText(box.class, box.x_min + 4, box.y_min - 10);
+      
+      console.log(`✅ Rendered bounding box for ${box.class}`);
     }
   });
 
+  console.log('=== CANVAS RENDERING COMPLETE ===');
+  
 }, [segmentationData, currentTimeIndex, currentLayerIndex, visibleMasks, maskOpacity, renderBackground]);
+
+
+// Test function to manually trigger a mask render (call this from browser console)
+window.testMaskRender = () => {
+  console.log('=== MANUAL MASK RENDER TEST ===');
+  
+  // Create test RLE data (your format)
+  const testRLE = "23673 3 23927 12 24182 18 24437 23 24693 25";
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  
+  const mask = decodeRLE(testRLE, 512, 512);
+  renderMaskOnCanvas(canvas, mask, 512, 512, '#FF6B6B', 0.7);
+  
+  // Add to page for visual inspection
+  canvas.style.border = '2px solid red';
+  canvas.style.position = 'fixed';
+  canvas.style.top = '10px';
+  canvas.style.right = '10px';
+  canvas.style.zIndex = '9999';
+  document.body.appendChild(canvas);
+  
+  console.log('Test canvas added to page (top right)');
+  
+  setTimeout(() => {
+    document.body.removeChild(canvas);
+    console.log('Test canvas removed');
+  }, 5000);
+};
+
 
   // Render when data changes
   useEffect(() => {
@@ -526,33 +606,55 @@ const AISegmentationDisplay = ({
       <div className="p-6">
         {/* Main Canvas Area */}
         <div className="relative mb-6">
-          <div 
-            className="relative border-2 border-gray-300 rounded-lg overflow-hidden bg-black shadow-inner"
-            style={{
-              transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
-              transformOrigin: 'center center',
-              cursor: isDragging ? 'grabbing' : 'grab'
-            }}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-          >
-            {/* Background canvas */}
-            <canvas
-              ref={canvasRef}
-              className="absolute top-0 left-0"
-              width={512}
-              height={512}
-            />
-            {/* Overlay canvas for masks */}
-            <canvas
-              ref={overlayCanvasRef}
-              className="absolute top-0 left-0"
-              width={512}
-              height={512}
-            />
-          </div>
+  <div 
+    className="canvas-container relative border-2 border-gray-300 rounded-lg overflow-hidden bg-black shadow-inner"
+    style={{
+      width: '512px',
+      height: '512px',
+      transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
+      transformOrigin: 'center center',
+      cursor: isDragging ? 'grabbing' : 'grab'
+    }}
+    onMouseDown={handleMouseDown}
+    onMouseMove={handleMouseMove}
+    onMouseUp={handleMouseUp}
+    onMouseLeave={handleMouseUp}
+  >
+    {/* Background canvas */}
+    <canvas
+      ref={canvasRef}
+      className="background-canvas absolute top-0 left-0"
+      width={512}
+      height={512}
+      style={{ 
+        width: '512px', 
+        height: '512px',
+        display: 'block'
+      }}
+    />
+    
+    {/* Overlay canvas for masks */}
+    <canvas
+      ref={overlayCanvasRef}
+      className="overlay-canvas absolute top-0 left-0"
+      width={512}
+      height={512}
+      style={{ 
+        width: '512px', 
+        height: '512px',
+        display: 'block',
+        pointerEvents: 'auto'
+      }}
+    />
+    
+    {/* Debug overlay - remove in production */}
+    <div className="absolute top-2 left-2 bg-black/70 text-white text-xs p-2 rounded">
+      <div>Frame: {currentTimeIndex + 1}</div>
+      <div>Slice: {currentLayerIndex + 1}</div>
+      <div>Masks: {availableMasks.length}</div>
+      <div>Zoom: {Math.round(zoomLevel * 100)}%</div>
+    </div>
+  </div>
           
           {/* Enhanced Controls */}
           <div className="absolute top-4 right-4 flex flex-col space-y-2">
