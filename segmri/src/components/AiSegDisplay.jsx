@@ -147,6 +147,206 @@ const renderMaskOnCanvas = (canvas, binaryMask, width, height, color, opacity = 
   }
 };
 
+// MRI Data Loading Functions
+const fetchPresignedUrl = async (projectId) => {
+  try {
+    const response = await fetch(`/project/get-project-presigned-url?projectId=${projectId}`, {
+      method: 'GET',
+      headers: {
+        
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to get presigned URL: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to get presigned URL');
+    }
+    
+    return data.presignedUrl;
+  } catch (error) {
+    console.error('Error fetching presigned URL:', error);
+    throw error;
+  }
+};
+
+const fetchAndExtractTarFile = async (presignedUrl) => {
+  console.log('=== FETCHING TAR FILE ===');
+  console.log('Presigned URL:', presignedUrl);
+  
+  try {
+    // Fetch the tar file
+    const response = await fetch(presignedUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch tar file: ${response.statusText}`);
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    console.log('Tar file downloaded, size:', arrayBuffer.byteLength);
+    
+    // Extract using untar.js
+    const extractedFiles = await Untar.extractFromBuffer(arrayBuffer);
+    console.log('Files extracted:', extractedFiles.length);
+    
+    // Filter and organize DICOM files
+    const dicomFiles = extractedFiles.filter(file => 
+      file.name && (
+        file.name.toLowerCase().endsWith('.dcm') ||
+        file.name.toLowerCase().endsWith('.dicom') ||
+        file.name.includes('IM-') || // Common DICOM naming pattern
+        file.name.includes('IMG') ||
+        (!file.name.includes('.') && file.buffer && file.buffer.byteLength > 1000) // DICOM files often have no extension
+      )
+    );
+    
+    console.log('DICOM files found:', dicomFiles.length);
+    console.log('Sample file names:', dicomFiles.slice(0, 5).map(f => f.name));
+    
+    return dicomFiles;
+  } catch (error) {
+    console.error('Error fetching/extracting tar file:', error);
+    throw error;
+  }
+};
+
+const loadDicomImage = async (dicomFile) => {
+  try {
+    console.log('Loading DICOM file:', dicomFile.name);
+    
+    // Parse DICOM using daikon
+    const image = daikon.Series.parseImage(new DataView(dicomFile.buffer));
+    
+    if (!image) {
+      throw new Error('Failed to parse DICOM image');
+    }
+    
+    console.log('DICOM parsed successfully:', {
+      width: image.getCols(),
+      height: image.getRows(),
+      slices: image.getImageData ? 1 : 'unknown'
+    });
+    
+    return image;
+  } catch (error) {
+    console.error('Error loading DICOM:', error);
+    throw error;
+  }
+};
+
+const renderDicomToCanvas = (ctx, dicomImage, width, height) => {
+  try {
+    console.log('Rendering DICOM to canvas');
+    
+    const imageData = dicomImage.getImageData();
+    const cols = dicomImage.getCols();
+    const rows = dicomImage.getRows();
+    
+    console.log('DICOM dimensions:', { cols, rows, dataLength: imageData.length });
+    
+    // Create canvas image data
+    const canvas = ctx.createImageData(width, height);
+    const canvasData = canvas.data;
+    
+    // Calculate scaling factors
+    const scaleX = cols / width;
+    const scaleY = rows / height;
+    
+    // Find min/max values for windowing
+    let min = Infinity, max = -Infinity;
+    for (let i = 0; i < imageData.length; i++) {
+      if (imageData[i] < min) min = imageData[i];
+      if (imageData[i] > max) max = imageData[i];
+    }
+    
+    const range = max - min;
+    console.log('DICOM value range:', { min, max, range });
+    
+    // Map DICOM data to canvas
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        // Get corresponding DICOM pixel
+        const srcX = Math.floor(x * scaleX);
+        const srcY = Math.floor(y * scaleY);
+        const srcIndex = srcY * cols + srcX;
+        
+        if (srcIndex < imageData.length) {
+          // Normalize to 0-255
+          const normalized = range > 0 ? ((imageData[srcIndex] - min) / range) * 255 : 0;
+          const pixelValue = Math.max(0, Math.min(255, Math.floor(normalized)));
+          
+          const canvasIndex = (y * width + x) * 4;
+          canvasData[canvasIndex] = pixelValue;     // Red
+          canvasData[canvasIndex + 1] = pixelValue; // Green
+          canvasData[canvasIndex + 2] = pixelValue; // Blue
+          canvasData[canvasIndex + 3] = 255;       // Alpha
+        }
+      }
+    }
+    
+    ctx.putImageData(canvas, 0, 0);
+    console.log('DICOM rendered successfully');
+    
+  } catch (error) {
+    console.error('Error rendering DICOM:', error);
+    // Fallback to original background
+    renderFallbackBackground(ctx, width, height);
+  }
+};
+
+const renderFallbackBackground = (ctx, width, height) => {
+  console.log('Rendering fallback background');
+  
+  // Clear canvas with a visible background
+  ctx.fillStyle = '#2a2a2a'; // Dark gray background
+  ctx.fillRect(0, 0, width, height);
+  
+  // Add a border to make canvas boundaries visible
+  ctx.strokeStyle = '#4a4a4a';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, width - 2, height - 2);
+  
+  // Create a more visible cardiac structure simulation
+  ctx.save();
+  ctx.translate(width/2, height/2);
+  
+  // Main heart outline
+  ctx.strokeStyle = 'rgba(100, 100, 100, 0.5)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 120, 100, 0, 0, 2 * Math.PI);
+  ctx.stroke();
+  
+  // Left ventricle
+  ctx.beginPath();
+  ctx.ellipse(-30, -20, 60, 50, 0, 0, 2 * Math.PI);
+  ctx.stroke();
+  
+  // Right ventricle
+  ctx.beginPath();
+  ctx.ellipse(30, -20, 50, 40, 0, 0, 2 * Math.PI);
+  ctx.stroke();
+  
+  // Add crosshairs for reference
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-width/2, 0);
+  ctx.lineTo(width/2, 0);
+  ctx.moveTo(0, -height/2);
+  ctx.lineTo(0, height/2);
+  ctx.stroke();
+  
+  ctx.restore();
+  
+  // Add coordinate reference in corner
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.font = '12px Arial';
+  ctx.fillText(`${width}x${height}`, 10, height - 10);
+};
+
 const AISegmentationDisplay = ({
   segmentationData,
   currentTimeIndex,
@@ -155,7 +355,7 @@ const AISegmentationDisplay = ({
   onMaskSelected,
   selectedMask,
   onUploadSelectedMask,
-  projectId
+  projectId // Add projectId prop
 }) => {
   const canvasRef = useRef(null);
   const overlayCanvasRef = useRef(null);
@@ -169,50 +369,12 @@ const AISegmentationDisplay = ({
   const [showGrid, setShowGrid] = useState(false);
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
   const [playSpeed, setPlaySpeed] = useState(500);
-
-  // PRESIGNED URL for DICOM images
-  // State for DICOM images
-  const [dicomImages, setDicomImages] = useState([]);
-  const [dicomLoading, setDicomLoading] = useState(false);
-
-  // Fetch and extract DICOMs on mount or when projectId changes
-  useEffect(() => {
-    if (!projectId) return;
-    setDicomLoading(true);
-
-    // Use Axios instead of fetch
-    api.get(`/project/get-project-presigned-url`, {
-      params: { projectId },
-      withCredentials: true
-    })
-      .then(async response => {
-        const data = response.data;
-        if (!data.success) throw new Error("Failed to get presigned URL");
-        // Download TAR file as ArrayBuffer
-        const tarRes = await fetch(data.presignedUrl);
-        const tarBuffer = await tarRes.arrayBuffer();
-
-        // Extract TAR in browser
-        const files = await Untar(tarBuffer);
-        const dicomFiles = files.filter(f => f.name.endsWith(".dcm"));
-
-        // Parse DICOMs using daikon
-        const images = [];
-        for (const file of dicomFiles) {
-          try {
-            const data = new DataView(file.buffer);
-            const image = daikon.Series.parseImage(new daikon.File([data]));
-            if (image) images.push(image);
-          } catch (e) {
-            // skip invalid files
-          }
-        }
-        setDicomImages(images);
-        setDicomLoading(false);
-      })
-      .catch(() => setDicomLoading(false));
-  }, [projectId]);
-
+  
+  // New state for MRI data
+  const [mriFiles, setMriFiles] = useState(null);
+  const [isLoadingMRI, setIsLoadingMRI] = useState(false);
+  const [mriError, setMriError] = useState(null);
+  const [currentDicomImage, setCurrentDicomImage] = useState(null);
 
   // Get current slice data with proper error handling
   const getCurrentSliceData = () => {
@@ -248,178 +410,213 @@ const AISegmentationDisplay = ({
     return classColors[className];
   };
 
-  // Enhanced background rendering with realistic cardiac imaging simulation
+  // Enhanced background rendering with MRI data or fallback
   const renderBackground = useCallback((ctx, width, height) => {
-    if (dicomImages.length > 0) {
-      // Pick the correct slice (e.g., currentLayerIndex)
-      const image = dicomImages[currentLayerIndex % dicomImages.length];
-      if (image) {
-        // Convert pixel data to ImageData and draw
-        const pixels = image.getInterpretedData();
-        const imgData = ctx.createImageData(width, height);
-        for (let i = 0; i < pixels.length; i++) {
-          const val = pixels[i];
-          imgData.data[i * 4 + 0] = val; // R
-          imgData.data[i * 4 + 1] = val; // G
-          imgData.data[i * 4 + 2] = val; // B
-          imgData.data[i * 4 + 3] = 255; // A
-        }
-        ctx.putImageData(imgData, 0, 0);
-        return;
-      }
+    console.log('Rendering background:', { width, height, hasDicomImage: !!currentDicomImage });
+    
+    if (currentDicomImage) {
+      // Render actual DICOM data
+      renderDicomToCanvas(ctx, currentDicomImage, width, height);
+    } else {
+      // Fallback to simulated background
+      renderFallbackBackground(ctx, width, height);
     }
-    // fallback: draw gray background
-    ctx.fillStyle = "#2a2a2a";
-    ctx.fillRect(0, 0, width, height);
-  }, [dicomImages, currentLayerIndex]);
+    
+    console.log('Background rendered successfully');
+  }, [currentDicomImage]);
 
   // Main render function
   const renderCanvas = useCallback(() => {
-  console.log('=== CANVAS RENDERING START ===');
-  
-  const canvas = canvasRef.current;
-  const overlayCanvas = overlayCanvasRef.current;
-  
-  console.log('Canvas refs:', { 
-    canvas: !!canvas, 
-    overlayCanvas: !!overlayCanvas,
-    canvasWidth: canvas?.width,
-    canvasHeight: canvas?.height
-  });
-
-  if (!canvas || !overlayCanvas) {
-    console.error('Canvas references not available');
-    return;
-  }
-
-  const sliceData = getCurrentSliceData();
-  console.log('Current slice data:', sliceData);
-  console.log('Current indices:', { currentTimeIndex, currentLayerIndex });
-  console.log('Available masks:', sliceData?.segmentationMasks?.length || 0);
-
-  const ctx = canvas.getContext('2d');
-  const overlayCtx = overlayCanvas.getContext('2d');
-  const width = 512;
-  const height = 512;
-  
-  // Set canvas dimensions
-  canvas.width = width;
-  canvas.height = height;
-  overlayCanvas.width = width;
-  overlayCanvas.height = height;
-  
-  console.log('Canvas dimensions set:', { width, height });
-  
-  // Render background
-  renderBackground(ctx, width, height);
-  
-  // Clear overlay
-  overlayCtx.clearRect(0, 0, width, height);
-  console.log('Overlay cleared');
-
-  if (!sliceData) {
-    console.log('No slice data available - rendering background only');
-    return;
-  }
-
-  console.log('Processing segmentation masks...');
-  console.log('Visible masks state:', visibleMasks);
-
-  // Render segmentation masks on overlay
-  sliceData.segmentationMasks?.forEach((maskData, index) => {
-    const maskId = `${maskData.class}_${currentTimeIndex}_${currentLayerIndex}`;
-    const isVisible = visibleMasks[maskId] !== false;
+    console.log('=== CANVAS RENDERING START ===');
     
-    console.log(`Processing mask ${index + 1}/${sliceData.segmentationMasks.length}:`, {
-      class: maskData.class,
-      maskId: maskId,
-      isVisible: isVisible,
-      hasRLE: !!maskData.segmentationmaskcontents,
-      rleLength: maskData.segmentationmaskcontents?.length || 0
+    const canvas = canvasRef.current;
+    const overlayCanvas = overlayCanvasRef.current;
+    
+    console.log('Canvas refs:', { 
+      canvas: !!canvas, 
+      overlayCanvas: !!overlayCanvas,
+      canvasWidth: canvas?.width,
+      canvasHeight: canvas?.height
     });
+
+    if (!canvas || !overlayCanvas) {
+      console.error('Canvas references not available');
+      return;
+    }
+
+    const sliceData = getCurrentSliceData();
+    console.log('Current slice data:', sliceData);
+    console.log('Current indices:', { currentTimeIndex, currentLayerIndex });
+    console.log('Available masks:', sliceData?.segmentationMasks?.length || 0);
+
+    const ctx = canvas.getContext('2d');
+    const overlayCtx = overlayCanvas.getContext('2d');
+    const width = 512;
+    const height = 512;
     
-    if (isVisible) {
-      try {
-        const rleData = maskData.segmentationmaskcontents || maskData.rle;
-        if (rleData) {
-          console.log(`🎭 Rendering mask: ${maskData.class}`);
-          console.log('RLE preview:', rleData.substring(0, 100) + '...');
-          
-          const binaryMask = decodeRLE(rleData, height, width);
-          const classColor = getClassColor(maskData.class);
-          
-          console.log(`Rendering with color: ${classColor}, opacity: ${maskOpacity}`);
-          renderMaskOnCanvas(overlayCanvas, binaryMask, width, height, classColor, maskOpacity);
-        } else {
-          console.warn(`❌ No RLE data found for mask: ${maskData.class}`);
+    // Set canvas dimensions
+    canvas.width = width;
+    canvas.height = height;
+    overlayCanvas.width = width;
+    overlayCanvas.height = height;
+    
+    console.log('Canvas dimensions set:', { width, height });
+    
+    // Render background
+    renderBackground(ctx, width, height);
+    
+    // Clear overlay
+    overlayCtx.clearRect(0, 0, width, height);
+    console.log('Overlay cleared');
+
+    if (!sliceData) {
+      console.log('No slice data available - rendering background only');
+      return;
+    }
+
+    console.log('Processing segmentation masks...');
+    console.log('Visible masks state:', visibleMasks);
+
+    // Render segmentation masks on overlay
+    sliceData.segmentationMasks?.forEach((maskData, index) => {
+      const maskId = `${maskData.class}_${currentTimeIndex}_${currentLayerIndex}`;
+      const isVisible = visibleMasks[maskId] !== false;
+      
+      console.log(`Processing mask ${index + 1}/${sliceData.segmentationMasks.length}:`, {
+        class: maskData.class,
+        maskId: maskId,
+        isVisible: isVisible,
+        hasRLE: !!maskData.segmentationmaskcontents,
+        rleLength: maskData.segmentationmaskcontents?.length || 0
+      });
+      
+      if (isVisible) {
+        try {
+          const rleData = maskData.segmentationmaskcontents || maskData.rle;
+          if (rleData) {
+            console.log(`🎭 Rendering mask: ${maskData.class}`);
+            console.log('RLE preview:', rleData.substring(0, 100) + '...');
+            
+            const binaryMask = decodeRLE(rleData, height, width);
+            const classColor = getClassColor(maskData.class);
+            
+            console.log(`Rendering with color: ${classColor}, opacity: ${maskOpacity}`);
+            renderMaskOnCanvas(overlayCanvas, binaryMask, width, height, classColor, maskOpacity);
+          } else {
+            console.warn(`❌ No RLE data found for mask: ${maskData.class}`);
+          }
+        } catch (error) {
+          console.error(`❌ Error processing mask ${maskData.class}:`, error);
         }
-      } catch (error) {
-        console.error(`❌ Error processing mask ${maskData.class}:`, error);
+      } else {
+        console.log(`👁️‍🗨️ Mask ${maskData.class} is hidden`);
       }
-    } else {
-      console.log(`👁️‍🗨️ Mask ${maskData.class} is hidden`);
-    }
-  });
+    });
 
-  // Render bounding boxes
-  sliceData.boundingBoxes?.forEach((box, index) => {
-    console.log(`Rendering bounding box ${index + 1}:`, box);
+    // Render bounding boxes
+    sliceData.boundingBoxes?.forEach((box, index) => {
+      console.log(`Rendering bounding box ${index + 1}:`, box);
+      
+      if (box.x_min !== undefined && box.y_min !== undefined && 
+          box.x_max !== undefined && box.y_max !== undefined) {
+        
+        overlayCtx.strokeStyle = getClassColor(box.class);
+        overlayCtx.lineWidth = 3; // Make it more visible
+        overlayCtx.strokeRect(box.x_min, box.y_min, box.x_max - box.x_min, box.y_max - box.y_min);
+        
+        // Add label with background
+        overlayCtx.fillStyle = getClassColor(box.class);
+        overlayCtx.font = 'bold 14px Arial';
+        
+        const textMetrics = overlayCtx.measureText(box.class);
+        overlayCtx.fillRect(box.x_min, box.y_min - 25, textMetrics.width + 8, 20);
+        
+        overlayCtx.fillStyle = 'white';
+        overlayCtx.fillText(box.class, box.x_min + 4, box.y_min - 10);
+        
+        console.log(`✅ Rendered bounding box for ${box.class}`);
+      }
+    });
+
+    console.log('=== CANVAS RENDERING COMPLETE ===');
     
-    if (box.x_min !== undefined && box.y_min !== undefined && 
-        box.x_max !== undefined && box.y_max !== undefined) {
-      
-      overlayCtx.strokeStyle = getClassColor(box.class);
-      overlayCtx.lineWidth = 3; // Make it more visible
-      overlayCtx.strokeRect(box.x_min, box.y_min, box.x_max - box.x_min, box.y_max - box.y_min);
-      
-      // Add label with background
-      overlayCtx.fillStyle = getClassColor(box.class);
-      overlayCtx.font = 'bold 14px Arial';
-      
-      const textMetrics = overlayCtx.measureText(box.class);
-      overlayCtx.fillRect(box.x_min, box.y_min - 25, textMetrics.width + 8, 20);
-      
-      overlayCtx.fillStyle = 'white';
-      overlayCtx.fillText(box.class, box.x_min + 4, box.y_min - 10);
-      
-      console.log(`✅ Rendered bounding box for ${box.class}`);
-    }
-  });
+  }, [segmentationData, currentTimeIndex, currentLayerIndex, visibleMasks, maskOpacity, renderBackground]);
 
-  console.log('=== CANVAS RENDERING COMPLETE ===');
-  
-}, [segmentationData, currentTimeIndex, currentLayerIndex, visibleMasks, maskOpacity, renderBackground]);
+  // Load MRI data when projectId changes
+  useEffect(() => {
+    const loadMRIData = async () => {
+      if (!projectId) {
+        console.log('No projectId provided, using fallback background');
+        return;
+      }
 
+      setIsLoadingMRI(true);
+      setMriError(null);
+      
+      try {
+        console.log('=== LOADING MRI DATA ===');
+        console.log('Project ID:', projectId);
+        
+        // Get presigned URL
+        const presignedUrl = await fetchPresignedUrl(projectId);
+        console.log('Got presigned URL');
+        
+        // Fetch and extract tar file
+        const dicomFiles = await fetchAndExtractTarFile(presignedUrl);
+        console.log('Extracted DICOM files:', dicomFiles.length);
+        
+        setMriFiles(dicomFiles);
+        
+        // Load first DICOM file as initial display
+        if (dicomFiles.length > 0) {
+          const firstDicom = await loadDicomImage(dicomFiles[0]);
+          setCurrentDicomImage(firstDicom);
+          console.log('✅ Initial DICOM loaded successfully');
+        }
+        
+      } catch (error) {
+        console.error('❌ Error loading MRI data:', error);
+        setMriError(error.message);
+      } finally {
+        setIsLoadingMRI(false);
+      }
+    };
 
-// Test function to manually trigger a mask render (call this from browser console)
-window.testMaskRender = () => {
-  console.log('=== MANUAL MASK RENDER TEST ===');
-  
-  // Create test RLE data (your format)
-  const testRLE = "23673 3 23927 12 24182 18 24437 23 24693 25";
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 512;
-  
-  const mask = decodeRLE(testRLE, 512, 512);
-  renderMaskOnCanvas(canvas, mask, 512, 512, '#FF6B6B', 0.7);
-  
-  // Add to page for visual inspection
-  canvas.style.border = '2px solid red';
-  canvas.style.position = 'fixed';
-  canvas.style.top = '10px';
-  canvas.style.right = '10px';
-  canvas.style.zIndex = '9999';
-  document.body.appendChild(canvas);
-  
-  console.log('Test canvas added to page (top right)');
-  
-  setTimeout(() => {
-    document.body.removeChild(canvas);
-    console.log('Test canvas removed');
-  }, 5000);
-};
+    loadMRIData();
+  }, [projectId]);
 
+  // Update current DICOM image when time/layer indices change
+  useEffect(() => {
+    const updateCurrentDicom = async () => {
+      if (!mriFiles || mriFiles.length === 0) {
+        return;
+      }
+
+      try {
+        // Calculate which DICOM file to load based on indices
+        // You may need to adjust this logic based on your file naming convention
+        let targetIndex = 0;
+        
+        if (mriFiles.length > 1) {
+          // Try to map time and layer indices to file index
+          // This is a simple approach - you might need more sophisticated mapping
+          const totalSlices = Math.max(1, Math.sqrt(mriFiles.length));
+          targetIndex = (currentTimeIndex * totalSlices + currentLayerIndex) % mriFiles.length;
+        }
+        
+        console.log(`Loading DICOM file ${targetIndex + 1}/${mriFiles.length} for frame ${currentTimeIndex + 1}, slice ${currentLayerIndex + 1}`);
+        
+        const dicomImage = await loadDicomImage(mriFiles[targetIndex]);
+        setCurrentDicomImage(dicomImage);
+        
+      } catch (error) {
+        console.error('Error updating current DICOM:', error);
+        // Keep previous image on error
+      }
+    };
+
+    updateCurrentDicom();
+  }, [mriFiles, currentTimeIndex, currentLayerIndex]);
 
   // Render when data changes
   useEffect(() => {
@@ -562,11 +759,22 @@ window.testMaskRender = () => {
             <h4 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
               <Layers size={20} className="text-blue-600" />
               AI Segmentation Display
+              {isLoadingMRI && (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              )}
             </h4>
             <p className="text-sm text-gray-600 mt-1">
               Frame {currentTimeIndex + 1} • Slice {currentLayerIndex + 1} • 
               {availableMasks.length} masks • {boundingBoxes.length} boxes
+              {mriFiles && ` • ${mriFiles.length} MRI files`}
+              {isLoadingMRI && ' • Loading MRI data...'}
             </p>
+            {mriError && (
+              <p className="text-sm text-red-600 mt-1 flex items-center gap-1">
+                <Info size={14} />
+                MRI Load Error: {mriError}
+              </p>
+            )}
           </div>
           <div className="flex items-center space-x-2">
             <button
@@ -605,55 +813,57 @@ window.testMaskRender = () => {
       <div className="p-6">
         {/* Main Canvas Area */}
         <div className="relative mb-6">
-  <div 
-    className="canvas-container relative border-2 border-gray-300 rounded-lg overflow-hidden bg-black shadow-inner"
-    style={{
-      width: '512px',
-      height: '512px',
-      transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
-      transformOrigin: 'center center',
-      cursor: isDragging ? 'grabbing' : 'grab'
-    }}
-    onMouseDown={handleMouseDown}
-    onMouseMove={handleMouseMove}
-    onMouseUp={handleMouseUp}
-    onMouseLeave={handleMouseUp}
-  >
-    {/* Background canvas */}
-    <canvas
-      ref={canvasRef}
-      className="background-canvas absolute top-0 left-0"
-      width={512}
-      height={512}
-      style={{ 
-        width: '512px', 
-        height: '512px',
-        display: 'block'
-      }}
-    />
-    
-    {/* Overlay canvas for masks */}
-    <canvas
-      ref={overlayCanvasRef}
-      className="overlay-canvas absolute top-0 left-0"
-      width={512}
-      height={512}
-      style={{ 
-        width: '512px', 
-        height: '512px',
-        display: 'block',
-        pointerEvents: 'auto'
-      }}
-    />
-    
-    {/* Debug overlay - remove in production */}
-    <div className="absolute top-2 left-2 bg-black/70 text-white text-xs p-2 rounded">
-      <div>Frame: {currentTimeIndex + 1}</div>
-      <div>Slice: {currentLayerIndex + 1}</div>
-      <div>Masks: {availableMasks.length}</div>
-      <div>Zoom: {Math.round(zoomLevel * 100)}%</div>
-    </div>
-  </div>
+          <div 
+            className="canvas-container relative border-2 border-gray-300 rounded-lg overflow-hidden bg-black shadow-inner"
+            style={{
+              width: '512px',
+              height: '512px',
+              transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
+              transformOrigin: 'center center',
+              cursor: isDragging ? 'grabbing' : 'grab'
+            }}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          >
+            {/* Background canvas */}
+            <canvas
+              ref={canvasRef}
+              className="background-canvas absolute top-0 left-0"
+              width={512}
+              height={512}
+              style={{ 
+                width: '512px', 
+                height: '512px',
+                display: 'block'
+              }}
+            />
+            
+            {/* Overlay canvas for masks */}
+            <canvas
+              ref={overlayCanvasRef}
+              className="overlay-canvas absolute top-0 left-0"
+              width={512}
+              height={512}
+              style={{ 
+                width: '512px', 
+                height: '512px',
+                display: 'block',
+                pointerEvents: 'auto'
+              }}
+            />
+            
+            {/* Debug overlay - remove in production */}
+            <div className="absolute top-2 left-2 bg-black/70 text-white text-xs p-2 rounded">
+              <div>Frame: {currentTimeIndex + 1}</div>
+              <div>Slice: {currentLayerIndex + 1}</div>
+              <div>Masks: {availableMasks.length}</div>
+              <div>Zoom: {Math.round(zoomLevel * 100)}%</div>
+              <div>MRI: {isLoadingMRI ? 'Loading...' : mriFiles ? `${mriFiles.length} files` : 'No data'}</div>
+              <div>DICOM: {currentDicomImage ? '✅' : '❌'}</div>
+            </div>
+          </div>
           
           {/* Enhanced Controls */}
           <div className="absolute top-4 right-4 flex flex-col space-y-2">
@@ -849,6 +1059,35 @@ window.testMaskRender = () => {
       </div>
     </div>
   );
+};
+
+// Test function to manually trigger a mask render (call this from browser console)
+window.testMaskRender = () => {
+  console.log('=== MANUAL MASK RENDER TEST ===');
+  
+  // Create test RLE data (your format)
+  const testRLE = "23673 3 23927 12 24182 18 24437 23 24693 25";
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  
+  const mask = decodeRLE(testRLE, 512, 512);
+  renderMaskOnCanvas(canvas, mask, 512, 512, '#FF6B6B', 0.7);
+  
+  // Add to page for visual inspection
+  canvas.style.border = '2px solid red';
+  canvas.style.position = 'fixed';
+  canvas.style.top = '10px';
+  canvas.style.right = '10px';
+  canvas.style.zIndex = '9999';
+  document.body.appendChild(canvas);
+  
+  console.log('Test canvas added to page (top right)');
+  
+  setTimeout(() => {
+    document.body.removeChild(canvas);
+    console.log('Test canvas removed');
+  }, 5000);
 };
 
 export default AISegmentationDisplay;

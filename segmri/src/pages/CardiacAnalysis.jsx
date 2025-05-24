@@ -1022,9 +1022,10 @@ useEffect(() => {
                     currentTimeIndex={currentTimeIndex}
                     currentLayerIndex={currentLayerIndex}
                     segmentItems={segmentItems}
-                    onMaskSelected={handleMaskSelected}
+                    onMaskSelected={onMaskSelected}
                     selectedMask={selectedMask}
-                    onUploadSelectedMask={handleUploadSelectedMask}
+                    onUploadSelectedMask={onUploadSelectedMask}
+                    projectId={yourProjectId} // Required!
                   />
                 </div>
 
