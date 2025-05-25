@@ -66,7 +66,7 @@ export const decodeRLE = (rleString, height, width) => {
   }
 };
 
-const renderMaskOnCanvas = (canvas, binaryMask, width, height, color, opacity = 0.6) => {
+export const renderMaskOnCanvas = (canvas, binaryMask, width, height, color, opacity = 0.6) => {
   console.log('=== MASK RENDERING START ===');
   console.log('Canvas:', canvas);
   console.log('Mask size:', binaryMask.length);
