@@ -6,17 +6,37 @@ import { renderMaskOnCanvas } from '../utils/RLE-Decoder';
 
 // Enhanced Medical Image Loading Functions
 const fetchPresignedUrl = async (projectId) => {
-  console.log('Fetching presigned URL for projectId:', projectId); // Add debug log
+  console.log('🔍 Fetching presigned URL for projectId:', projectId);
+  
   try {
     const response = await api.get(`/project/get-project-presigned-url?projectId=${projectId}`);
+    
+    console.log('📡 Response:', {
+      status: response.status,
+      data: response.data
+    });
+    
     const data = response.data;
     
-    if (!data.success || !data.presignedUrl) {
-      throw new Error(data.message || 'Failed to get presigned URL');
+    // Handle backend error responses
+    if (data && data.success === false) {
+      throw new Error(data.message || 'Backend returned an error');
     }
-    return data.presignedUrl || data.url || data.data?.presignedUrl;
+    
+    // Extract presigned URL with multiple fallbacks
+    const presignedUrl = data?.presignedUrl || data?.url || data?.data?.presignedUrl;
+    
+    if (!presignedUrl) {
+      console.error('❌ No presigned URL found');
+      console.error('Response keys:', Object.keys(data || {}));
+      throw new Error('No presigned URL found in response');
+    }
+    
+    console.log('✅ Got presigned URL');
+    return presignedUrl;
+    
   } catch (error) {
-    console.error('Error fetching presigned URL:', error);
+    console.error('❌ Error:', error);
     throw error;
   }
 };
