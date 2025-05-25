@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, Filter, Plus, MoreVertical, Trash2, Edit, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X, Check, AlertCircle, User, Download, EyeIcon, ArrowUpDown } from 'lucide-react';
+import api from '../api/AxiosInstance';
 
 // Toast notification component
 const Toast = ({ message, onClose, type = 'success' }) => {
@@ -189,19 +190,10 @@ const EmptyState = ({ searchTerm }) => (
 );
 
 const UserManagement = () => {
-  // Sample user data
-  const initialUsers = [
-    { id: '10283772', name: 'Florence Shaw', dob: '27/03/1982', registeredDate: '2025/04/16', phone: '0123456789', email: 'flo2@gmail.com', status: 'active', role: 'admin' },
-    { id: '10283169', name: 'Sienna Hewitt', dob: '12/12/1997', registeredDate: '2025/04/16', phone: '0198273645', email: 'sien@gmail.com', status: 'active', role: 'user' },
-    { id: '12345678', name: 'Olly', dob: '12/04/2001', registeredDate: '2025/04/16', phone: '01192364820', email: 'olly@gmail.com', status: 'inactive', role: 'user' },
-    { id: '19237027', name: 'Ammar Folley', dob: '23/10/1998', registeredDate: '2025/04/16', phone: '01392183732', email: 'ammar98@gmail.com', status: 'active', role: 'editor' },
-    { id: '22983451', name: 'Sarah Johnson', dob: '14/07/1990', registeredDate: '2025/04/17', phone: '07123456789', email: 'sarah.j@gmail.com', status: 'active', role: 'user' },
-    { id: '34567890', name: 'Michael Chen', dob: '03/09/1985', registeredDate: '2025/04/16', phone: '07987654321', email: 'mchen@gmail.com', status: 'active', role: 'user' },
-    { id: '45678123', name: 'Priya Patel', dob: '22/05/1993', registeredDate: '2025/04/15', phone: '07712345678', email: 'priya.p@gmail.com', status: 'pending', role: 'user' },
-    { id: '56781234', name: 'James Wilson', dob: '11/11/1988', registeredDate: '2025/04/14', phone: '07898765432', email: 'jwilson@gmail.com', status: 'active', role: 'editor' },
-  ];
   
-  const [users, setUsers] = useState(initialUsers);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'ascending' });
   const [currentPage, setCurrentPage] = useState(1);
@@ -333,6 +325,29 @@ const UserManagement = () => {
     // In a real app, you would parse the CSV here
     showToast(`Users imported successfully`);
   };
+
+  // Fetch all users information
+   useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const response = await api.get('/auth/users');
+
+        if (response.data.fetch && response.data.users) {
+          setUsers(response.data.users);
+        } else {
+          setError('Failed to fetch users.');
+        }
+      } catch (err) {
+        setError('Internal error occurred.');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
   
   return (
     <div 
