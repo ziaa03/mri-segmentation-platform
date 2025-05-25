@@ -3,11 +3,12 @@ import { Eye, EyeOff, Download, Upload, Info, RotateCcw, ZoomIn, ZoomOut, Play, 
 import api from '../api/AxiosInstance';
 import { decodeRLE } from '../utils/RLE-Decoder';
 import { renderMaskOnCanvas } from '../utils/RLE-Decoder';
+import { Extract } from 'tar-js';
 
 // Function to get a presigned URL
 const fetchPresignedUrl = async (projectId) => {
-  console.log(' Fetchinggg presigned URL for projectId:', projectId);
-  
+  console.log('Fetching presigned URL for projectId:', projectId);
+
   try {
     const response = await api.get(`/project/get-project-presigned-url`, {
       params: { projectId },
@@ -16,19 +17,16 @@ const fetchPresignedUrl = async (projectId) => {
       },
       withCredentials: true // Include cookies for session-based authentication
     });
-    
-    // Log the full response to inspect the structure
+
     console.log('📡 Response from backend:', response);
     console.log('📡 Response data:', response.data);
 
     const { success, presignedUrl, expiresAt, message } = response.data;
 
-    // Handle backend error responses
     if (!success) {
       throw new Error(message || 'Failed to get download URL');
     }
-    
-    // If successful, return the presigned URL and expiration time
+
     console.log('✅ Got presigned URL:', presignedUrl);
     return { presignedUrl, expiresAt };
 
@@ -38,146 +36,76 @@ const fetchPresignedUrl = async (projectId) => {
   }
 };
 
-// Simple TAR file parser for browser environment
-const parseTarFile = (buffer) => {
-  const files = [];
-  const view = new Uint8Array(buffer);
-  let offset = 0;
-  
-  while (offset < view.length) {
-    // TAR header is 512 bytes
-    const header = view.slice(offset, offset + 512);
-    
-    // Check if we've reached the end (two consecutive zero blocks)
-    if (header.every(byte => byte === 0)) {
-      break;
-    }
-    
-    // Extract filename (first 100 bytes, null-terminated)
-    let nameBytes = header.slice(0, 100);
-    let nameEnd = nameBytes.indexOf(0);
-    if (nameEnd === -1) nameEnd = 100;
-    const name = new TextDecoder().decode(nameBytes.slice(0, nameEnd));
-    
-    // Extract file size (124-135, octal string)
-    const sizeBytes = header.slice(124, 135);
-    const sizeStr = new TextDecoder().decode(sizeBytes).replace(/\0/g, '').trim();
-    const size = parseInt(sizeStr, 8) || 0;
-    
-    // Extract file type (156th byte)
-    const typeFlag = header[156];
-    const isRegularFile = typeFlag === 0 || typeFlag === 48; // '0' in ASCII
-    
-    offset += 512; // Move past header
-    
-    if (isRegularFile && size > 0 && name) {
-      // Extract file data
-      const fileData = view.slice(offset, offset + size);
-      files.push({
-        name: name,
-        buffer: fileData.buffer.slice(fileData.byteOffset, fileData.byteOffset + fileData.byteLength),
-        size: size
-      });
-    }
-    
-    // Move to next file (pad to 512-byte boundary)
-    offset += Math.ceil(size / 512) * 512;
-  }
-  
-  return files;
-};
-
-const fetchAndExtractTarFile = async (presignedUrl) => {
+// Function to extract TAR file using stream-based method (chunk-by-chunk)
+const extractTarFile = async (presignedUrl) => {
   console.log('=== FETCHING TAR FILE ===');
-  console.log('Presigned URL:', presignedUrl);
-  
   try {
+    // Fetch the TAR file as a stream from the presigned URL
     const response = await fetch(presignedUrl);
     if (!response.ok) {
-      throw new Error(`Failed to fetch tar file: ${response.statusText}`);
+      throw new Error(`Failed to fetch TAR file: ${response.statusText}`);
     }
-    
-    const arrayBuffer = await response.arrayBuffer();
+
+    const reader = response.body.getReader();
+    const stream = new ReadableStream({
+      start(controller) {
+        function push() {
+          reader.read().then(({ done, value }) => {
+            if (done) {
+              controller.close();
+              return;
+            }
+            controller.enqueue(value);
+            push();
+          }).catch(err => {
+            controller.error(err);
+          });
+        }
+        push();
+      }
+    });
+
+    // Create a new response with the stream
+    const streamResponse = new Response(stream);
+    const arrayBuffer = await streamResponse.arrayBuffer();  // Get the full content of the stream
+
     console.log('Tar file downloaded, size:', arrayBuffer.byteLength);
-    
-    // Use custom TAR parser
-    const extractedFiles = parseTarFile(arrayBuffer);
+
+    // Now we use tar-js to extract the contents
+    const extract = new Extract();
+    const extractedFiles = [];
+
+    extract.push(arrayBuffer);  // Push the data to be extracted
+
+    // Handle the extracted files as entries
+    extract.on('entry', (entry) => {
+      if (entry.type === 'file') {
+        extractedFiles.push(entry);
+      }
+    });
+
     console.log('Files extracted:', extractedFiles.length);
-    
-    // Filter for image files (JPEG, PNG, etc.)
-    const imageFiles = extractedFiles.filter(file => 
-      file.name && (
-        file.name.toLowerCase().endsWith('.jpg') ||
-        file.name.toLowerCase().endsWith('.jpeg') ||
-        file.name.toLowerCase().endsWith('.png')
-      )
-    );
-    
-    console.log('Image files found:', imageFiles.length);
-    console.log('Sample file names:', imageFiles.slice(0, 5).map(f => f.name));
-    
-    return imageFiles;
+    return extractedFiles;
+
   } catch (error) {
-    console.error('Error fetching/extracting tar file:', error);
+    console.error('Error extracting TAR file:', error);
     throw error;
   }
 };
 
+// Process extracted image files
 const processExtractedImages = (extractedFiles) => {
   console.log('=== PROCESSING EXTRACTED IMAGES ===');
-  
-  try {
-    const processedImages = extractedFiles
-      .filter(file => file.name.endsWith('.jpg') || file.name.endsWith('.jpeg'))
-      .map(file => {
-        // Parse the filename pattern: {user_id}_{file_hash}_{frame_idx}_{slice_idx}.jpg
-        const parts = file.name.split('_');
-        
-        if (parts.length < 4) {
-          console.warn(`Unexpected filename format: ${file.name}`);
-          return null;
-        }
-        
-        const frameIdx = parseInt(parts[parts.length - 2]);
-        const sliceIdx = parseInt(parts[parts.length - 1].split('.')[0]);
-        
-        if (isNaN(frameIdx) || isNaN(sliceIdx)) {
-          console.warn(`Could not parse indices from filename: ${file.name}`);
-          return null;
-        }
-        
-        // Create blob URL for the image
-        const blob = new Blob([file.buffer], { type: 'image/jpeg' });
-        const url = URL.createObjectURL(blob);
-        
-        return {
-          name: file.name,
-          frame: frameIdx,
-          slice: sliceIdx,
-          url: url,
-          blob: blob,
-          size: file.buffer.byteLength
-        };
-      })
-      .filter(Boolean) // Remove null entries
-      .sort((a, b) => {
-        // Sort by frame then slice
-        if (a.frame !== b.frame) return a.frame - b.frame;
-        return a.slice - b.slice;
-      });
-    
-    console.log('Processed images:', {
-      total: processedImages.length,
-      frames: [...new Set(processedImages.map(img => img.frame))],
-      slices: [...new Set(processedImages.map(img => img.slice))],
-      sampleNames: processedImages.slice(0, 3).map(img => img.name)
+
+  const processedImages = extractedFiles
+    .filter((file) => file.name.endsWith('.jpg') || file.name.endsWith('.jpeg'))
+    .map((file) => {
+      const url = URL.createObjectURL(new Blob([file.buffer], { type: 'image/jpeg' }));
+      return { name: file.name, url, size: file.buffer.byteLength };
     });
-    
-    return processedImages;
-  } catch (error) {
-    console.error('Error processing extracted images:', error);
-    return [];
-  }
+
+  console.log('Processed images:', processedImages);
+  return processedImages;
 };
 
 const renderImageToCanvas = (ctx, imageUrl, width, height, callback) => {
@@ -527,7 +455,7 @@ const AISegmentationDisplay = ({
         console.log('Got presigned URL');
         
         // Extract TAR file
-        const extractedFiles = await fetchAndExtractTarFile(presignedUrl);
+        const extractedFiles = await extractTarFile(presignedUrl);
         console.log('Extracted files:', extractedFiles.length);
 
         // Process images with naming pattern
