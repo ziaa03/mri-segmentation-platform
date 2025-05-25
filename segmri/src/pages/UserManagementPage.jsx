@@ -29,14 +29,15 @@ const StatusBadge = ({ status }) => {
     pending: 'bg-yellow-50 text-yellow-700 border-yellow-100'
   };
   
+  const formattedStatus = status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
+
   return (
     <span className={`px-2 py-1 text-xs font-medium rounded-full border ${statusStyles[status] || 'bg-gray-50 text-gray-600'}`}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+      {formattedStatus}
     </span>
   );
 };
 
-// Role Badge component
 const RoleBadge = ({ role }) => {
   const roleStyles = {
     admin: 'bg-purple-50 text-purple-700 border-purple-100',
@@ -44,12 +45,15 @@ const RoleBadge = ({ role }) => {
     user: 'bg-gray-50 text-gray-600 border-gray-200'
   };
   
+  const formattedRole = role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Unknown';
+
   return (
     <span className={`px-2 py-1 text-xs font-medium rounded-full border ${roleStyles[role] || 'bg-gray-50 text-gray-600'}`}>
-      {role.charAt(0).toUpperCase() + role.slice(1)}
+      {formattedRole}
     </span>
   );
 };
+
 
 // User details sidebar component
 const UserDetailsSidebar = ({ user, onClose, onDelete, onEdit }) => {

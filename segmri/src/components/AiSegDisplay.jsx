@@ -4,43 +4,39 @@ import api from '../api/AxiosInstance';
 import { decodeRLE } from '../utils/RLE-Decoder';
 import { renderMaskOnCanvas } from '../utils/RLE-Decoder';
 
-// Enhanced Medical Image Loading Functions
+// Function to get a presigned URL
 const fetchPresignedUrl = async (projectId) => {
-  console.log('🔍 Fetching presigned URL for projectId:', projectId);
+  console.log(' Fetchinggg presigned URL for projectId:', projectId);
   
   try {
-    const response = await api.get(`/project/get-project-presigned-url?projectId=${projectId}`);
+    const response = await api.get(`/project/get-project-presigned-url`, {
+      params: { projectId },
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      withCredentials: true // Include cookies for session-based authentication
+    });
     
     // Log the full response to inspect the structure
     console.log('📡 Response from backend:', response);
     console.log('📡 Response data:', response.data);
-    
-    const data = response.data;
-    
+
+    const { success, presignedUrl, expiresAt, message } = response.data;
+
     // Handle backend error responses
-    if (data && data.success === false) {
-      throw new Error(data.message || 'Backend returned an error');
+    if (!success) {
+      throw new Error(message || 'Failed to get download URL');
     }
     
-    // Extract presigned URL with multiple fallbacks
-    const presignedUrl = data?.presignedUrl || data?.url || data?.data?.presignedUrl;
-    
-    if (!presignedUrl) {
-      console.error('❌ No presigned URL found');
-      console.error('Response keys:', Object.keys(data || {}));
-      throw new Error('No presigned URL found in response');
-    }
-    
+    // If successful, return the presigned URL and expiration time
     console.log('✅ Got presigned URL:', presignedUrl);
-    return presignedUrl;
-    
+    return { presignedUrl, expiresAt };
+
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.error('❌ Error getting presigned URL:', error);
     throw error;
   }
 };
-
-
 
 // Simple TAR file parser for browser environment
 const parseTarFile = (buffer) => {
