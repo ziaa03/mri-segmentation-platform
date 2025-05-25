@@ -11,10 +11,9 @@ const fetchPresignedUrl = async (projectId) => {
   try {
     const response = await api.get(`/project/get-project-presigned-url?projectId=${projectId}`);
     
-    console.log('📡 Response:', {
-      status: response.status,
-      data: response.data
-    });
+    // Log the full response to inspect the structure
+    console.log('📡 Response from backend:', response);
+    console.log('📡 Response data:', response.data);
     
     const data = response.data;
     
@@ -32,7 +31,7 @@ const fetchPresignedUrl = async (projectId) => {
       throw new Error('No presigned URL found in response');
     }
     
-    console.log('✅ Got presigned URL');
+    console.log('✅ Got presigned URL:', presignedUrl);
     return presignedUrl;
     
   } catch (error) {
@@ -40,6 +39,7 @@ const fetchPresignedUrl = async (projectId) => {
     throw error;
   }
 };
+
 
 
 // Simple TAR file parser for browser environment
