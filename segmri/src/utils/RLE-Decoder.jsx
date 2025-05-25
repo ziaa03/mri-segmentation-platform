@@ -5,132 +5,147 @@
  * @param {number} height - Image height (default: 512)
  * @returns {Uint8Array} - Binary mask array
  */
-export const decodeRLE = (rleData, width = 512, height = 512) => {
-  const totalPixels = width * height;
-  const mask = new Uint8Array(totalPixels);
+export const decodeRLE = (rleString, height, width) => {
+  console.log('=== RLE DECODING START ===');
+  console.log('Input:', { rleString: rleString?.substring(0, 100) + '...', height, width });
   
-  if (!rleData) {
-    console.warn('No RLE data provided');
+  if (!rleString || typeof rleString !== 'string') {
+    console.warn('Invalid RLE string provided');
+    return new Uint8Array(height * width);
+  }
+
+  const size = height * width;
+  const mask = new Uint8Array(size);
+
+  try {
+    // Your RLE format: "startIdx length startIdx length ..."
+    const values = rleString.trim().split(/\s+/).map(x => parseInt(x, 10)).filter(x => !isNaN(x));
+    
+    console.log('RLE values count:', values.length);
+    console.log('First 10 values:', values.slice(0, 10));
+    
+    if (values.length % 2 !== 0) {
+      console.warn('RLE data length is not even, may be incomplete');
+    }
+    
+    let totalPixelsFilled = 0;
+    
+    // Process pairs of (startIndex, length)
+    for (let i = 0; i < values.length - 1; i += 2) {
+      const startIdx = values[i];
+      const runLength = values[i + 1];
+      
+      if (startIdx < 0 || startIdx >= size) {
+        console.warn(`Start index ${startIdx} out of bounds for image size ${size}`);
+        continue;
+      }
+      
+      const endIdx = Math.min(startIdx + runLength, size);
+      
+      // Fill the mask
+      for (let j = startIdx; j < endIdx; j++) {
+        if (j < size) {
+          mask[j] = 1;
+          totalPixelsFilled++;
+        }
+      }
+    }
+    
+    console.log('RLE decode results:', {
+      totalPixelsFilled,
+      percentage: ((totalPixelsFilled / size) * 100).toFixed(2) + '%',
+      imageSize: `${width}x${height}`,
+      totalPixels: size
+    });
+    
     return mask;
+    
+  } catch (error) {
+    console.error('Error decoding RLE:', error);
+    return new Uint8Array(size);
+  }
+};
+
+const renderMaskOnCanvas = (canvas, binaryMask, width, height, color, opacity = 0.6) => {
+  console.log('=== MASK RENDERING START ===');
+  console.log('Canvas:', canvas);
+  console.log('Mask size:', binaryMask.length);
+  console.log('Expected size:', width * height);
+  console.log('Color:', color);
+  console.log('Opacity:', opacity);
+
+  if (!canvas) {
+    console.error('Canvas is null or undefined');
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    console.error('Could not get canvas context');
+    return;
+  }
+
+  // Ensure canvas dimensions are set
+  if (canvas.width !== width || canvas.height !== height) {
+    console.log('Setting canvas dimensions:', { width, height });
+    canvas.width = width;
+    canvas.height = height;
   }
 
   try {
-    let runs = [];
+    const imageData = ctx.createImageData(width, height);
+    const data = imageData.data;
 
-    // Handle different input formats
-    if (typeof rleData === 'string') {
-      if (rleData.includes(' ')) {
-        // Space-separated format: "startIdx length startIdx length ..."
-        runs = rleData.split(' ').map(x => parseInt(x.trim())).filter(x => !isNaN(x));
-        return decodeRLEPositional(runs, mask, totalPixels);
-      } else if (rleData.includes(',')) {
-        // Comma-separated format
-        runs = rleData.split(',').map(x => parseInt(x.trim())).filter(x => !isNaN(x));
-      } else if (rleData.startsWith('[') && rleData.endsWith(']')) {
-        // JSON array format
-        runs = JSON.parse(rleData);
-      } else {
-        // Single string of numbers (no separators)
-        runs = rleData.match(/\d+/g)?.map(x => parseInt(x)) || [];
+    // Parse color
+    const hexColor = color.replace('#', '');
+    const r = parseInt(hexColor.substr(0, 2), 16) || 255;
+    const g = parseInt(hexColor.substr(2, 2), 16) || 0;
+    const b = parseInt(hexColor.substr(4, 2), 16) || 0;
+    const alpha = Math.floor(255 * opacity);
+
+    console.log('Color values:', { r, g, b, alpha });
+
+    let pixelCount = 0;
+    let firstPixelPos = -1;
+    let lastPixelPos = -1;
+
+    // Fill the image data
+    for (let i = 0; i < binaryMask.length && i < width * height; i++) {
+      if (binaryMask[i] === 1) {
+        const pixelIndex = i * 4;
+        if (pixelIndex + 3 < data.length) {
+          data[pixelIndex] = r;         // Red
+          data[pixelIndex + 1] = g;     // Green
+          data[pixelIndex + 2] = b;     // Blue
+          data[pixelIndex + 3] = alpha; // Alpha
+          pixelCount++;
+          
+          if (firstPixelPos === -1) firstPixelPos = i;
+          lastPixelPos = i;
+        }
       }
-    } else if (Array.isArray(rleData)) {
-      // Direct array input
-      runs = rleData.map(x => parseInt(x)).filter(x => !isNaN(x));
-    } else {
-      console.error('Unsupported RLE data format:', typeof rleData);
-      return mask;
     }
 
-    // Use alternating run-length encoding (background/foreground)
-    return decodeRLEAlternating(runs, mask, totalPixels);
+    console.log('Mask rendering stats:', {
+      pixelCount,
+      firstPixelPos,
+      lastPixelPos,
+      firstPixelCoords: firstPixelPos >= 0 ? {
+        x: firstPixelPos % width,
+        y: Math.floor(firstPixelPos / width)
+      } : null
+    });
 
+    if (pixelCount > 0) {
+      ctx.putImageData(imageData, 0, 0);
+      console.log('✅ Mask rendered successfully');
+    } else {
+      console.warn('⚠️ No pixels were rendered (pixelCount = 0)');
+    }
+    
   } catch (error) {
-    console.error('Error decoding RLE:', error);
-    return mask;
+    console.error('Error rendering mask on canvas:', error);
   }
-};
-
-/**
- * Decode RLE using positional format (start_pos, length, start_pos, length, ...)
- */
-const decodeRLEPositional = (runs, mask, totalPixels) => {
-  for (let i = 0; i < runs.length; i += 2) {
-    const startIdx = runs[i];
-    if (i + 1 < runs.length && startIdx < totalPixels && startIdx >= 0) {
-      const runLength = runs[i + 1];
-      const endIdx = Math.min(startIdx + runLength, totalPixels);
-      for (let j = startIdx; j < endIdx; j++) {
-        mask[j] = 1;
-      }
-    }
-  }
-  return mask;
-};
-
-/**
- * Decode RLE using alternating format (bg_length, fg_length, bg_length, fg_length, ...)
- */
-const decodeRLEAlternating = (runs, mask, totalPixels) => {
-  let currentPos = 0;
-  let isBackground = true; // RLE typically starts with background pixels
-  
-  for (let i = 0; i < runs.length && currentPos < totalPixels; i++) {
-    const runLength = runs[i];
-    const value = isBackground ? 0 : 1;
-    
-    for (let j = 0; j < runLength && currentPos < totalPixels; j++) {
-      mask[currentPos] = value;
-      currentPos++;
-    }
-    
-    isBackground = !isBackground;
-  }
-  
-  return mask;
-};
-
-/**
- * Render binary mask on canvas with specified color and opacity
- */
-export const renderMaskOnCanvas = (canvas, binaryMask, width, height, color, opacity = 0.6) => {
-  const ctx = canvas.getContext('2d');
-  const imageData = ctx.createImageData(width, height);
-  const data = imageData.data;
-  
-  // Parse hex color
-  const hexColor = color.replace('#', '');
-  const r = parseInt(hexColor.substr(0, 2), 16) || 255;
-  const g = parseInt(hexColor.substr(2, 2), 16) || 255;
-  const b = parseInt(hexColor.substr(4, 2), 16) || 255;
-  const a = Math.floor(opacity * 255);
-  
-  for (let i = 0; i < binaryMask.length; i++) {
-    const pixelIndex = i * 4;
-    
-    if (binaryMask[i] === 1) {
-      data[pixelIndex] = r;
-      data[pixelIndex + 1] = g;
-      data[pixelIndex + 2] = b;
-      data[pixelIndex + 3] = a;
-    } else {
-      // Set transparent pixels explicitly
-      data[pixelIndex] = 0;
-      data[pixelIndex + 1] = 0;
-      data[pixelIndex + 2] = 0;
-      data[pixelIndex + 3] = 0;
-    }
-  }
-  
-  // Create temporary canvas for the mask
-  const tempCanvas = document.createElement('canvas');
-  tempCanvas.width = width;
-  tempCanvas.height = height;
-  const tempCtx = tempCanvas.getContext('2d');
-  tempCtx.putImageData(imageData, 0, 0);
-  
-  // Draw mask with blend mode
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.drawImage(tempCanvas, 0, 0);
 };
 
 /**

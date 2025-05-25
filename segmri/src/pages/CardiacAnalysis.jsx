@@ -411,10 +411,7 @@ const CardiacAnalysisPage = () => {
     const classColors = {
       'RV': '#FF6B6B',    // Red for Right Ventricle
       'LVC': '#4ECDC4',   // Teal for Left Ventricle Cavity  
-      'LV': '#4ECDC4',    // Alias for LVC
       'MYO': '#45B7D1',   // Blue for Myocardium
-      'LA': '#9C27B0',    // Purple for Left Atrium
-      'RA': '#FF5722'     // Deep orange for Right Atrium
     };
 
     transformedData.segments = Array.from(uniqueClasses).map((className, index) => ({
@@ -616,37 +613,6 @@ const showCompletionNotification = () => {
   setTimeout(() => {
     alert('🎉 Segmentation Complete!\n\nYour cardiac analysis results are now available for visualization and download.');
   }, 500);
-};
-
-// Enhanced status display component
-const StatusDisplay = () => {
-  if (!jobStatus) return null;
-
-  const statusConfig = {
-    'SUBMITTED': { color: 'blue', message: 'Job submitted to GPU servers...', icon: '⏳' },
-    'IN_PROGRESS': { color: 'yellow', message: 'AI processing your images...', icon: '🔄' },
-    'COMPLETED': { color: 'green', message: 'Analysis complete!', icon: '✅' },
-    'FAILED': { color: 'red', message: 'Processing failed', icon: '❌' }
-  };
-
-  const config = statusConfig[jobStatus] || statusConfig['SUBMITTED'];
-
-  return (
-    <div className={`bg-${config.color}-50 border border-${config.color}-200 rounded-lg p-4 mb-4`}>
-      <div className="flex items-center gap-3">
-        <div className="text-2xl">{config.icon}</div>
-        <div>
-          <div className={`font-medium text-${config.color}-800`}>
-            Segmentation Status: {jobStatus}
-          </div>
-          <div className={`text-sm text-${config.color}-600`}>
-            {config.message}
-            {jobId && <div className="mt-1 font-mono text-xs">Job ID: {jobId}</div>}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 };
 
 // Don't forget to clear intervals on component unmount
@@ -1024,8 +990,8 @@ useEffect(() => {
                     segmentItems={segmentItems}
                     onMaskSelected={handleMaskSelected}
                     selectedMask={selectedMask}
-                    onUploadSelectedMask={onUploadSelectedMask}
-                    projectId={yourProjectId} // Required!
+                    onUploadSelectedMask={handleUploadSelectedMask}  
+                    projectId={projectId} 
                   />
                 </div>
 
