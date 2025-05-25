@@ -28,7 +28,7 @@ const Header = () => {
             <ul className="flex space-x-8 text-sm font-medium">
               {/* Common menu items for all users */}
               <li>
-                <Link to="/" className="text-[#343231] hover:text-[#74342B] transition-colors">
+                <Link to="/landing" className="text-[#343231] hover:text-[#74342B] transition-colors">
                   HOME
                 </Link>
               </li>
