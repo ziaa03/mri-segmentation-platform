@@ -869,7 +869,7 @@ useEffect(() => {
           className="flex flex-col items-center text-center mb-12"
         >
           <h2 className="text-4xl font-light text-[#3A4454] mb-6">
-            AI-Powered Cardiac Analysis
+            AI-Powered Cardiac Analysisdasd
           </h2>
           <p className="text-xl text-[#3A4454] opacity-80 max-w-3xl">
             Upload your cardiac MRI images for advanced AI segmentation and detailed visualization

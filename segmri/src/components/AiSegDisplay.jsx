@@ -6,7 +6,7 @@ import { renderMaskOnCanvas } from '../utils/RLE-Decoder';
 
 // Enhanced Medical Image Loading Functions
 const fetchPresignedUrl = async (projectId) => {
-  console.log('🔍 Fetchingggg presigned URL for projectId:', projectId);
+  console.log('🔍 Fetching presigned URL for projectId:', projectId);
   
   try {
     const response = await api.get(`/project/get-project-presigned-url?projectId=${projectId}`);
