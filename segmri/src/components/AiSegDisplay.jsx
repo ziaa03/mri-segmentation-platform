@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Eye, EyeOff, Download, Upload, Info, RotateCcw, ZoomIn, ZoomOut, Play, Pause, Grid, Layers } from 'lucide-react';
 import api from '../api/AxiosInstance';
+import { decodeRLE } from '../utils/rleDecoder';
 
 // Enhanced Medical Image Loading Functions
 const fetchPresignedUrl = async (projectId) => {
