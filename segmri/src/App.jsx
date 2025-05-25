@@ -34,7 +34,8 @@ function App() {
                 <main className="flex-grow">
                   <Routes>
                     {/* Public routes */}
-                    <Route path="/" element={<Navigate to="/login-choice" />} />
+                    {/* <Route path="/" element={<Navigate to="/login-choice" />} /> */}
+                    <Route index element={<Navigate to="/login-choice" />} />
                     <Route path="/landing" element={<LandingPage />} />
                     <Route path="/about-us" element={<AboutUsPage />} />
                     <Route path="/cardiac-analysis" element={<CardiacAnalysisPage />} />
