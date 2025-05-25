@@ -60,68 +60,78 @@ const FileUpload = ({
   };
 
   // Validate files
-  const validateFiles = (files) => {
-    const errors = [];
-    const validFiles = [];
+const validateFiles = (files) => {
+  const errors = [];
+  const validFiles = [];
 
-    if (files.length > maxFiles) {
-      errors.push(`Maximum ${maxFiles} files allowed. You selected ${files.length} files.`);
-      return { validFiles: [], errors };
+  if (files.length > maxFiles) {
+    errors.push(`Maximum ${maxFiles} files allowed. You selected ${files.length} files.`);
+    return { validFiles: [], errors };
+  }
+
+  Array.from(files).forEach((file, index) => {
+    const fileErrors = [];
+
+    // Check file size
+    if (file.size > maxSizeMB * 1024 * 1024) {
+      fileErrors.push(`File "${file.name}" is too large. Maximum size: ${maxSizeMB}MB`);
     }
 
-    Array.from(files).forEach((file, index) => {
-      const fileErrors = [];
-      
-      // Check file size
-      if (file.size > maxSizeMB * 1024 * 1024) {
-        fileErrors.push(`File "${file.name}" is too large. Maximum size: ${maxSizeMB}MB`);
-      }
-      
-      // Check file format
-      const isValidFormat = acceptedFormats.some(format => 
-        file.name.toLowerCase().endsWith(format.toLowerCase())
-      );
-      
-      if (!isValidFormat) {
-        fileErrors.push(`File "${file.name}" has an unsupported format. Accepted formats: ${acceptedFormats.join(', ')}`);
-      }
-      
-      // Check for duplicate names
-      const duplicateIndex = validFiles.findIndex(validFile => validFile.name === file.name);
-      if (duplicateIndex !== -1) {
-        fileErrors.push(`Duplicate file name: "${file.name}"`);
-      }
+    // Check file format
+    const isValidFormat = acceptedFormats.some(format =>
+      file.name.toLowerCase().endsWith(format.toLowerCase())
+    );
 
-      if (fileErrors.length === 0) {
-        validFiles.push({
-          file,
-          id: `${file.name}-${file.size}-${Date.now()}-${index}`,
-          name: file.name,
-          size: file.size,
-          type: getFileType(file.name),
-          lastModified: file.lastModified
-        });
-      } else {
-        errors.push(...fileErrors);
-      }
-    });
+    if (!isValidFormat) {
+      fileErrors.push(`File "${file.name}" has an unsupported format. Accepted formats: ${acceptedFormats.join(', ')}`);
+    }
 
-    return { validFiles, errors };
-  };
+    // Check for duplicate names in current selection
+    const duplicateIndex = validFiles.findIndex(validFile => validFile.name === file.name);
+    if (duplicateIndex !== -1) {
+      fileErrors.push(`Duplicate file name: "${file.name}"`);
+    }
+
+    // Check for duplicate names in already uploaded files
+    if (selectedFiles.some(f => f.name === file.name)) {
+      fileErrors.push(`File "${file.name}" has already been uploaded.`);
+    }
+
+    if (fileErrors.length === 0) {
+      validFiles.push({
+        file,
+        id: `${file.name}-${file.size}-${Date.now()}-${index}`,
+        name: file.name,
+        size: file.size,
+        type: getFileType(file.name),
+        lastModified: file.lastModified
+      });
+    } else {
+      errors.push(...fileErrors);
+    }
+  });
+
+  return { validFiles, errors };
+};
 
   // Handle file selection
   const handleFiles = useCallback((files) => {
     const { validFiles, errors } = validateFiles(files);
     
     setValidationErrors(errors);
-    
-    if (validFiles.length > 0) {
-      setSelectedFiles(validFiles);
-      onFilesSelected(validFiles.map(f => f.file), 'success', `${validFiles.length} files selected successfully`);
-    } else if (errors.length > 0) {
-      onFilesSelected([], 'error', errors[0]);
-    }
-  }, [onFilesSelected, maxFiles, maxSizeMB, acceptedFormats]);
+
+  if (errors.some(e => e.includes('already been uploaded'))) {
+    // Optionally, you can show a toast or alert here
+    // alert('Some files have already been uploaded.');
+  }
+
+  if (validFiles.length > 0) {
+    setSelectedFiles(prev => [...prev, ...validFiles]);
+    onFilesSelected([...selectedFiles, ...validFiles].map(f => f.file), 'success', `${validFiles.length} files selected successfully`);
+  } else if (errors.length > 0) {
+    onFilesSelected([], 'error', errors[0]);
+  }
+}, [onFilesSelected, maxFiles, maxSizeMB, acceptedFormats, selectedFiles]);
 
   // Drag and drop handlers
   const handleDrag = useCallback((e) => {
