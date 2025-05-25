@@ -1,13 +1,157 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Eye, EyeOff, Download, Upload, Info, RotateCcw, ZoomIn, ZoomOut, Play, Pause, Grid, Layers } from 'lucide-react';
 import api from '../api/AxiosInstance';
-import { decodeRLE } from '../utils/rleDecoder';
+
+// Enhanced RLE Decoder utility functions
+const decodeRLE = (rleString, height, width) => {
+  console.log('=== RLE DECODING START ===');
+  console.log('Input:', { rleString: rleString?.substring(0, 100) + '...', height, width });
+  
+  if (!rleString || typeof rleString !== 'string') {
+    console.warn('Invalid RLE string provided');
+    return new Uint8Array(height * width);
+  }
+
+  const size = height * width;
+  const mask = new Uint8Array(size);
+
+  try {
+    // Your RLE format: "startIdx length startIdx length ..."
+    const values = rleString.trim().split(/\s+/).map(x => parseInt(x, 10)).filter(x => !isNaN(x));
+    
+    console.log('RLE values count:', values.length);
+    console.log('First 10 values:', values.slice(0, 10));
+    
+    if (values.length % 2 !== 0) {
+      console.warn('RLE data length is not even, may be incomplete');
+    }
+    
+    let totalPixelsFilled = 0;
+    
+    // Process pairs of (startIndex, length)
+    for (let i = 0; i < values.length - 1; i += 2) {
+      const startIdx = values[i];
+      const runLength = values[i + 1];
+      
+      if (startIdx < 0 || startIdx >= size) {
+        console.warn(`Start index ${startIdx} out of bounds for image size ${size}`);
+        continue;
+      }
+      
+      const endIdx = Math.min(startIdx + runLength, size);
+      
+      // Fill the mask
+      for (let j = startIdx; j < endIdx; j++) {
+        if (j < size) {
+          mask[j] = 1;
+          totalPixelsFilled++;
+        }
+      }
+    }
+    
+    console.log('RLE decode results:', {
+      totalPixelsFilled,
+      percentage: ((totalPixelsFilled / size) * 100).toFixed(2) + '%',
+      imageSize: `${width}x${height}`,
+      totalPixels: size
+    });
+    
+    return mask;
+    
+  } catch (error) {
+    console.error('Error decoding RLE:', error);
+    return new Uint8Array(size);
+  }
+};
+
+const renderMaskOnCanvas = (canvas, binaryMask, width, height, color, opacity = 0.6) => {
+  console.log('=== MASK RENDERING START ===');
+  console.log('Canvas:', canvas);
+  console.log('Mask size:', binaryMask.length);
+  console.log('Expected size:', width * height);
+  console.log('Color:', color);
+  console.log('Opacity:', opacity);
+
+  if (!canvas) {
+    console.error('Canvas is null or undefined');
+    return;
+  }
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    console.error('Could not get canvas context');
+    return;
+  }
+
+  // Ensure canvas dimensions are set
+  if (canvas.width !== width || canvas.height !== height) {
+    console.log('Setting canvas dimensions:', { width, height });
+    canvas.width = width;
+    canvas.height = height;
+  }
+
+  try {
+    const imageData = ctx.createImageData(width, height);
+    const data = imageData.data;
+
+    // Parse color
+    const hexColor = color.replace('#', '');
+    const r = parseInt(hexColor.substr(0, 2), 16) || 255;
+    const g = parseInt(hexColor.substr(2, 2), 16) || 0;
+    const b = parseInt(hexColor.substr(4, 2), 16) || 0;
+    const alpha = Math.floor(255 * opacity);
+
+    console.log('Color values:', { r, g, b, alpha });
+
+    let pixelCount = 0;
+    let firstPixelPos = -1;
+    let lastPixelPos = -1;
+
+    // Fill the image data
+    for (let i = 0; i < binaryMask.length && i < width * height; i++) {
+      if (binaryMask[i] === 1) {
+        const pixelIndex = i * 4;
+        if (pixelIndex + 3 < data.length) {
+          data[pixelIndex] = r;         // Red
+          data[pixelIndex + 1] = g;     // Green
+          data[pixelIndex + 2] = b;     // Blue
+          data[pixelIndex + 3] = alpha; // Alpha
+          pixelCount++;
+          
+          if (firstPixelPos === -1) firstPixelPos = i;
+          lastPixelPos = i;
+        }
+      }
+    }
+
+    console.log('Mask rendering stats:', {
+      pixelCount,
+      firstPixelPos,
+      lastPixelPos,
+      firstPixelCoords: firstPixelPos >= 0 ? {
+        x: firstPixelPos % width,
+        y: Math.floor(firstPixelPos / width)
+      } : null
+    });
+
+    if (pixelCount > 0) {
+      ctx.putImageData(imageData, 0, 0);
+      console.log('✅ Mask rendered successfully');
+    } else {
+      console.warn('⚠️ No pixels were rendered (pixelCount = 0)');
+    }
+    
+  } catch (error) {
+    console.error('Error rendering mask on canvas:', error);
+  }
+};
 
 // Enhanced Medical Image Loading Functions
 const fetchPresignedUrl = async (projectId) => {
   try {
     const response = await api.get(`/project/get-project-presigned-url?projectId=${projectId}`, {
-      params: {
+      method: 'GET',
+      headers: {
         
       }
     });
@@ -316,7 +460,9 @@ const AISegmentationDisplay = ({
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
   const [showStats, setShowStats] = useState(true);
   const [showGrid, setShowGrid] = useState(false);
-
+  const [isAutoPlaying, setIsAutoPlaying] = useState(false);
+  const [playSpeed, setPlaySpeed] = useState(500);
+  
   // New state for extracted images
   const [extractedImages, setExtractedImages] = useState([]);
   const [currentImage, setCurrentImage] = useState(null);
@@ -337,8 +483,13 @@ const AISegmentationDisplay = ({
   const getClassColor = (className) => {
     const classColors = {
       'RV': '#FF6B6B',    // Red for Right Ventricle
-      'LVC': '#4ECDC4',   // Teal for Left Ventricle Cavity  
-      'MYO': '#45B7D1',   // Blue for Myocardium
+      'LV': '#4ECDC4',    // Teal for Left Ventricle
+      'LVC': '#45B7D1',   // Blue for Left Ventricle Cavity  
+      'MYO': '#FFA726',   // Orange for Myocardium
+      'LA': '#9C27B0',    // Purple for Left Atrium
+      'RA': '#FF5722',    // Deep orange for Right Atrium
+      'AORTA': '#E91E63', // Pink for Aorta
+      'PA': '#795548'     // Brown for Pulmonary Artery
     };
     
     // Fallback to dynamic color generation
