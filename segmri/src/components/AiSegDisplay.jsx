@@ -4,161 +4,184 @@ import api from '../api/AxiosInstance';
 import { decodeRLE } from '../utils/RLE-Decoder';
 import { renderMaskOnCanvas } from '../utils/RLE-Decoder';
 
-// Function to get a presigned URL
+// Enhanced Medical Image Loading Functions
 const fetchPresignedUrl = async (projectId) => {
-  console.log('Fetching presigned URL for projectId:', projectId);
-
+  console.log('🔍 Fetching presigned URL for projectId:', projectId);
+  
   try {
-    const response = await api.get(`/project/get-project-presigned-url`, {
-      params: { projectId },
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      withCredentials: true // Include cookies for session-based authentication
+    const response = await api.get(`/project/get-project-presigned-url?projectId=${projectId}`);
+    
+    console.log('📡 Response:', {
+      status: response.status,
+      data: response.data
     });
-
-    const { success, presignedUrl, expiresAt, message } = response.data;
-    if (!success) {
-      throw new Error(message || 'Failed to get download URL');
+    
+    const data = response.data;
+    
+    // Handle backend error responses
+    if (data && data.success === false) {
+      throw new Error(data.message || 'Backend returned an error');
     }
-
-    console.log('✅ Got presigned URL:', presignedUrl);
-    return { presignedUrl, expiresAt };
-
+    
+    // Extract presigned URL with multiple fallbacks
+    const presignedUrl = data?.presignedUrl || data?.url || data?.data?.presignedUrl;
+    
+    if (!presignedUrl) {
+      console.error('❌ No presigned URL found');
+      console.error('Response keys:', Object.keys(data || {}));
+      throw new Error('No presigned URL found in response');
+    }
+    
+    console.log('✅ Got presigned URL');
+    return presignedUrl;
+    
   } catch (error) {
-    console.error('❌ Error getting presigned URL:', error);
+    console.error('❌ Error:', error);
     throw error;
   }
 };
 
-// Function to extract TAR file with stream-based extraction
-const extractTarFile = async (presignedUrl) => {
+
+// Simple TAR file parser for browser environment
+const parseTarFile = (buffer) => {
+  const files = [];
+  const view = new Uint8Array(buffer);
+  let offset = 0;
+  
+  while (offset < view.length) {
+    // TAR header is 512 bytes
+    const header = view.slice(offset, offset + 512);
+    
+    // Check if we've reached the end (two consecutive zero blocks)
+    if (header.every(byte => byte === 0)) {
+      break;
+    }
+    
+    // Extract filename (first 100 bytes, null-terminated)
+    let nameBytes = header.slice(0, 100);
+    let nameEnd = nameBytes.indexOf(0);
+    if (nameEnd === -1) nameEnd = 100;
+    const name = new TextDecoder().decode(nameBytes.slice(0, nameEnd));
+    
+    // Extract file size (124-135, octal string)
+    const sizeBytes = header.slice(124, 135);
+    const sizeStr = new TextDecoder().decode(sizeBytes).replace(/\0/g, '').trim();
+    const size = parseInt(sizeStr, 8) || 0;
+    
+    // Extract file type (156th byte)
+    const typeFlag = header[156];
+    const isRegularFile = typeFlag === 0 || typeFlag === 48; // '0' in ASCII
+    
+    offset += 512; // Move past header
+    
+    if (isRegularFile && size > 0 && name) {
+      // Extract file data
+      const fileData = view.slice(offset, offset + size);
+      files.push({
+        name: name,
+        buffer: fileData.buffer.slice(fileData.byteOffset, fileData.byteOffset + fileData.byteLength),
+        size: size
+      });
+    }
+    
+    // Move to next file (pad to 512-byte boundary)
+    offset += Math.ceil(size / 512) * 512;
+  }
+  
+  return files;
+};
+
+const fetchAndExtractTarFile = async (presignedUrl) => {
   console.log('=== FETCHING TAR FILE ===');
+  console.log('Presigned URL:', presignedUrl);
+  
   try {
-    // Fetch the TAR file as a stream from the presigned URL
     const response = await fetch(presignedUrl);
     if (!response.ok) {
-      throw new Error(`Failed to fetch TAR file: ${response.statusText}`);
+      throw new Error(`Failed to fetch tar file: ${response.statusText}`);
     }
-
-    const reader = response.body.getReader();
-    const stream = new ReadableStream({
-      start(controller) {
-        function push() {
-          reader.read().then(({ done, value }) => {
-            if (done) {
-              controller.close();
-              return;
-            }
-            controller.enqueue(value);
-            push();
-          }).catch(err => {
-            controller.error(err);
-          });
-        }
-        push();
-      }
-    });
-
-    // Create a new response with the stream
-    const streamResponse = new Response(stream);
-    const arrayBuffer = await streamResponse.arrayBuffer();  // Get the full content of the stream
-
+    
+    const arrayBuffer = await response.arrayBuffer();
     console.log('Tar file downloaded, size:', arrayBuffer.byteLength);
-
-    // Now we use tar-js to extract the contents
-    return new Promise((resolve, reject) => {
-      const extract = new Extract();
-      const extractedFiles = [];
-
-      extract.on('entry', (entry) => { 
-        if (entry.type === 'file') {
-          extractedFiles.push(entry);
-        }
-      });
-
-      extract.on('end', () => {
-        console.log('Files extracted:', extractedFiles.length);
-        resolve(extractedFiles);
-      });
-
-      extract.on('error', (err) => {
-        console.error('Error during tar extraction:', err);
-        reject(err);
-      });
-
-      extract.push(arrayBuffer);
-      // If tar-js requires an explicit end for a single buffer push, you might need extract.end() or similar.
-      // However, typically pushing the full buffer is enough for it to process and emit 'end'.
-    });
-
+    
+    // Use custom TAR parser
+    const extractedFiles = parseTarFile(arrayBuffer);
+    console.log('Files extracted:', extractedFiles.length);
+    
+    // Filter for image files (JPEG, PNG, etc.)
+    const imageFiles = extractedFiles.filter(file => 
+      file.name && (
+        file.name.toLowerCase().endsWith('.jpg') ||
+        file.name.toLowerCase().endsWith('.jpeg') ||
+        file.name.toLowerCase().endsWith('.png')
+      )
+    );
+    
+    console.log('Image files found:', imageFiles.length);
+    console.log('Sample file names:', imageFiles.slice(0, 5).map(f => f.name));
+    
+    return imageFiles;
   } catch (error) {
-    console.error('Error extracting TAR file:', error);
+    console.error('Error fetching/extracting tar file:', error);
     throw error;
   }
 };
 
-// Process extracted image files
 const processExtractedImages = (extractedFiles) => {
   console.log('=== PROCESSING EXTRACTED IMAGES ===');
   
-  const processedImages = extractedFiles
-    .filter((file) => file.fileName.endsWith('.jpg') || file.fileName.endsWith('.jpeg'))
-    .map((file) => {
-      const url = URL.createObjectURL(new Blob([file.fileData], { type: 'image/jpeg' }));
-      
-      // Parse the filename pattern: {user_id}_{file_hash}_{frame_idx}_{slice_idx}.jpg
-      const filename = file.fileName.replace(/\.(jpg|jpeg)$/i, ''); // Remove extension
-      const parts = filename.split('_');
-      
-      let frame = 0;
-      let slice = 0;
-      let userId = '';
-      let fileHash = '';
-      
-      if (parts.length >= 4) {
-        // Expected format: user_id_file_hash_frame_slice
-        // We need to handle cases where user_id or file_hash might contain underscores
-        // The last two parts are always frame and slice
-        const frameIdx = parseInt(parts[parts.length - 2], 10);
-        const sliceIdx = parseInt(parts[parts.length - 1], 10);
+  try {
+    const processedImages = extractedFiles
+      .filter(file => file.name.endsWith('.jpg') || file.name.endsWith('.jpeg'))
+      .map(file => {
+        // Parse the filename pattern: {user_id}_{file_hash}_{frame_idx}_{slice_idx}.jpg
+        const parts = file.name.split('_');
         
-        if (!isNaN(frameIdx) && !isNaN(sliceIdx)) {
-          frame = frameIdx;
-          slice = sliceIdx;
-          
-          // Reconstruct user_id and file_hash (everything except last 2 parts)
-          const userAndHashParts = parts.slice(0, -2);
-          // Assume the split is roughly in the middle, but this is a guess
-          // A more robust approach would be to store the original lengths
-          userId = userAndHashParts.slice(0, Math.ceil(userAndHashParts.length / 2)).join('_');
-          fileHash = userAndHashParts.slice(Math.ceil(userAndHashParts.length / 2)).join('_');
+        if (parts.length < 4) {
+          console.warn(`Unexpected filename format: ${file.name}`);
+          return null;
         }
-      }
-      
-      console.log(`Parsed file: ${file.fileName} -> Frame: ${frame}, Slice: ${slice}`);
-      
-      return {
-        name: file.fileName,
-        url,
-        size: file.fileData.byteLength,
-        frame,
-        slice,
-        userId,
-        fileHash,
-        originalName: filename
-      };
-    })
-    .sort((a, b) => {
-      // Sort by frame first, then by slice
-      if (a.frame !== b.frame) {
-        return a.frame - b.frame;
-      }
-      return a.slice - b.slice;
+        
+        const frameIdx = parseInt(parts[parts.length - 2]);
+        const sliceIdx = parseInt(parts[parts.length - 1].split('.')[0]);
+        
+        if (isNaN(frameIdx) || isNaN(sliceIdx)) {
+          console.warn(`Could not parse indices from filename: ${file.name}`);
+          return null;
+        }
+        
+        // Create blob URL for the image
+        const blob = new Blob([file.buffer], { type: 'image/jpeg' });
+        const url = URL.createObjectURL(blob);
+        
+        return {
+          name: file.name,
+          frame: frameIdx,
+          slice: sliceIdx,
+          url: url,
+          blob: blob,
+          size: file.buffer.byteLength
+        };
+      })
+      .filter(Boolean) // Remove null entries
+      .sort((a, b) => {
+        // Sort by frame then slice
+        if (a.frame !== b.frame) return a.frame - b.frame;
+        return a.slice - b.slice;
+      });
+    
+    console.log('Processed images:', {
+      total: processedImages.length,
+      frames: [...new Set(processedImages.map(img => img.frame))],
+      slices: [...new Set(processedImages.map(img => img.slice))],
+      sampleNames: processedImages.slice(0, 3).map(img => img.name)
     });
-
-  console.log('Processed images:', processedImages);
-  return processedImages;
+    
+    return processedImages;
+  } catch (error) {
+    console.error('Error processing extracted images:', error);
+    return [];
+  }
 };
 
 const renderImageToCanvas = (ctx, imageUrl, width, height, callback) => {
@@ -490,166 +513,118 @@ const AISegmentationDisplay = ({
 
   // Load extracted images when projectId changes
   useEffect(() => {
-  const loadExtractedImages = async () => {
-    if (!projectId) {
-      console.log('No projectId provided, using fallback background');
+    const loadExtractedImages = async () => {
+      if (!projectId) {
+        console.log('No projectId provided, using fallback background');
+        return;
+      }
+
+      setIsLoadingImages(true);
+      setImageError(null);
+      
+      try {
+        console.log('=== LOADING EXTRACTED IMAGES ===');
+        console.log('Project ID:', projectId);
+        
+        // Get presigned URL
+        const presignedUrl = await fetchPresignedUrl(projectId);
+        console.log('Got presigned URL');
+        
+        // Extract TAR file
+        const extractedFiles = await fetchAndExtractTarFile(presignedUrl);
+        console.log('Extracted files:', extractedFiles.length);
+
+        // Process images with naming pattern
+        const processedImages = processExtractedImages(extractedFiles);
+        console.log('Processed images:', processedImages.length);
+
+        setExtractedImages(processedImages);
+
+        // Calculate available frames and slices
+        if (processedImages.length > 0) {
+          const frames = [...new Set(processedImages.map(img => img.frame))].sort((a, b) => a - b);
+          const slices = [...new Set(processedImages.map(img => img.slice))].sort((a, b) => a - b);
+          
+          setAvailableFrames(frames);
+          setAvailableSlices(slices);
+          
+          console.log('Available frames:', frames);
+          console.log('Available slices:', slices);
+          
+          // Set initial image
+          const initialImage = processedImages.find(img => 
+            img.frame === (frames[0] || 0) && img.slice === (slices[0] || 0)
+          );
+          
+          if (initialImage) {
+            setCurrentImage(initialImage);
+            console.log('✅ Initial image set:', initialImage.name);
+          }
+        }
+        
+      } catch (error) {
+        console.error('❌ Error loading extracted images:', error);
+        setImageError(error.message);
+      } finally {
+        setIsLoadingImages(false);
+      }
+    };
+
+    loadExtractedImages();
+    
+    // Cleanup: revoke object URLs when component unmounts or projectId changes
+    return () => {
+      extractedImages.forEach(img => {
+        if (img.url) {
+          URL.revokeObjectURL(img.url);
+        }
+      });
+    };
+  }, [projectId]);
+
+  // Update current image when time/layer indices change
+  useEffect(() => {
+    if (extractedImages.length === 0) {
       return;
     }
 
-    setIsLoadingImages(true);
-    setImageError(null);
+    console.log('=== UPDATING CURRENT IMAGE ===');
+    console.log('Looking for image with frame:', currentTimeIndex, 'slice:', currentLayerIndex);
     
-    try {
-      console.log('=== LOADING EXTRACTED IMAGES ===');
-      console.log('Project ID:', projectId);
+    // Find image that matches current frame and slice
+    const targetImage = extractedImages.find(img => 
+      img.frame === currentTimeIndex && img.slice === currentLayerIndex
+    );
+    
+    if (targetImage) {
+      setCurrentImage(targetImage);
+      console.log('✅ Found matching image:', targetImage.name);
+    } else {
+      // Find closest available image
+      const availableFrames = [...new Set(extractedImages.map(img => img.frame))].sort((a, b) => a - b);
+      const availableSlices = [...new Set(extractedImages.map(img => img.slice))].sort((a, b) => a - b);
       
-      // Get presigned URL
-      const { presignedUrl } = await fetchPresignedUrl(projectId);
-      console.log('Got presigned URL');
+      const closestFrame = availableFrames.reduce((prev, curr) => 
+        Math.abs(curr - currentTimeIndex) < Math.abs(prev - currentTimeIndex) ? curr : prev
+      );
       
-      // Extract TAR file with enhanced error handling
-      const extractedFiles = await extractTarFile(presignedUrl);
-      console.log('Extracted files:', extractedFiles.length);
-
-      // Process images with proper filename parsing
-      const processedImages = processExtractedImages(extractedFiles);
-      console.log('Processed images:', processedImages.length);
-
-      setExtractedImages(processedImages);
-
-      // Calculate available frames and slices
-      if (processedImages.length > 0) {
-        const frames = [...new Set(processedImages.map(img => img.frame))].sort((a, b) => a - b);
-        const slices = [...new Set(processedImages.map(img => img.slice))].sort((a, b) => a - b);
-        
-        setAvailableFrames(frames);
-        setAvailableSlices(slices);
-        
-        console.log('Available frames:', frames);
-        console.log('Available slices:', slices);
-        
-        // Set initial image - find image for current indices or use first available
-        let initialImage = processedImages.find(img => 
-          img.frame === currentTimeIndex && img.slice === currentLayerIndex
-        );
-        
-        if (!initialImage) {
-          // Use first available image if exact match not found
-          initialImage = processedImages[0];
-        }
-        
-        if (initialImage) {
-          setCurrentImage(initialImage);
-          console.log('✅ Initial image set:', initialImage.name);
-        }
-        
-        // Log summary statistics
-        console.log('📊 Extraction Summary:', {
-          totalImages: processedImages.length,
-          frameRange: frames.length > 0 ? `${frames[0]}-${frames[frames.length-1]}` : 'None',
-          sliceRange: slices.length > 0 ? `${slices[0]}-${slices[slices.length-1]}` : 'None',
-          totalSize: `${(processedImages.reduce((sum, img) => sum + img.size, 0) / 1024 / 1024).toFixed(2)} MB`
-        });
-      }
+      const closestSlice = availableSlices.reduce((prev, curr) => 
+        Math.abs(curr - currentLayerIndex) < Math.abs(prev - currentLayerIndex) ? curr : prev
+      );
       
-    } catch (error) {
-      console.error('❌ Error loading extracted images:', error);
-      setImageError(error.message);
+      const fallbackImage = extractedImages.find(img => 
+        img.frame === closestFrame && img.slice === closestSlice
+      );
       
-      // Provide more specific error messages
-      if (error.message.includes('Failed to fetch TAR file')) {
-        setImageError('Unable to download image archive. Please check your connection and try again.');
-      } else if (error.message.includes('TAR extraction failed')) {
-        setImageError('Failed to extract images from archive. The file may be corrupted.');
-      } else if (error.message.includes('Failed to get download URL')) {
-        setImageError('Unable to get download permissions. Please check project access.');
+      if (fallbackImage) {
+        setCurrentImage(fallbackImage);
+        console.log('⚠️ Using closest available image:', fallbackImage.name);
       } else {
-        setImageError(`Image loading failed: ${error.message}`);
+        setCurrentImage(null);
+        console.log('❌ No suitable image found');
       }
-    } finally {
-      setIsLoadingImages(false);
     }
-  };
-
-  loadExtractedImages();
-  
-  // Cleanup: revoke object URLs when component unmounts or projectId changes
-  return () => {
-    extractedImages.forEach(img => {
-      if (img.url) {
-        URL.revokeObjectURL(img.url);
-      }
-    });
-  };
-}, [projectId]); // Remove currentTimeIndex and currentLayerIndex from dependencies
-
-// Updated effect for handling frame/slice changes
-useEffect(() => {
-  if (extractedImages.length === 0) {
-    return;
-  }
-
-  console.log('=== UPDATING CURRENT IMAGE ===');
-  console.log('Looking for image with frame:', currentTimeIndex, 'slice:', currentLayerIndex);
-  
-  // Find exact match first
-  let targetImage = extractedImages.find(img => 
-    img.frame === currentTimeIndex && img.slice === currentLayerIndex
-  );
-  
-  if (targetImage) {
-    setCurrentImage(targetImage);
-    console.log('✅ Found exact match:', targetImage.name);
-    return;
-  }
-
-  // If no exact match, find closest available image
-  console.log('⚠️ No exact match found, looking for closest image...');
-  
-  const availableFrames = [...new Set(extractedImages.map(img => img.frame))].sort((a, b) => a - b);
-  const availableSlices = [...new Set(extractedImages.map(img => img.slice))].sort((a, b) => a - b);
-  
-  // Find closest frame
-  const closestFrame = availableFrames.reduce((prev, curr) => 
-    Math.abs(curr - currentTimeIndex) < Math.abs(prev - currentTimeIndex) ? curr : prev
-  );
-  
-  // Find closest slice
-  const closestSlice = availableSlices.reduce((prev, curr) => 
-    Math.abs(curr - currentLayerIndex) < Math.abs(prev - currentLayerIndex) ? curr : prev
-  );
-  
-  // Try to find image with closest frame and exact slice
-  targetImage = extractedImages.find(img => 
-    img.frame === closestFrame && img.slice === currentLayerIndex
-  );
-  
-  if (!targetImage) {
-    // Try to find image with exact frame and closest slice
-    targetImage = extractedImages.find(img => 
-      img.frame === currentTimeIndex && img.slice === closestSlice
-    );
-  }
-  
-  if (!targetImage) {
-    // Use closest frame and closest slice
-    targetImage = extractedImages.find(img => 
-      img.frame === closestFrame && img.slice === closestSlice
-    );
-  }
-  
-  if (targetImage) {
-    setCurrentImage(targetImage);
-    console.log('⚠️ Using closest available image:', {
-      requested: `frame ${currentTimeIndex}, slice ${currentLayerIndex}`,
-      found: `frame ${targetImage.frame}, slice ${targetImage.slice}`,
-      filename: targetImage.name
-    });
-  } else {
-    setCurrentImage(null);
-    console.log('❌ No suitable image found');
-  }
-}, [extractedImages, currentTimeIndex, currentLayerIndex]);
+  }, [extractedImages, currentTimeIndex, currentLayerIndex]);
 
   // Render when data changes
   useEffect(() => {
