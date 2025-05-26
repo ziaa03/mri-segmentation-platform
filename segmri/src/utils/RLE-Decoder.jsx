@@ -600,6 +600,7 @@ export const validateRLEData = (rleData, expectedPixels = 512 * 512) => {
 
 
 /**
+ * UNTESTED
  * Encodes a binary mask into an RLE (Run-Length Encoding) string.
  * The RLE string format is "startIdx1 length1 startIdx2 length2 ...".
  * Assumes row-major order for pixel indexing.
