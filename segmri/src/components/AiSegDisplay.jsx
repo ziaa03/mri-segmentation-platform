@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Eye, EyeOff, Download, Upload, Info, RotateCcw, ZoomIn, ZoomOut, Play, Pause, Grid, Layers } from 'lucide-react';
 import api from '../api/AxiosInstance';
-import { decodeRLE } from '../utils/RLE-Decoder';
+import { decodeRLE, encodeRLE } from '../utils/RLE-Decoder';
 import { renderMaskOnCanvas } from '../utils/RLE-Decoder';
 
 // Enhanced Medical Image Loading Functions
