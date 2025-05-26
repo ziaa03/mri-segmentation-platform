@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Filter, Plus, MoreVertical, Trash2, Edit, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X, Check, AlertCircle, User, Download, EyeIcon, ArrowUpDown } from 'lucide-react';
+import { Search, Filter, Plus, MoreVertical, Trash2, Edit, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X, Check, AlertCircle, User, Download, EyeIcon, ArrowUpDown, Eye, EyeOff } from 'lucide-react';
 import api from '../api/AxiosInstance';
 
 // Toast notification component
@@ -119,7 +119,7 @@ const UserDetailsSidebar = ({ user, onClose, onDelete, onEdit }) => {
         {/* </button> */}
         <button 
           className="w-full py-2.5 bg-red-50 text-red-600 rounded-lg flex items-center justify-center hover:bg-red-100 transition-colors"
-          onClick={() => onDelete(user._id)}
+          onClick={() => onDelete(user.username)}
         >
           <Trash2 className="h-4 w-4 mr-2" />
           Delete User
@@ -223,7 +223,8 @@ const UserManagement = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [filterConfig, setFilterConfig] = useState({ status: 'all', role: 'all' });
   
-  
+  const [showPassword, setShowPassword] = useState(false);
+
   const fileInputRef = useRef(null);
   const usersPerPage = 5;
   
@@ -453,6 +454,8 @@ const UserManagement = () => {
       }
     }
   };
+
+  
 
   return (
     <div 
@@ -688,15 +691,30 @@ const UserManagement = () => {
                      {/* Password */}
                      <div className="space-y-1">
                        <label className="block text-sm font-medium">Password</label>
-                       <input
-                         type="password"
-                         name="password"
-                         value={newUser.password}
-                         onChange={handleInputChange}
-                         className="w-full p-2 border rounded-md"
-                       />
+                                         
+                       <div className="relative">
+                         <input
+                           type={showPassword ? 'text' : 'password'}
+                           name="password"
+                           value={newUser.password}
+                           onChange={handleInputChange}
+                           className="w-full p-2 pr-10 border rounded-md"
+                         />
+                     
+                         <button
+                           type="button"
+                           onClick={() => setShowPassword((prev) => !prev)}
+                           className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500"
+                           tabIndex={-1}
+                         >
+                           {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                         </button>
+                       </div>
+                                         
                        {!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/.test(newUser.password) && newUser.password && (
-                         <p className="text-xs text-red-500">Password must be at least 8 characters, include uppercase, lowercase, number, and special character.</p>
+                         <p className="text-xs text-red-500">
+                           Password must be at least 8 characters, include uppercase, lowercase, number, and special character.
+                         </p>
                        )}
                      </div>
                      
@@ -870,11 +888,11 @@ const UserManagement = () => {
                                   >
                                     <EyeIcon className="h-4 w-4" />
                                   </button>
-                                  <button 
-                                    className="p-1 rounded-md hover:bg-gray-100 text-gray-600"
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </button>
+                                  {/* <button  */}
+                                    {/* // className="p-1 rounded-md hover:bg-gray-100 text-gray-600" */}
+                                  {/* // > */}
+                                    {/* <Edit className="h-4 w-4" /> */}
+                                  {/* </button> */}
                                   <button 
                                     className="p-1 rounded-md hover:bg-red-50 text-red-600"
                                     onClick={() => handleDeleteUser(user.username)}
