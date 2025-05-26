@@ -79,7 +79,7 @@ const Notification = ({
           bgClass: 'bg-purple-50 border-purple-200',
           textClass: 'text-purple-800',
           title: 'AI Processing Started',
-          message: 'Your images have been submitted for GPU processing. Use "Check Results" to see when complete.',
+          message: 'Your images have been submitted for GPU processing.',
           showProgress: false,
           showClose: true,
           showSpinner: false
@@ -196,9 +196,6 @@ const Notification = ({
                     <div className="flex items-center gap-2">
                       <Clock size={12} />
                       <span>Processing typically takes 2-10 minutes</span>
-                    </div>
-                    <div className="mt-1">
-                      <strong>Next step:</strong> Use "Check Results" button to see when complete
                     </div>
                   </div>
                 </div>
