@@ -22,26 +22,26 @@ const Toast = ({ message, onClose, type = 'success' }) => {
 };
 
 // Status Badge component
-const StatusBadge = ({ status }) => {
-  const statusStyles = {
-    active: 'bg-green-50 text-green-700 border-green-100',
-    inactive: 'bg-gray-50 text-gray-600 border-gray-200',
-    pending: 'bg-yellow-50 text-yellow-700 border-yellow-100'
-  };
-  
-  const formattedStatus = status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
-
-  return (
-    <span className={`px-2 py-1 text-xs font-medium rounded-full border ${statusStyles[status] || 'bg-gray-50 text-gray-600'}`}>
-      {formattedStatus}
-    </span>
-  );
-};
+// const StatusBadge = ({ status }) => {
+  // const statusStyles = {
+    // active: 'bg-green-50 text-green-700 border-green-100',
+    // inactive: 'bg-gray-50 text-gray-600 border-gray-200',
+    // pending: 'bg-yellow-50 text-yellow-700 border-yellow-100'
+  // };
+  // 
+  // const formattedStatus = status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown';
+// 
+  // return (
+    // <span className={`px-2 py-1 text-xs font-medium rounded-full border ${statusStyles[status] || 'bg-gray-50 text-gray-600'}`}>
+      {/* {formattedStatus} */}
+    {/* </span> */}
+  // );
+// };
 
 const RoleBadge = ({ role }) => {
   const roleStyles = {
     admin: 'bg-purple-50 text-purple-700 border-purple-100',
-    editor: 'bg-blue-50 text-blue-700 border-blue-100',
+    // editor: 'bg-blue-50 text-blue-700 border-blue-100',
     user: 'bg-gray-50 text-gray-600 border-gray-200'
   };
   
@@ -53,7 +53,6 @@ const RoleBadge = ({ role }) => {
     </span>
   );
 };
-
 
 // User details sidebar component
 const UserDetailsSidebar = ({ user, onClose, onDelete, onEdit }) => {
@@ -74,17 +73,32 @@ const UserDetailsSidebar = ({ user, onClose, onDelete, onEdit }) => {
         </button>
       </div>
       
-      <h4 className="text-xl font-medium text-center mb-2">{user.name}</h4>
+      <h4 className="text-xl font-medium text-center mb-2">{user.username}</h4>
       <div className="flex justify-center gap-2 mb-6">
-        <StatusBadge status={user.status} />
+        {/* <StatusBadge status={user.status} /> */}
         <RoleBadge role={user.role} />
       </div>
       
       <div className="space-y-4 mb-8">
         {[
-          { label: "User ID", value: user.id },
-          { label: "Date of Birth", value: user.dob },
-          { label: "Registered Date", value: user.registeredDate },
+          { label: "User ID", value: user._id },
+          // { label: "Date of Birth", value: user.dob },
+          { label: "Registered Date", value: new Date(user.createdAt).toLocaleString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          })},
+          { label: "Last Updated Date", value: new Date(user.updatedAt).toLocaleString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          })},
           { label: "Phone Number", value: user.phone },
           { label: "Email", value: user.email }
         ].map((item) => (
@@ -96,16 +110,16 @@ const UserDetailsSidebar = ({ user, onClose, onDelete, onEdit }) => {
       </div>
       
       <div className="space-y-3">
-        <button 
-          className="w-full py-2.5 bg-gray-100 text-gray-700 rounded-lg flex items-center justify-center hover:bg-gray-200 transition-colors"
-          onClick={() => {}}
-        >
-          <Download className="h-4 w-4 mr-2" />
-          Export Profile
-        </button>
+        {/* <button  */}
+          {/* // className="w-full py-2.5 bg-gray-100 text-gray-700 rounded-lg flex items-center justify-center hover:bg-gray-200 transition-colors" */}
+          {/* // onClick={() => {}} */}
+        {/* > */}
+          {/* <Download className="h-4 w-4 mr-2" /> */}
+          {/* Export Profile */}
+        {/* </button> */}
         <button 
           className="w-full py-2.5 bg-red-50 text-red-600 rounded-lg flex items-center justify-center hover:bg-red-100 transition-colors"
-          onClick={() => onDelete(user.id)}
+          onClick={() => onDelete(user._id)}
         >
           <Trash2 className="h-4 w-4 mr-2" />
           Delete User
@@ -128,18 +142,18 @@ const UserCard = ({ user, isSelected, onSelect, onView, onDelete }) => {
             className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer ${isSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-300 bg-white'}`}
             onClick={(e) => {
               e.stopPropagation();
-              onSelect(user.id);
+              onSelect(user._id);
             }}
           >
             {isSelected && <Check className="w-3 h-3 text-white" />}
           </div>
           
-          <StatusBadge status={user.status} />
+          {/* <StatusBadge status={user.status} /> */}
         </div>
         
         {/* User info */}
         <div className="flex flex-col items-center text-center mb-4">
-          <h3 className="text-lg font-medium text-gray-800 mt-3 mb-1">{user.name}</h3>
+          <h3 className="text-lg font-medium text-gray-800 mt-3 mb-1">{user.username}</h3>
           <p className="text-sm text-gray-500">{user.email}</p>
           <div className="mt-2">
             <RoleBadge role={user.role} />
@@ -166,7 +180,7 @@ const UserCard = ({ user, isSelected, onSelect, onView, onDelete }) => {
             className="flex-1 py-2 rounded-lg text-red-600 hover:bg-red-50 flex items-center justify-center"
             onClick={(e) => { 
               e.stopPropagation();
-              onDelete(user.id);
+              onDelete(user._id);
             }}
           >
             <Trash2 className="h-4 w-4 mr-1" />
@@ -209,6 +223,7 @@ const UserManagement = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [filterConfig, setFilterConfig] = useState({ status: 'all', role: 'all' });
   
+  
   const fileInputRef = useRef(null);
   const usersPerPage = 5;
   
@@ -231,14 +246,15 @@ const UserManagement = () => {
     );
     
     // Status filter
-    const matchesStatus = filterConfig.status === 'all' || 
-                         user.status === filterConfig.status;
+    // const matchesStatus = filterConfig.status === 'all' || 
+                        //  user.status === filterConfig.status;
     
     // Role filter
     const matchesRole = filterConfig.role === 'all' || 
                         user.role === filterConfig.role;
     
-    return matchesSearch && matchesStatus && matchesRole;
+    // return matchesSearch && matchesStatus && matchesRole;
+    return matchesSearch && matchesRole;
   });
   
   // Calculate pagination
@@ -270,21 +286,41 @@ const UserManagement = () => {
     if (selectedUsers.length === currentUsers.length) {
       setSelectedUsers([]);
     } else {
-      setSelectedUsers(currentUsers.map(user => user.id));
+      setSelectedUsers(currentUsers.map(user => user._id));
     }
   };
   
   // Handle user deletion
-  const handleDeleteUser = (id) => {
-    setUsers(users.filter(user => user.id !== id));
-    setSelectedUsers(selectedUsers.filter(userId => userId !== id));
-    setSelectedUser(null);
-    showToast(`User deleted successfully`);
-  };
+  // const handleDeleteUser = (id) => {
+    // setUsers(users.filter(user => user._id !== id));
+    // setSelectedUsers(selectedUsers.filter(userId => userId !== id));
+    // setSelectedUser(null);
+    // showToast(`User deleted successfully`);
+  // };
+  const handleDeleteUser = async (id) => {
+  try {
+    const response = await api.post('/auth/delete', { id }); // send user ID in body
+
+    if (response.data.delete) {
+      // Remove user from local state
+      setUsers(users.filter(user => user._id !== id));
+      setSelectedUsers(selectedUsers.filter(userId => userId !== id));
+      setSelectedUser(null);
+      showToast(`User deleted successfully`);
+    } else {
+      showToast(response.data.message || "Failed to delete user");
+    }
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    showToast("An error occurred while deleting the user");
+  }
+};
+
+  
   
   // Handle bulk deletion
   const handleBulkDelete = () => {
-    setUsers(users.filter(user => !selectedUsers.includes(user.id)));
+    setUsers(users.filter(user => !selectedUsers.includes(user._id)));
     showToast(`${selectedUsers.length} user(s) deleted successfully`);
     setSelectedUsers([]);
   };
@@ -352,7 +388,69 @@ const UserManagement = () => {
     fetchUsers();
   }, []);
 
-  
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newUser, setNewUser] = useState({
+    username: '',
+    phone: '',
+    email: '',
+    password: ''
+  });
+
+
+  const handleInputChange = (e) => {
+    setNewUser({ ...newUser, [e.target.name]: e.target.value });
+  };
+
+
+  const handleCancel = () => {
+    setShowAddModal(false);
+    setNewUser({
+      username: '',
+      phone: '',
+      email: '',
+      password: ''
+    });
+  };
+
+  const isFormValid =
+  /^[a-zA-Z0-9_]{3,20}$/.test(newUser.username) &&
+  /^\d{10,15}$/.test(newUser.phone) &&
+  /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(newUser.email) &&
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/.test(newUser.password);
+
+  // const handleAddUser = () => {
+    // console.log('User to be added:', newUser);
+    // setShowAddModal(false);
+    // Backend API integration goes here later
+  // };
+
+  const handleAddUser = async () => {
+    try {
+      const response = await api.post('/auth/register', newUser);
+
+      console.log('User successfully added:', response.data);
+
+      // Reset form and close modal
+      setShowAddModal(false);
+      setNewUser({
+        username: '',
+        phone: '',
+        email: '',
+        password: ''
+      });
+
+      alert('User registered successfully!');
+    } catch (error) {
+      console.error('Registration error:', error);
+
+      if (error.response) {
+        alert(`Error: ${error.response.data.message || 'Registration failed.'}`);
+      } else {
+        alert('Network error: Could not reach server.');
+      }
+    }
+  };
+
   return (
     <div 
       className="bg-[#FFFCF6] min-h-screen p-6"
@@ -469,7 +567,7 @@ const UserManagement = () => {
                               <h3 className="font-medium text-gray-800">Filter Options</h3>
                               <button 
                                 className="text-sm text-blue-600 hover:text-blue-800"
-                                onClick={() => setFilterConfig({ status: 'all', role: 'all' })}
+                                onClick={() => setFilterConfig({ role: 'all' })}
                               >
                                 Reset
                               </button>
@@ -477,19 +575,19 @@ const UserManagement = () => {
                           </div>
                           
                           <div className="p-3">
-                            <div className="mb-3">
-                              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                              <select 
-                                className="w-full p-2 border border-gray-200 rounded-md"
-                                value={filterConfig.status}
-                                onChange={(e) => setFilterConfig({...filterConfig, status: e.target.value})}
-                              >
-                                <option value="all">All</option>
-                                <option value="active">Active</option>
-                                <option value="inactive">Inactive</option>
-                                <option value="pending">Pending</option>
-                              </select>
-                            </div>
+                            {/* <div className="mb-3"> */}
+                              {/* <label className="block text-sm font-medium text-gray-700 mb-1">Status</label> */}
+                              {/* <select  */}
+                                {/* // className="w-full p-2 border border-gray-200 rounded-md" */}
+                                {/* // value={filterConfig.status} */}
+                                {/* // onChange={(e) => setFilterConfig({...filterConfig, status: e.target.value})} */}
+                              {/* // > */}
+                                {/* <option value="all">All</option> */}
+                                {/* <option value="active">Active</option> */}
+                                {/* <option value="inactive">Inactive</option> */}
+                                {/* <option value="pending">Pending</option> */}
+                              {/* </select> */}
+                            {/* </div> */}
                             
                             <div className="mb-3">
                               <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
@@ -500,7 +598,7 @@ const UserManagement = () => {
                               >
                                 <option value="all">All</option>
                                 <option value="admin">Admin</option>
-                                <option value="editor">Editor</option>
+                                {/* <option value="editor">Editor</option> */}
                                 <option value="user">User</option>
                               </select>
                             </div>
@@ -519,13 +617,109 @@ const UserManagement = () => {
                     </div>
                     
                     {/* Add User Button */}
-                    <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    {/* <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"> */}
+                      {/* <Plus className="h-4 w-4 mr-2" /> */}
+                      {/* <span>Add User</span> */}
+                    {/* </button> */}
+
+                    <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700" onClick={() => setShowAddModal(true)}>
                       <Plus className="h-4 w-4 mr-2" />
                       <span>Add User</span>
                     </button>
+
                   </div>
                 </div>
               </div>
+              
+               {/* Add User Modal */}
+               {showAddModal && (
+                 <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
+                   <div className="bg-white rounded-lg p-8 w-[400px] shadow-2xl space-y-4 font-poppins">
+                     <h2 className="text-xl font-semibold mb-2 text-center">Add New User</h2>
+               
+                     {/* Username */}
+                     <div className="space-y-1">
+                       <label className="block text-sm font-medium">Username</label>
+                       <input
+                         type="text"
+                         name="username"
+                         value={newUser.username}
+                         onChange={handleInputChange}
+                         className="w-full p-2 border rounded-md"
+                       />
+                       {!/^[a-zA-Z0-9_]{3,20}$/.test(newUser.username) && newUser.username && (
+                         <p className="text-xs text-red-500">Username must be 3-20 characters (alphanumeric or _)</p>
+                       )}
+                     </div>
+                     
+                     {/* Phone */}
+                     <div className="space-y-1">
+                       <label className="block text-sm font-medium">Phone</label>
+                       <input
+                         type="tel"
+                         name="phone"
+                         value={newUser.phone}
+                         onChange={handleInputChange}
+                         className="w-full p-2 border rounded-md"
+                       />
+                       {!/^\d{10,15}$/.test(newUser.phone) && newUser.phone && (
+                         <p className="text-xs text-red-500">Phone number must be 10–15 digits</p>
+                       )}
+                     </div>
+                     
+                     {/* Email */}
+                     <div className="space-y-1">
+                       <label className="block text-sm font-medium">Email</label>
+                       <input
+                         type="email"
+                         name="email"
+                         value={newUser.email}
+                         onChange={handleInputChange}
+                         className="w-full p-2 border rounded-md"
+                       />
+                       {!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(newUser.email) && newUser.email && (
+                         <p className="text-xs text-red-500">Invalid email format</p>
+                       )}
+                     </div>
+                     
+                     {/* Password */}
+                     <div className="space-y-1">
+                       <label className="block text-sm font-medium">Password</label>
+                       <input
+                         type="password"
+                         name="password"
+                         value={newUser.password}
+                         onChange={handleInputChange}
+                         className="w-full p-2 border rounded-md"
+                       />
+                       {!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/.test(newUser.password) && newUser.password && (
+                         <p className="text-xs text-red-500">Password must be at least 8 characters, include uppercase, lowercase, number, and special character.</p>
+                       )}
+                     </div>
+                     
+                     {/* Action Buttons */}
+                     <div className="flex justify-between pt-4">
+                       <button
+                         onClick={handleCancel}
+                         className="px-4 py-2 bg-gray-300 rounded-md hover:bg-gray-400 hover:scale-105 transition-transform"
+                       >
+                         Cancel
+                       </button>
+                       <button
+                         onClick={handleAddUser}
+                         disabled={!isFormValid}
+                         className={`px-4 py-2 rounded-md text-white ${
+                           isFormValid
+                             ? 'bg-green-600 hover:bg-green-700 hover:scale-105'
+                             : 'bg-gray-400 cursor-not-allowed'
+                         }`}
+                       >
+                         Add User
+                       </button>
+                     </div>
+                   </div>
+                 </div>
+               )}
               
               {/* Bulk Actions */}
               {selectedUsers.length > 0 && (
@@ -562,9 +756,9 @@ const UserManagement = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {currentUsers.map((user) => (
                         <UserCard
-                          key={user.id}
+                          key={user._id}
                           user={user}
-                          isSelected={selectedUsers.includes(user.id)}
+                          isSelected={selectedUsers.includes(user._id)}
                           onSelect={handleSelectUser}
                           onView={viewUserDetails}
                           onDelete={handleDeleteUser}
@@ -606,7 +800,7 @@ const UserManagement = () => {
                               onClick={() => requestSort('name')}
                             >
                               <div className="flex items-center">
-                                <span>Name</span>
+                                <span>Username</span>
                                 <ArrowUpDown className="ml-1 h-4 w-4" />
                               </div>
                             </th>
@@ -622,15 +816,13 @@ const UserManagement = () => {
                                 <ArrowUpDown className="ml-1 h-4 w-4" />
                               </div>
                             </th>
-                            <th 
-                              className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                              onClick={() => requestSort('status')}
-                            >
-                              <div className="flex items-center">
-                                <span>Status</span>
-                                <ArrowUpDown className="ml-1 h-4 w-4" />
-                              </div>
-                            </th>
+                            {/* <th className="py-3 px-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" */}
+                              {/* // onClick={() => requestSort('status')}> */}
+                              {/* <div className="flex items-center"> */}
+                                {/* <span>Status</span> */}
+                                {/* <ArrowUpDown className="ml-1 h-4 w-4" /> */}
+                              {/* </div> */}
+                            {/* </th> */}
                             <th className="py-3 px-4 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Actions
                             </th>
@@ -639,23 +831,23 @@ const UserManagement = () => {
                         <tbody className="bg-white divide-y divide-gray-200">
                           {currentUsers.map((user) => (
                             <tr 
-                              key={user.id} 
+                              key={user._id} 
                               className="hover:bg-gray-50 transition-colors"
                             >
                               <td className="px-4 py-4">
                                 <div 
-                                  className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer ${selectedUsers.includes(user.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-300 bg-white'}`}
-                                  onClick={() => handleSelectUser(user.id)}
+                                  className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer ${selectedUsers.includes(user._id) ? 'bg-blue-600 border-blue-600' : 'border-gray-300 bg-white'}`}
+                                  onClick={() => handleSelectUser(user._id)}
                                 >
-                                  {selectedUsers.includes(user.id) && <Check className="w-3 h-3 text-white" />}
+                                  {selectedUsers.includes(user._id) && <Check className="w-3 h-3 text-white" />}
                                 </div>
                               </td>
                               <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                {user.id}
+                                {user._id}
                               </td>
                               <td className="px-4 py-4 whitespace-nowrap">
                                 <div className="flex items-center">
-                                  <span className="ml-3 text-sm font-medium text-gray-900">{user.name}</span>
+                                  <span className="ml-3 text-sm font-medium text-gray-900">{user.username}</span>
                                 </div>
                               </td>
                               <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -664,9 +856,9 @@ const UserManagement = () => {
                               <td className="px-4 py-4 whitespace-nowrap">
                                 <RoleBadge role={user.role} />
                               </td>
-                              <td className="px-4 py-4 whitespace-nowrap">
-                                <StatusBadge status={user.status} />
-                              </td>
+                              {/* <td className="px-4 py-4 whitespace-nowrap"> */}
+                                {/* <StatusBadge status={user.status} /> */}
+                              {/* </td> */}
                               <td className="px-4 py-4 whitespace-nowrap text-right text-sm">
                                 <div className="flex justify-end space-x-2">
                                   <button 
@@ -682,7 +874,7 @@ const UserManagement = () => {
                                   </button>
                                   <button 
                                     className="p-1 rounded-md hover:bg-red-50 text-red-600"
-                                    onClick={() => handleDeleteUser(user.id)}
+                                    onClick={() => handleDeleteUser(user._id)}
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </button>
