@@ -24,7 +24,7 @@ const FileCard = ({ file, isSelected, onSelect, onView, onFavorite, onDelete }) 
         className="absolute top-3 left-3 w-5 h-5 rounded-full border border-gray-300 flex items-center justify-center bg-white z-10"
         onClick={(e) => {
           e.stopPropagation();
-          onSelect(file.id);
+          onSelect(file.projectId);
         }}
       >
         {isSelected && (
@@ -37,7 +37,7 @@ const FileCard = ({ file, isSelected, onSelect, onView, onFavorite, onDelete }) 
         className={`absolute top-3 right-3 ${file.favorite ? 'text-yellow-500' : 'text-gray-300'} hover:text-yellow-500 z-10`}
         onClick={(e) => {
           e.stopPropagation();
-          onFavorite(file.id);
+          onFavorite(file.projectId);
         }}
       >
         <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
@@ -48,7 +48,7 @@ const FileCard = ({ file, isSelected, onSelect, onView, onFavorite, onDelete }) 
       <div className="p-6 flex flex-col items-center">
         {renderFileIcon()}
         <p className="text-sm font-medium text-center text-gray-800 mt-4 truncate w-full">{file.name}</p>
-        <p className="text-xs text-center text-gray-500 mt-1">{file.size}</p>
+        <p className="text-xs text-center text-gray-500 mt-1">{file.filesize}</p>
         
         {/* Tags */}
         {file.tags.length > 0 && (
@@ -73,7 +73,7 @@ const FileCard = ({ file, isSelected, onSelect, onView, onFavorite, onDelete }) 
           <button className="hover:text-blue-600 p-1">
             <Download className="h-4 w-4" />
           </button>
-          <button className="hover:text-red-600 p-1" onClick={(e) => { e.stopPropagation(); onDelete(file.id); }}>
+          <button className="hover:text-red-600 p-1" onClick={(e) => { e.stopPropagation(); onDelete(file.projectId); }}>
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
@@ -115,14 +115,15 @@ const FileDetailsSidebar = ({ file, onClose, onDelete, onFavorite, onRemoveTag }
       
       <h4 className="text-xl font-medium text-center mb-6">{file.name}</h4>
       
+      {/* { label: "Category", value: file.category, capitalize: true }, */}
+      {/* right side preview */}
       <div className="space-y-4">
         {[
           { label: "Type", value: file.type },
-          { label: "Category", value: file.category, capitalize: true },
-          { label: "Size", value: file.size },
-          { label: "Created", value: file.date },
-          { label: "Modified", value: file.modified },
-          { label: "ID", value: file.id }
+          { label: "Size", value: file.filesize },
+          { label: "Created", value: file.createdAt },
+          { label: "Modified", value: file.updatedAt },
+          { label: "ID", value: file.projectId }
         ].map((item) => (
           <div key={item.label} className="flex justify-between items-center pb-3 border-b border-gray-100">
             <span className="text-sm text-gray-500">{item.label}</span>
@@ -131,32 +132,6 @@ const FileDetailsSidebar = ({ file, onClose, onDelete, onFavorite, onRemoveTag }
         ))}
         
         {/* Tags Section */}
-        <div>
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm text-gray-500">Tags</span>
-            <button className="text-xs text-blue-600 hover:text-blue-800">
-              Add Tag
-            </button>
-          </div>
-          
-          <div className="flex flex-wrap gap-2">
-            {file.tags.map(tag => (
-              <div key={tag} className="flex items-center bg-gray-100 rounded-full px-3 py-1">
-                <span className="text-xs text-gray-800">{tag}</span>
-                <button 
-                  className="ml-1 text-gray-400 hover:text-gray-600"
-                  onClick={() => onRemoveTag(file.id, tag)}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
-            
-            {file.tags.length === 0 && (
-              <span className="text-xs text-gray-400">No tags</span>
-            )}
-          </div>
-        </div>
       </div>
       
       <div className="mt-8 space-y-3">
@@ -170,7 +145,7 @@ const FileDetailsSidebar = ({ file, onClose, onDelete, onFavorite, onRemoveTag }
         </button>
         <button 
           className="w-full py-2 bg-red-50 text-red-600 rounded-md flex items-center justify-center hover:bg-red-100 transition-colors"
-          onClick={() => onDelete(file.id)}
+          onClick={() => onDelete(file.projectId)}
         >
           <Trash2 className="h-4 w-4 mr-2" />
           Delete
@@ -200,12 +175,9 @@ const FileManagementPage = () => {
   // State hooks
   const [viewMode, setViewMode] = useState('grid');
   const [files, setFiles] = useState([
-    { id: '10283772', name: 'SCAN-01.nii', type: 'file', category: 'scan', size: '25 MB', date: '2025/04/16', modified: '2025/04/16', tags: ['important'], favorite: true },
+    { projectId: '10283772', name: 'SCAN-01.nii', filesize: '25 MB', createdAt: '2025/04/16', updatedAt: '2025/04/16', tags: ['important'], favorite: true },
     { id: '10283169', name: '01-03-2025.dcm', type: 'dicom', category: 'dicom', size: '44 GB', date: '2025/04/12', modified: '2025/04/12', tags: ['follow-up'], favorite: false },
     { id: '12345678', name: 'SCAN-02.dcm', type: 'file', category: 'scan', size: '798 MB', date: '2025/03/28', modified: '2025/04/10', tags: ['research'], favorite: false },
-    { id: '19237027', name: 'scan-04.dcm', type: 'document', category: 'scan', size: '155 KB', date: '2025/03/15', modified: '2025/03/20', tags: ['archived'], favorite: true },
-    { id: '29384756', name: 'CT-BRAIN-01.nii', type: 'file', category: 'ct', size: '250 MB', date: '2025/04/05', modified: '2025/04/05', tags: ['critical'], favorite: false },
-    { id: '38475610', name: 'MRI-RESULTS.dcm', type: 'dicom', category: 'mri', size: '1.2 GB', date: '2025/03/25', modified: '2025/04/02', tags: ['critical'], favorite: true },
   ]);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -233,7 +205,7 @@ const FileManagementPage = () => {
   
   const toggleFavorite = (fileId) => {
     setFiles(files.map(file => 
-      file.id === fileId ? { ...file, favorite: !file.favorite } : file
+      file.projectId === fileId ? { ...file, favorite: !file.favorite } : file
     ));
     
     const file = files.find(f => f.id === fileId);
@@ -241,10 +213,10 @@ const FileManagementPage = () => {
   };
   
   const deleteFile = (fileId) => {
-    setFiles(files.filter(file => file.id !== fileId));
+    setFiles(files.filter(file => file.projectId !== fileId));
     setSelectedFiles(selectedFiles.filter(id => id !== fileId));
     
-    if (selectedFile && selectedFile.id === fileId) {
+    if (selectedFile && selectedfile.projectId === fileId) {
       setSelectedFile(null);
     }
     
@@ -252,14 +224,14 @@ const FileManagementPage = () => {
   };
   
   const deleteSelectedFiles = () => {
-    setFiles(files.filter(file => !selectedFiles.includes(file.id)));
+    setFiles(files.filter(file => !selectedFiles.includes(file.projectId)));
     showToast(`${selectedFiles.length} file(s) deleted successfully`);
     setSelectedFiles([]);
   };
   
   const removeTagFromFile = (fileId, tag) => {
     setFiles(files.map(file => {
-      if (file.id === fileId) {
+      if (file.projectId === fileId) {
         return { ...file, tags: file.tags.filter(t => t !== tag) };
       }
       return file;
@@ -295,7 +267,7 @@ const FileManagementPage = () => {
       name: file.name,
       type: getFileType(file.name),
       category: getFileCategory(file.name),
-      size: typeof file.size === 'number' ? formatFileSize(file.size) : '0 B',
+      size: typeof file.filesize === 'number' ? formatFileSize(file.filesize) : '0 B',
       date: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
       modified: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
       tags: [],
@@ -383,7 +355,7 @@ const FileManagementPage = () => {
     const handleKeyDown = (e) => {
       if (e.ctrlKey && e.key === 'a') {
         e.preventDefault();
-        setSelectedFiles(filteredFiles.map(file => file.id));
+        setSelectedFiles(filteredFiles.map(file => file.projectId));
       }
       
       if (e.key === 'Delete' && selectedFiles.length > 0) {
@@ -593,9 +565,9 @@ const FileManagementPage = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {recentFiles.map((file) => (
                 <FileCard 
-                  key={file.id}
+                  key={file.projectId}
                   file={file}
-                  isSelected={selectedFiles.includes(file.id)}
+                  isSelected={selectedFiles.includes(file.projectId)}
                   onSelect={toggleFileSelection}
                   onView={viewFileDetails}
                   onFavorite={toggleFavorite}
@@ -625,9 +597,9 @@ const FileManagementPage = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredFiles.map((file) => (
                   <FileCard 
-                    key={file.id}
+                    key={file.projectId}
                     file={file}
-                    isSelected={selectedFiles.includes(file.id)}
+                    isSelected={selectedFiles.includes(file.projectId)}
                     onSelect={toggleFileSelection}
                     onView={viewFileDetails}
                     onFavorite={toggleFavorite}
@@ -652,7 +624,7 @@ const FileManagementPage = () => {
                             if (selectedFiles.length === filteredFiles.length) {
                               setSelectedFiles([]);
                             } else {
-                              setSelectedFiles(filteredFiles.map(file => file.id));
+                              setSelectedFiles(filteredFiles.map(file => file.projectId));
                             }
                           }}
                         />
@@ -677,18 +649,18 @@ const FileManagementPage = () => {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {filteredFiles.map((file) => (
                       <tr 
-                        key={file.id} 
-                        className={`hover:bg-gray-50 ${selectedFiles.includes(file.id) ? 'bg-blue-50' : ''}`}
+                        key={file.projectId} 
+                        className={`hover:bg-gray-50 ${selectedFiles.includes(file.projectId) ? 'bg-blue-50' : ''}`}
                         onClick={() => viewFileDetails(file)}
                       >
                         <td className="px-4 py-4">
                           <input
                             type="checkbox"
                             className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                            checked={selectedFiles.includes(file.id)}
+                            checked={selectedFiles.includes(file.projectId)}
                             onChange={(e) => {
                               e.stopPropagation();
-                              toggleFileSelection(file.id);
+                              toggleFileSelection(file.projectId);
                             }}
                             onClick={(e) => e.stopPropagation()}
                           />
@@ -719,14 +691,14 @@ const FileManagementPage = () => {
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-4 hidden sm:table-cell">
-                          <span className="capitalize text-sm text-gray-700">{file.category}</span>
+                        {/* <td className="px-4 py-4 hidden sm:table-cell"> */}
+                          {/* <span className="capitalize text-sm text-gray-700">{file.category}</span> */}
+                        {/* </td> */}
+                        <td className="px-4 py-4 text-sm text-gray-500 hidden lg:table-cell">
+                          {file.filesize}
                         </td>
                         <td className="px-4 py-4 text-sm text-gray-500 hidden lg:table-cell">
-                          {file.size}
-                        </td>
-                        <td className="px-4 py-4 text-sm text-gray-500 hidden lg:table-cell">
-                          {file.modified}
+                          {file.updatedAt}
                         </td>
                         <td className="px-4 py-4 text-right text-sm">
                           <div className="flex justify-end space-x-3">
@@ -740,7 +712,7 @@ const FileManagementPage = () => {
                               className={`${file.favorite ? 'text-yellow-500' : 'text-gray-400'} hover:text-yellow-500`}
                               onClick={(e) => { 
                                 e.stopPropagation();
-                                toggleFavorite(file.id);
+                                toggleFavorite(file.projectId);
                               }}
                             >
                               <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
@@ -751,7 +723,7 @@ const FileManagementPage = () => {
               className="text-gray-400 hover:text-red-500"
               onClick={(e) => { 
                 e.stopPropagation();
-                deleteFile(file.id);
+                deleteFile(file.projectId);
               }}
             >
               <Trash2 className="h-4 w-4" />
