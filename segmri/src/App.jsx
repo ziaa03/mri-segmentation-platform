@@ -14,6 +14,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
 import LoginUserGuest from './pages/LoginUserGuest';
 import './index.css';
+import AdminFileManagementPage from './pages/AdminFileManagementPage';
 
 function App() {
   return (
@@ -53,6 +54,7 @@ function App() {
                     {/* Admin only routes */}
                     <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
                       <Route path="/user-management" element={<UserManagement />} />
+                      <Route path="/all-files" element={<AdminFileManagementPage />} />
                     </Route>
                     
                     {/* Fallback route */}
