@@ -174,7 +174,7 @@ const Toast = ({ message, onClose }) => {
 };
 
 // Main file management component
-const FileManagementPage = () => {
+const AdminFileManagementPage = () => {
   // State hooks
   const [viewMode, setViewMode] = useState('grid');
   const [selectedFiles, setSelectedFiles] = useState([]);
@@ -189,18 +189,19 @@ const FileManagementPage = () => {
   useEffect(() => {
     const fetchFiles = async () => {
       try {
-        const response = await api.get('/project/get-projects-list');
-        const projects = response.data.projects || [];
+        const response = await api.get('/project/get-allusers-with-projects');
+        const allUsersWithProjects = response.data.data || [];
+        const allProjects = allUsersWithProjects.flatMap(user => user.projects || []);
 
-        const formattedProjects = projects.map(p => ({
+        const formattedProjects = allProjects.map(p => ({
           projectId: p.projectId,
           name: p.name,
           filesize: p.filesize,
           createdAt: p.createdAt?.slice(0, 10),
           updatedAt: p.updatedAt?.slice(0, 10),
         }));
-
         setFiles(formattedProjects);
+
       } catch (error) {
         console.error("Failed to fetch projects:", error);
       }
@@ -419,7 +420,7 @@ const FileManagementPage = () => {
       
       {/* Header Section */}
       <div className="header-sect px-6 lg:px-12">
-        <h1 className="text-3xl font-light text-[#3A4454] mb-6">File Management</h1>
+        <h1 className="text-3xl font-light text-[#3A4454] mb-6">All Files Management</h1>
         <p className="text-sm text-gray-500 mt-1">View, update and delete your files here</p>
       </div>
 
@@ -652,7 +653,7 @@ const FileManagementPage = () => {
                         />
                       </th>
                       <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Name
+                        Filename
                       </th>
                       {/* <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell"> */}
                         {/* Type */}
@@ -799,4 +800,4 @@ const FileManagementPage = () => {
   );
 }
 
-export default FileManagementPage;
+export default AdminFileManagementPage;

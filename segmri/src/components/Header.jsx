@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
@@ -10,6 +10,27 @@ const Header = () => {
     logout();
     navigate('/login');
   };
+
+   const [showFilesDropdown, setShowFilesDropdown] = useState(false);
+   const dropdownRef = useRef(null);
+   
+   const toggleFilesDropdown = () => {
+     setShowFilesDropdown(prev => !prev);
+   };
+
+   useEffect(() => {
+     const handleClickOutside = (event) => {
+       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+         setShowFilesDropdown(false);
+       }
+     };
+   
+     document.addEventListener("mousedown", handleClickOutside);
+   
+     return () => {
+       document.removeEventListener("mousedown", handleClickOutside);
+     };
+   }, []);   
 
   return (
     <header className="py-4 px-8 bg-[#FFFCF6] text-[#343231] shadow-sm">
@@ -46,8 +67,8 @@ const Header = () => {
               {/* Authenticated user menu items */}
               {isAuthenticated && (
                 <>
-                  {/* User and Admin only menu items */}
-                  {(isUser || isAdmin) && (
+                  {/* User only menu items */}
+                  { isUser && (
                     <li>
                       <Link to="/files" className="text-[#343231] hover:text-[#74342B] transition-colors">
                         FILES
@@ -57,12 +78,48 @@ const Header = () => {
                   
                   {/* Admin only menu items */}
                   {isAdmin && (
-                    <li>
-                      <Link to="/user-management" className="text-[#343231] hover:text-[#74342B] transition-colors">
-                        USERS
-                      </Link>
-                    </li>
-                  )}
+                  <li className="relative" ref={dropdownRef}>
+                    <button
+                      onClick={() => setShowFilesDropdown((prev) => !prev)}
+                      className="text-[#343231] hover:text-[#74342B] transition-colors focus:outline-none"
+                    >
+                      FILES
+                    </button>
+                                  
+                    {showFilesDropdown && (
+                      <ul className="absolute left-1/2 transform -translate-x-1/2 bg-white border rounded-md shadow-md mt-2 w-[90px] z-10">
+                        <li>
+                          <Link
+                            to="/files"
+                            className="block px-4 py-2 text-sm text-[#343231] hover:bg-gray-100 text-center"
+                            onClick={() => setShowFilesDropdown(false)}
+                          >
+                            Own Files
+                          </Link>
+                        </li>
+                        <li>
+                          <Link
+                            to="/all-files"
+                            className="block px-4 py-2 text-sm text-[#343231] hover:bg-gray-100 text-center"
+                            onClick={() => setShowFilesDropdown(false)}
+                          >
+                            All Files
+                          </Link>
+                        </li>
+                      </ul>
+                    )}
+                  </li>
+                )}
+
+
+                   {/* Admin only menu item: USERS */}
+                   {isAdmin && (
+                     <li>
+                       <Link to="/user-management" className="text-[#343231] hover:text-[#74342B] transition-colors">
+                         USERS
+                       </Link>
+                     </li>
+                   )}
                 </>
               )}
 
