@@ -296,15 +296,17 @@ const UserManagement = () => {
     // setSelectedUsers(selectedUsers.filter(userId => userId !== id));
     // setSelectedUser(null);
     // showToast(`User deleted successfully`);
-  // };
-  const handleDeleteUser = async (id) => {
+  // };\
+  const handleDeleteUser = async (username) => {
   try {
-    const response = await api.post('/auth/delete', { id }); // send user ID in body
+    const response = await api.post('/auth/admin-delete-user', {
+      usernameToDelete: username,
+    });
 
     if (response.data.delete) {
       // Remove user from local state
-      setUsers(users.filter(user => user._id !== id));
-      setSelectedUsers(selectedUsers.filter(userId => userId !== id));
+      setUsers(users.filter(user => user.username !== username));
+      setSelectedUsers(selectedUsers.filter(u => u !== username));
       setSelectedUser(null);
       showToast(`User deleted successfully`);
     } else {
@@ -315,6 +317,7 @@ const UserManagement = () => {
     showToast("An error occurred while deleting the user");
   }
 };
+
 
   
   
@@ -874,7 +877,7 @@ const UserManagement = () => {
                                   </button>
                                   <button 
                                     className="p-1 rounded-md hover:bg-red-50 text-red-600"
-                                    onClick={() => handleDeleteUser(user._id)}
+                                    onClick={() => handleDeleteUser(user.username)}
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </button>
