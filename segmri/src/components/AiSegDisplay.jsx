@@ -3,7 +3,6 @@ import { Eye, EyeOff, Download, Upload, Info, RotateCcw, ZoomIn, ZoomOut, Play, 
 import api from '../api/AxiosInstance';
 import { decodeRLE } from '../utils/RLE-Decoder';
 import { renderMaskOnCanvas } from '../utils/RLE-Decoder';
-import untar from 'js-untar';
 
 // Function to get a presigned URL
 const fetchPresignedUrl = async (projectId) => {
@@ -36,25 +35,62 @@ const fetchPresignedUrl = async (projectId) => {
 const extractTarFile = async (presignedUrl) => {
   console.log('=== FETCHING TAR FILE ===');
   try {
-    // Fetch the TAR file
+    // Fetch the TAR file as a stream from the presigned URL
     const response = await fetch(presignedUrl);
     if (!response.ok) {
       throw new Error(`Failed to fetch TAR file: ${response.statusText}`);
     }
 
-    const arrayBuffer = await response.arrayBuffer();
+    const reader = response.body.getReader();
+    const stream = new ReadableStream({
+      start(controller) {
+        function push() {
+          reader.read().then(({ done, value }) => {
+            if (done) {
+              controller.close();
+              return;
+            }
+            controller.enqueue(value);
+            push();
+          }).catch(err => {
+            controller.error(err);
+          });
+        }
+        push();
+      }
+    });
+
+    // Create a new response with the stream
+    const streamResponse = new Response(stream);
+    const arrayBuffer = await streamResponse.arrayBuffer();  // Get the full content of the stream
+
     console.log('Tar file downloaded, size:', arrayBuffer.byteLength);
 
-    // Extract files using js-untar
-    const extractedFiles = await untar(arrayBuffer);
-    console.log('Files extracted:', extractedFiles.length);
+    // Now we use tar-js to extract the contents
+    return new Promise((resolve, reject) => {
+      const extract = new Extract();
+      const extractedFiles = [];
 
-    // Convert the extracted files to the expected format
-    return extractedFiles.map(file => ({
-      fileName: file.name,
-      fileData: file.buffer,
-      type: 'file'
-    }));
+      extract.on('entry', (entry) => { 
+        if (entry.type === 'file') {
+          extractedFiles.push(entry);
+        }
+      });
+
+      extract.on('end', () => {
+        console.log('Files extracted:', extractedFiles.length);
+        resolve(extractedFiles);
+      });
+
+      extract.on('error', (err) => {
+        console.error('Error during tar extraction:', err);
+        reject(err);
+      });
+
+      extract.push(arrayBuffer);
+      // If tar-js requires an explicit end for a single buffer push, you might need extract.end() or similar.
+      // However, typically pushing the full buffer is enough for it to process and emit 'end'.
+    });
 
   } catch (error) {
     console.error('Error extracting TAR file:', error);
