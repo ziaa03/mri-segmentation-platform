@@ -2,11 +2,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { AlertCircle, Check, Download, Edit, Eye, FileText, Filter, Folder, Grid, List, 
          MoreHorizontal, Plus, Search, Trash2, Upload, X } from 'lucide-react';
 import { Link } from "react-router-dom";
+import api from '../api/AxiosInstance';
+
 
 // File card component to reduce repetition
 const FileCard = ({ file, isSelected, onSelect, onView, onFavorite, onDelete }) => {
   const renderFileIcon = () => {
-    switch (file.type) {
+    switch (file.filetype) {
       case 'folder': return <Folder className="w-10 h-10 text-blue-500" />;
       case 'dicom': return <FileText className="w-10 h-10 text-green-500" />;
       default: return <FileText className="w-10 h-10 text-blue-500" />;
@@ -51,20 +53,20 @@ const FileCard = ({ file, isSelected, onSelect, onView, onFavorite, onDelete }) 
         <p className="text-xs text-center text-gray-500 mt-1">{file.filesize}</p>
         
         {/* Tags */}
-        {file.tags.length > 0 && (
-          <div className="flex flex-wrap justify-center mt-3 gap-1">
-            {file.tags.slice(0, 2).map(tag => (
-              <span key={tag} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs">
-                {tag}
-              </span>
-            ))}
-            {file.tags.length > 2 && (
-              <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs">
-                +{file.tags.length - 2}
-              </span>
-            )}
-          </div>
-        )}
+        {/* {file.tags.length > 0 && ( */}
+          {/* // <div className="flex flex-wrap justify-center mt-3 gap-1"> */}
+            {/* {file.tags.slice(0, 2).map(tag => ( */}
+              {/* // <span key={tag} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs"> */}
+                {/* {tag} */}
+              {/* </span> */}
+            {/* // ))} */}
+            {/* {file.tags.length > 2 && ( */}
+              {/* // <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs"> */}
+                {/* +{file.tags.length - 2} */}
+              {/* </span> */}
+            {/* // )} */}
+          {/* </div> */}
+        {/* // )} */}
         
         <div className="flex justify-center mt-4 space-x-2 text-gray-400">
           <button className="hover:text-gray-700 p-1" onClick={(e) => { e.stopPropagation(); onView(file); }}>
@@ -93,7 +95,7 @@ const FileDetailsSidebar = ({ file, onClose, onDelete, onFavorite, onRemoveTag }
   );
 
   const renderFileIcon = () => {
-    switch (file.type) {
+    switch (file.filetype) {
       case 'folder': return <Folder className="w-12 h-12 text-blue-500" />;
       case 'dicom': return <FileText className="w-12 h-12 text-green-500" />;
       default: return <FileText className="w-12 h-12 text-blue-500" />;
@@ -119,11 +121,12 @@ const FileDetailsSidebar = ({ file, onClose, onDelete, onFavorite, onRemoveTag }
       {/* right side preview */}
       <div className="space-y-4">
         {[
-          { label: "Type", value: file.type },
+          // { label: "Type", value: file.filetype },
+          { label: "ID", value: file.projectId },
           { label: "Size", value: file.filesize },
           { label: "Created", value: file.createdAt },
           { label: "Modified", value: file.updatedAt },
-          { label: "ID", value: file.projectId }
+          
         ].map((item) => (
           <div key={item.label} className="flex justify-between items-center pb-3 border-b border-gray-100">
             <span className="text-sm text-gray-500">{item.label}</span>
@@ -174,11 +177,6 @@ const Toast = ({ message, onClose }) => {
 const FileManagementPage = () => {
   // State hooks
   const [viewMode, setViewMode] = useState('grid');
-  const [files, setFiles] = useState([
-    { projectId: '10283772', name: 'SCAN-01.nii', filesize: '25 MB', createdAt: '2025/04/16', updatedAt: '2025/04/16', tags: ['important'], favorite: true },
-    { id: '10283169', name: '01-03-2025.dcm', type: 'dicom', category: 'dicom', size: '44 GB', date: '2025/04/12', modified: '2025/04/12', tags: ['follow-up'], favorite: false },
-    { id: '12345678', name: 'SCAN-02.dcm', type: 'file', category: 'scan', size: '798 MB', date: '2025/03/28', modified: '2025/04/10', tags: ['research'], favorite: false },
-  ]);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -186,10 +184,34 @@ const FileManagementPage = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [files, setFiles] = useState([]);
+  
+  useEffect(() => {
+    const fetchFiles = async () => {
+      try {
+        const response = await api.get('/project/get-projects-list');
+        const projects = response.data.projects || [];
+
+        const formattedProjects = projects.map(p => ({
+          projectId: p.projectId,
+          name: p.name,
+          filesize: p.filesize,
+          createdAt: p.createdAt?.slice(0, 10),
+          updatedAt: p.updatedAt?.slice(0, 10),
+        }));
+
+        setFiles(formattedProjects);
+      } catch (error) {
+        console.error("Failed to fetch projects:", error);
+      }
+    };
+
+    fetchFiles();
+  }, []);
   
   const fileInputRef = useRef(null);
   
-  const availableTags = ['important', 'critical', 'research', 'archived', 'follow-up'];
+  // const availableTags = ['important', 'critical', 'research', 'archived', 'follow-up'];
   const categories = ['all', 'scan', 'dicom', 'ct', 'mri'];
   
   // File operations
@@ -270,7 +292,7 @@ const FileManagementPage = () => {
       size: typeof file.filesize === 'number' ? formatFileSize(file.filesize) : '0 B',
       date: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
       modified: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
-      tags: [],
+      // tags: [],
       favorite: false
     }));
   };
@@ -439,18 +461,18 @@ const FileManagementPage = () => {
               </button>
             </div>
             
-            <button 
-              className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 flex items-center hover:bg-gray-50 transition-colors"
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              <Filter className="w-4 h-4 mr-2" />
-              Filter
-              {(activeFilters.category !== 'all' || activeFilters.tags.length > 0) && (
-                <span className="ml-1 bg-blue-100 text-blue-800 rounded-full w-5 h-5 flex items-center justify-center text-xs">
-                  {activeFilters.tags.length + (activeFilters.category !== 'all' ? 1 : 0)}
-                </span>
-              )}
-            </button>
+            {/* <button  */}
+              {/* // className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 flex items-center hover:bg-gray-50 transition-colors" */}
+              {/* // onClick={() => setShowFilters(!showFilters)} */}
+            {/* // > */}
+              {/* <Filter className="w-4 h-4 mr-2" /> */}
+              {/* Filter */}
+              {/* {(activeFilters.category !== 'all' || activeFilters.tags.length > 0) && ( */}
+                {/* // <span className="ml-1 bg-blue-100 text-blue-800 rounded-full w-5 h-5 flex items-center justify-center text-xs"> */}
+                  {/* {activeFilters.tags.length + (activeFilters.category !== 'all' ? 1 : 0)} */}
+                {/* </span> */}
+              {/* // )} */}
+            {/* </button> */}
             
             <Link to="/cardiac-analysis"
               className="px-4 py-2 bg-[#5B7B9A] text-white rounded-md flex items-center hover:bg-[#4A6A89] transition-colors"
@@ -502,24 +524,24 @@ const FileManagementPage = () => {
                 </select>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
-                <div className="flex flex-wrap gap-2">
-                  {availableTags.map(tag => (
-                    <button
-                      key={tag}
-                      className={`px-2 py-1 text-xs rounded-full ${
-                        activeFilters.tags.includes(tag) 
-                          ? 'bg-blue-100 text-blue-800 border border-blue-300' 
-                          : 'bg-gray-100 text-gray-800 border border-gray-300'
-                      }`}
-                      onClick={() => toggleTagFilter(tag)}
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {/* <div> */}
+                {/* <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label> */}
+                {/* <div className="flex flex-wrap gap-2"> */}
+                  {/* {availableTags.map(tag => ( */}
+                    {/* // <button */}
+                      {/* // key={tag} */}
+                      {/* // className={`px-2 py-1 text-xs rounded-full ${ */}
+                        {/* // activeFilters.tags.includes(tag)  */}
+                          {/* // ? 'bg-blue-100 text-blue-800 border border-blue-300'  */}
+                          {/* // : 'bg-gray-100 text-gray-800 border border-gray-300' */}
+                      {/* // }`} */}
+                      {/* // onClick={() => toggleTagFilter(tag)} */}
+                    {/* // > */}
+                      {/* {tag} */}
+                    {/* </button> */}
+                  {/* // ))} */}
+                {/* </div> */}
+              {/* </div> */}
             </div>
           </div>
         )}
@@ -632,11 +654,14 @@ const FileManagementPage = () => {
                       <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Name
                       </th>
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
-                        Type
-                      </th>
+                      {/* <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell"> */}
+                        {/* Type */}
+                      {/* </th> */}
                       <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                         Size
+                      </th>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
+                        Created
                       </th>
                       <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                         Modified
@@ -667,27 +692,20 @@ const FileManagementPage = () => {
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex items-center">
-                            {file.type === 'folder' ? (
-                              <Folder className="h-5 w-5 text-blue-500 mr-3" />
-                            ) : file.type === 'dicom' ? (
-                              <FileText className="h-5 w-5 text-green-500 mr-3" />
-                            ) : (
-                              <FileText className="h-5 w-5 text-blue-500 mr-3" />
-                            )}
                             <div>
                               <div className="text-sm font-medium text-gray-900">{file.name}</div>
-                              <div className="flex space-x-1 mt-1">
-                                {file.tags.slice(0, 2).map(tag => (
-                                  <span key={tag} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs">
-                                    {tag}
-                                  </span>
-                                ))}
-                                {file.tags.length > 2 && (
-                                  <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs">
-                                    +{file.tags.length - 2}
-                                  </span>
-                                )}
-                              </div>
+                              {/* <div className="flex space-x-1 mt-1"> */}
+                                {/* {file.tags.slice(0, 2).map(tag => ( */}
+                                  {/* // <span key={tag} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs"> */}
+                                    {/* {tag} */}
+                                  {/* </span> */}
+                                {/* // ))} */}
+                                {/* {file.tags.length > 2 && ( */}
+                                  {/* // <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs"> */}
+                                    {/* +{file.tags.length - 2} */}
+                                  {/* </span> */}
+                                {/* // )} */}
+                              {/* </div> */}
                             </div>
                           </div>
                         </td>
@@ -696,6 +714,9 @@ const FileManagementPage = () => {
                         {/* </td> */}
                         <td className="px-4 py-4 text-sm text-gray-500 hidden lg:table-cell">
                           {file.filesize}
+                        </td>
+                        <td className="px-4 py-4 text-sm text-gray-500 hidden lg:table-cell">
+                          {file.createdAt}
                         </td>
                         <td className="px-4 py-4 text-sm text-gray-500 hidden lg:table-cell">
                           {file.updatedAt}
@@ -709,29 +730,19 @@ const FileManagementPage = () => {
                               <Download className="h-4 w-4" />
                             </button>
                             <button
-                              className={`${file.favorite ? 'text-yellow-500' : 'text-gray-400'} hover:text-yellow-500`}
+                              className="text-gray-400 hover:text-red-500"
                               onClick={(e) => { 
                                 e.stopPropagation();
-                                toggleFavorite(file.projectId);
+                                deleteFile(file.projectId);
                               }}
                             >
-                              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-              </svg>
-            </button>
-            <button
-              className="text-gray-400 hover:text-red-500"
-              onClick={(e) => { 
-                e.stopPropagation();
-                deleteFile(file.projectId);
-              }}
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
-        </td>
-      </tr>
-    ))}
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+
     {filteredFiles.length === 0 && (
       <tr>
         <td colSpan="6" className="px-4 py-8 text-center">
