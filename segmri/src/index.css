@@ -29,15 +29,11 @@ html {
   font-family: 'Quicksand', sans-serif;
 }
 
-
-
-/* Add these CSS rules to ensure canvas visibility */
-
 /* Main canvas container */
 .canvas-container {
   position: relative;
-  width: 512px;
-  height: 512px;
+  width: 256px;
+  height: 216px;
   margin: 0 auto;
   border: 2px solid #ddd;
   background-color: #000;

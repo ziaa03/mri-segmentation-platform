@@ -201,7 +201,6 @@ const VisualizationControls = ({
                     <Info size={12} className="text-orange-500 mt-0.5 flex-shrink-0" />
                     <div>
                       <p><strong>Processing Status:</strong> AI segmentation is running on GPU servers.</p>
-                      <p>Click "Check Results" periodically to see if processing is complete.</p>
                       <p><em>Typical processing time: 2-10 minutes</em></p>
                     </div>
                   </div>
