@@ -12,21 +12,21 @@ const SegmentationClasses = {
   CLASS_3: { name: 'Class 3 (e.g., MYO)', color: '#FFA726' }  // Orange
 };
 
-const Brush = ({ imageSrc }) => {
+// Renamed prop currentSliceImageSrc to initialMaskDataUrl
+// Added canvasWidth, canvasHeight, onConfirmEdits, onCancelEdits
+const Brush = ({ initialMaskDataUrl, canvasWidth, canvasHeight, onConfirmEdits, onCancelEdits }) => {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [brushSize, setBrushSize] = useState(10);
   const [currentTool, setCurrentTool] = useState(Tools.BRUSH);
-  const [brushOpacity, setBrushOpacity] = useState(50); // Opacity from 0 to 100
+  const [brushOpacity, setBrushOpacity] = useState(100); // Default to 100 for mask editing
 
   const [selectedClassKey, setSelectedClassKey] = useState(Object.keys(SegmentationClasses)[0]);
 
-  // Canvas state to allow undo/redo
   const [canvasHistory, setCanvasHistory] = useState([]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState(-1);
 
-  // For drawing bounding boxes
-  const [drawingBoundingBox, setDrawingBoundingBox] = useState(null); // {startX, startY, currentX, currentY}
+  const [drawingBoundingBox, setDrawingBoundingBox] = useState(null);
 
   const getActiveColor = useCallback(() => {
     return SegmentationClasses[selectedClassKey]?.color || '#000000';
@@ -35,7 +35,12 @@ const Brush = ({ imageSrc }) => {
   const saveCanvasState = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const newState = canvas.toDataURL();
+    // Ensure canvas has valid dimensions before trying to get data URL
+    if (canvas.width === 0 || canvas.height === 0) {
+        console.warn("Brush: Attempted to save canvas state with zero dimensions.");
+        return;
+    }
+    const newState = canvas.toDataURL(); // This will be a PNG with transparency
     
     const newHistory = canvasHistory.slice(0, currentHistoryIndex + 1);
     
@@ -43,30 +48,40 @@ const Brush = ({ imageSrc }) => {
     setCurrentHistoryIndex(newHistory.length);
   }, [canvasHistory, currentHistoryIndex]);
 
-  // Effect to load initial image
+  // Effect to initialize canvas with initialMaskDataUrl or as blank
   useEffect(() => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const image = new Image();
-    image.crossOrigin = "anonymous"; // If imageSrc can be from another domain
-    image.src = imageSrc;
 
-    image.onload = () => {
-      canvas.width = image.width;
-      canvas.height = image.height;
-      ctx.drawImage(image, 0, 0);
-      saveCanvasState();
-    };
-    image.onerror = () => {
-        console.error("Failed to load image for brush.");
-        // Optionally draw a fallback
-        ctx.fillStyle = 'lightgray';
-        ctx.fillRect(0,0,canvas.width, canvas.height);
-        ctx.fillStyle = 'black';
-        ctx.fillText("Image not loaded", 10, 20);
+    setCanvasHistory([]);
+    setCurrentHistoryIndex(-1);
+    setDrawingBoundingBox(null);
+
+    // Set canvas dimensions passed by parent
+    canvas.width = canvasWidth || 512; // Default if not provided
+    canvas.height = canvasHeight || 512;
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height); // Ensure canvas is transparent initially
+
+    if (initialMaskDataUrl) {
+      const maskImage = new Image();
+      maskImage.crossOrigin = "anonymous"; // Important for data URLs if context differs
+      maskImage.src = initialMaskDataUrl;
+      maskImage.onload = () => {
+        ctx.drawImage(maskImage, 0, 0, canvas.width, canvas.height);
+        saveCanvasState(); // Initial state is the provided mask
+      };
+      maskImage.onerror = () => {
+        console.error("Brush: Failed to load initialMaskDataUrl.");
+        // Canvas is already clear, save this empty state
         saveCanvasState();
+      };
+    } else {
+      // No initial mask, canvas is already clear and transparent. Save this empty state.
+      saveCanvasState();
     }
-  }, [imageSrc, saveCanvasState]);
+  }, [initialMaskDataUrl, canvasWidth, canvasHeight, saveCanvasState]);
 
 
   const restoreCanvasState = useCallback((index) => {
@@ -75,8 +90,12 @@ const Brush = ({ imageSrc }) => {
     const ctx = canvas.getContext('2d');
     const img = new Image();
     img.onload = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear before drawing restored state
       ctx.drawImage(img, 0, 0);
+    };
+    img.onerror = () => {
+        console.error("Brush: Failed to restore canvas state from history.");
+        // Optionally handle error, e.g., clear canvas or leave as is
     };
     img.src = canvasHistory[index];
   }, [canvasHistory]);
@@ -99,14 +118,11 @@ const Brush = ({ imageSrc }) => {
 
   const drawCurrentBoundingBoxPreview = useCallback(() => {
     if (!drawingBoundingBox || !canvasRef.current) return;
-
-    // Restore the last committed state first
-    restoreCanvasState(currentHistoryIndex);
+    restoreCanvasState(currentHistoryIndex); // Restore the last committed mask state
     
-    // Then draw the preview on top (timeout to ensure restoreCanvasState's async img.onload finishes)
-    setTimeout(() => {
+    setTimeout(() => { // Ensure restore is done
         const canvas = canvasRef.current;
-        if (!canvas) return; // Canvas might have been unmounted
+        if (!canvas) return;
         const ctx = canvas.getContext('2d');
         const { startX, startY, currentX, currentY } = drawingBoundingBox;
         const rectX = Math.min(startX, currentX);
@@ -115,17 +131,18 @@ const Brush = ({ imageSrc }) => {
         const rectHeight = Math.abs(startY - currentY);
 
         ctx.strokeStyle = getActiveColor();
-        ctx.lineWidth = Math.max(1, Math.floor(brushSize / 5)); // Make line width relative to brushSize
-        ctx.globalAlpha = brushOpacity / 100;
+        // For bounding box on a mask layer, line width might need to be solid
+        ctx.lineWidth = Math.max(1, Math.floor(brushSize / 5)); 
+        ctx.globalAlpha = brushOpacity / 100; // Opacity applies to the drawing tool
         ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
-        ctx.globalAlpha = 1; // Reset globalAlpha
+        ctx.globalAlpha = 1; 
     }, 0);
-
   }, [drawingBoundingBox, restoreCanvasState, currentHistoryIndex, getActiveColor, brushSize, brushOpacity]);
 
 
   const handleMouseDown = (e) => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -136,7 +153,6 @@ const Brush = ({ imageSrc }) => {
     if (currentTool === Tools.BRUSH || currentTool === Tools.ERASER) {
       ctx.beginPath();
       ctx.moveTo(x, y);
-      // Apply initial brush stroke point
       drawPixelOperation(e); 
     } else if (currentTool === Tools.BOUNDING_BOX) {
       setDrawingBoundingBox({ startX: x, startY: y, currentX: x, currentY: y });
@@ -144,7 +160,7 @@ const Brush = ({ imageSrc }) => {
   };
 
   const handleMouseMove = (e) => {
-    if (!isDrawing) return;
+    if (!isDrawing || !canvasRef.current) return;
 
     if (currentTool === Tools.BRUSH || currentTool === Tools.ERASER) {
       drawPixelOperation(e);
@@ -159,7 +175,7 @@ const Brush = ({ imageSrc }) => {
   };
 
   const handleMouseUp = () => {
-    if (!isDrawing) return;
+    if (!isDrawing || !canvasRef.current) return;
     setIsDrawing(false);
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -168,13 +184,9 @@ const Brush = ({ imageSrc }) => {
       ctx.closePath();
       saveCanvasState();
     } else if (currentTool === Tools.BOUNDING_BOX && drawingBoundingBox) {
-      // Finalize bounding box
-      restoreCanvasState(currentHistoryIndex); // Restore state before preview
-      
-      // Redraw the final box onto this restored state before saving
-      // Timeout to ensure restoreCanvasState's async img.onload finishes
-      setTimeout(() => {
-        if (!canvasRef.current || !drawingBoundingBox) return; // Check if still valid
+      restoreCanvasState(currentHistoryIndex); 
+      setTimeout(() => { // Ensure restore is done
+        if (!canvasRef.current || !drawingBoundingBox) return;
         const finalCtx = canvasRef.current.getContext('2d');
         const { startX, startY, currentX, currentY } = drawingBoundingBox;
         const rectX = Math.min(startX, currentX);
@@ -183,10 +195,11 @@ const Brush = ({ imageSrc }) => {
         const rectHeight = Math.abs(startY - currentY);
 
         if (rectWidth > 0 && rectHeight > 0) {
-            finalCtx.strokeStyle = getActiveColor();
-            finalCtx.lineWidth = Math.max(1, Math.floor(brushSize / 5));
+            // For bounding box tool on a mask, this should fill the rectangle
+            // with the active color, respecting opacity.
+            finalCtx.fillStyle = getActiveColor();
             finalCtx.globalAlpha = brushOpacity / 100;
-            finalCtx.strokeRect(rectX, rectY, rectWidth, rectHeight);
+            finalCtx.fillRect(rectX, rectY, rectWidth, rectHeight);
             finalCtx.globalAlpha = 1; // Reset
         }
         setDrawingBoundingBox(null);
@@ -197,19 +210,18 @@ const Brush = ({ imageSrc }) => {
   
   const handleMouseOut = () => {
     if (isDrawing && (currentTool === Tools.BRUSH || currentTool === Tools.ERASER)) {
-        // If drawing with brush/eraser and mouse leaves, finalize the current path.
         const canvas = canvasRef.current;
+        if (!canvas) return;
         const ctx = canvas.getContext('2d');
         ctx.closePath();
         saveCanvasState();
+        // setIsDrawing(false); // Optional: decide if drawing should stop
     }
-    // For bounding box, mouse up is the definitive end.
-    // setIsDrawing(false); // Keep isDrawing true if mouse re-enters for bounding box
   };
-
 
   const drawPixelOperation = (e) => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -218,166 +230,168 @@ const Brush = ({ imageSrc }) => {
     ctx.globalAlpha = brushOpacity / 100;
     
     if (currentTool === Tools.BRUSH) {
-      ctx.strokeStyle = getActiveColor();
-      ctx.fillStyle = getActiveColor();
+      ctx.strokeStyle = getActiveColor(); // Line color
+      ctx.fillStyle = getActiveColor();   // Fill color for the arc
       ctx.lineWidth = brushSize;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      // Draw a line to the new point for smoother drawing
       ctx.lineTo(x, y);
       ctx.stroke();
-      // Also draw a circle at each point to fill gaps
-      ctx.beginPath(); // Start new path for the circle
+      ctx.beginPath(); 
       ctx.arc(x, y, brushSize / 2, 0, 2 * Math.PI);
       ctx.fill();
-      ctx.beginPath(); // Re-begin path for next lineTo
+      ctx.beginPath(); 
       ctx.moveTo(x,y);
-
     } else if (currentTool === Tools.ERASER) {
+      // Eraser on a mask layer means drawing transparency
       ctx.globalCompositeOperation = 'destination-out';
+      // Style for eraser (effectively drawing transparent)
+      ctx.strokeStyle = 'rgba(0,0,0,1)'; // Color doesn't matter due to composite op
+      ctx.fillStyle = 'rgba(0,0,0,1)';
       ctx.lineWidth = brushSize;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.lineTo(x, y);
       ctx.stroke();
-       // Also draw a circle at each point to fill gaps
       ctx.beginPath();
       ctx.arc(x, y, brushSize / 2, 0, 2 * Math.PI);
       ctx.fill();
       ctx.beginPath();
       ctx.moveTo(x,y);
-      ctx.globalCompositeOperation = 'source-over'; // Reset
+      ctx.globalCompositeOperation = 'source-over'; // Reset composite operation
     }
-    // Reset globalAlpha if you don't want it to affect other drawings (like UI elements on canvas)
-    // ctx.globalAlpha = 1.0; 
+    ctx.globalAlpha = 1.0; // Reset globalAlpha after operation
   };
   
-  const clearCanvas = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    // Instead of just clearing, restore the original image
+  const clearCanvas = () => { // "Clear to Original" (initial mask state or blank)
     if (canvasHistory.length > 0) {
-        const img = new Image();
-        img.onload = () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0);
-            saveCanvasState(); // Save this cleared state (back to original image)
-        };
-        img.src = canvasHistory[0]; // canvasHistory[0] is the initial image
-    } else { // Fallback if history is empty for some reason
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        saveCanvasState();
+        setCurrentHistoryIndex(0);
+        restoreCanvasState(0);
+    } else if (canvasRef.current) { // History empty, but canvas exists
+        const ctx = canvasRef.current.getContext('2d');
+        ctx.clearRect(0,0, canvasRef.current.width, canvasRef.current.height);
+        saveCanvasState(); // Save this cleared state
     }
   };
 
+  const handleConfirm = () => {
+    if (canvasRef.current && onConfirmEdits) {
+      const maskDataUrl = canvasRef.current.toDataURL();
+      onConfirmEdits(maskDataUrl);
+    }
+  };
+
+  const handleCancel = () => {
+    if (onCancelEdits) {
+      onCancelEdits();
+    }
+  };
+
+  // The canvas itself should not have a border if it's an overlay
+  // The parent (AiSegDisplay) will handle positioning and background image.
   return (
-    <div className="flex">
-      <div className="flex-grow">
-        <canvas
-          ref={canvasRef}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseOut={handleMouseOut} // Finalize drawing if mouse leaves canvas
-          className="border border-black cursor-crosshair"
-        />
-      </div>
+    <div className="flex flex-col items-center p-2 bg-gray-100 rounded-lg shadow">
+      {/* Canvas is now just the drawing surface, parent handles base image */}
+      <canvas
+        ref={canvasRef}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseOut={handleMouseOut}
+        className="cursor-crosshair" // No border here, parent styles position
+        // Width and height are set in useEffect from props
+      />
 
-      <div className="ml-4 p-4 border border-gray-300 w-72"> {/* Increased width for new controls */}
-        <h3 className="text-lg font-bold mb-4">Drawing Tools</h3>
+      <div className="mt-2 p-2 border border-gray-300 w-full max-w-md bg-white rounded">
+        <h3 className="text-md font-bold mb-3 text-center">Manual Editing Tools</h3>
 
-        {/* Tool Type */}
-        <div className="mb-4">
-          <label className="block mb-2">Tool:</label>
-          <select 
-            value={currentTool} 
-            onChange={(e) => setCurrentTool(e.target.value)}
-            className="w-full p-2 border rounded"
-          >
-            {Object.values(Tools).map(tool => (
-              <option key={tool} value={tool}>
-                {tool.charAt(0).toUpperCase() + tool.slice(1).replace(/([A-Z])/g, ' $1')} {/* Adds space for camelCase */}
-              </option>
-            ))}
-          </select>
-        </div>
+        <div className="grid grid-cols-2 gap-2 mb-3">
+            {/* Tool Type */}
+            <div>
+              <label className="block mb-1 text-xs">Tool:</label>
+              <select 
+                value={currentTool} 
+                onChange={(e) => setCurrentTool(e.target.value)}
+                className="w-full p-1 border rounded text-xs"
+              >
+                {Object.values(Tools).map(tool => (
+                  <option key={tool} value={tool}>
+                    {tool.charAt(0).toUpperCase() + tool.slice(1).replace(/([A-Z])/g, ' $1')}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        {/* Segmentation Class */}
-        <div className="mb-4">
-          <label className="block mb-2">Class:</label>
-          <select 
-            value={selectedClassKey} 
-            onChange={(e) => setSelectedClassKey(e.target.value)}
-            className="w-full p-2 border rounded"
-          >
-            {Object.entries(SegmentationClasses).map(([key, { name }]) => (
-              <option key={key} value={key}>
-                {name}
-              </option>
-            ))}
-          </select>
+            {/* Segmentation Class */}
+            <div>
+              <label className="block mb-1 text-xs">Class Color:</label>
+              <select 
+                value={selectedClassKey} 
+                onChange={(e) => setSelectedClassKey(e.target.value)}
+                className="w-full p-1 border rounded text-xs"
+              >
+                {Object.entries(SegmentationClasses).map(([key, { name }]) => (
+                  <option key={key} value={key}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
         </div>
         
-        {/* Display Selected Class Color */}
-        <div className="mb-4">
-            <label className="block mb-2">Current Color:</label>
-            <div style={{ width: '100%', height: '30px', backgroundColor: getActiveColor(), border: '1px solid #ccc', borderRadius: '4px' }} />
+        <div className="mb-2">
+            <label className="block mb-1 text-xs">Preview Color:</label>
+            <div style={{ width: '100%', height: '20px', backgroundColor: getActiveColor(), border: '1px solid #ccc', borderRadius: '4px' }} />
         </div>
 
-
-        {/* Brush/Tool Size */}
-        <div className="mb-4">
-          <label className="block mb-2">
+        <div className="mb-3">
+          <label className="block mb-1 text-xs">
             {currentTool === Tools.BOUNDING_BOX ? 'Line Width' : 'Brush Size'}: {brushSize}
           </label>
           <input
-            type="range"
-            min="1"
-            max="50"
-            value={brushSize}
+            type="range" min="1" max="50" value={brushSize}
             onChange={(e) => setBrushSize(parseInt(e.target.value))}
-            className="w-full"
+            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
           />
         </div>
 
-        {/* Opacity */}
-        <div className="mb-4">
-          <label className="block mb-2">Opacity: {brushOpacity}%</label>
+        <div className="mb-3">
+          <label className="block mb-1 text-xs">Opacity: {brushOpacity}%</label>
           <input
-            type="range"
-            min="0"
-            max="100" // Represents percentage
-            value={brushOpacity}
+            type="range" min="0" max="100" value={brushOpacity}
             onChange={(e) => setBrushOpacity(parseInt(e.target.value))}
-            className="w-full"
+            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
           />
         </div>
 
-        {/* Canvas Actions */}
-        <div className="flex space-x-2 mb-4">
+        <div className="flex space-x-2 mb-3">
           <button 
-            onClick={undo}
-            disabled={currentHistoryIndex <= 0}
-            className="flex-1 p-2 border rounded disabled:opacity-50 bg-gray-200 hover:bg-gray-300"
-          >
-            Undo
-          </button>
+            onClick={undo} disabled={currentHistoryIndex <= 0}
+            className="flex-1 p-1 border rounded disabled:opacity-50 bg-gray-200 hover:bg-gray-300 text-xs"
+          > Undo </button>
           <button 
-            onClick={redo}
-            disabled={currentHistoryIndex >= canvasHistory.length - 1}
-            className="flex-1 p-2 border rounded disabled:opacity-50 bg-gray-200 hover:bg-gray-300"
-          >
-            Redo
-          </button>
+            onClick={redo} disabled={currentHistoryIndex >= canvasHistory.length - 1}
+            className="flex-1 p-1 border rounded disabled:opacity-50 bg-gray-200 hover:bg-gray-300 text-xs"
+          > Redo </button>
         </div>
-
-        {/* Clear Canvas */}
+        
         <button 
           onClick={clearCanvas}
-          className="w-full p-2 border rounded bg-red-500 hover:bg-red-600 text-white"
-        >
-          Clear to Original
-        </button>
+          className="w-full p-1 border rounded bg-yellow-500 hover:bg-yellow-600 text-white text-xs mb-3"
+        > Clear to Original Mask State </button>
+
+        <div className="flex space-x-2">
+            {onCancelEdits && (
+                <button 
+                onClick={handleCancel}
+                className="flex-1 p-2 border rounded bg-red-500 hover:bg-red-600 text-white text-sm"
+                > Cancel </button>
+            )}
+            <button 
+                onClick={handleConfirm}
+                className="flex-1 p-2 border rounded bg-green-500 hover:bg-green-600 text-white text-sm"
+            > Confirm Edits </button>
+        </div>
       </div>
     </div>
   );
