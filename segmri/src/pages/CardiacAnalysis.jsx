@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Settings } from 'lucide-react';
+import { useLocation } from "react-router-dom";
 import FileUpload from '../components/FileUpload';
 import VisualizationControls from '../components/VisualizationControls';
 import AISegmentationDisplay from '../components/AiSegDisplay';
@@ -49,6 +50,39 @@ const CardiacAnalysisPage = () => {
   const [jobStatus, setJobStatus] = useState(null);
   const [jobId, setJobId] = useState(null);
   const [statusCheckInterval, setStatusCheckInterval] = useState(null);
+
+  const location = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const urlProjectId = params.get("projectId");
+    if (urlProjectId) {
+      setProjectId(urlProjectId);
+      setUploadStatus('processing');
+      setIsProcessing(true);
+      // Fetch results for this project
+      checkForResultsById(urlProjectId);
+    }
+  }, [location.search]);
+
+  // Add a version of checkForResults that takes a projectId
+  const checkForResultsById = async (id) => {
+    if (!id) return;
+    setIsProcessing(true);
+    try {
+      const response = await api.get(`/segmentation/segmentation-results/${id}`);
+      if (response.data) {
+        processSegmentationData(response.data);
+        setUploadStatus('success');
+        setIsProcessing(false);
+        setProcessingComplete(true);
+      }
+    } catch (err) {
+      setIsProcessing(false);
+      setUploadStatus('error');
+      setErrorMessage('Failed to fetch segmentation results.');
+    }
+  };
 
   // Fetch the most recent project ID after upload
   const fetchMostRecentProject = async (uploadedFileName) => {
