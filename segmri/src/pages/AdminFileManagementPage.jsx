@@ -117,13 +117,14 @@ const FileDetailsSidebar = ({ file, onClose, onDelete, onFavorite, onRemoveTag }
       
       <h4 className="text-xl font-medium text-center mb-6">{file.name}</h4>
       
-      {/* { label: "Category", value: file.category, capitalize: true }, */}
+
       {/* right side preview */}
       <div className="space-y-4">
         {[
           // { label: "Type", value: file.filetype },
-          { label: "ID", value: file.projectId },
-          { label: "Size", value: file.filesize },
+          { label: "Project ID", value: file.projectId },
+          { label: "Uploaded by", value: file.username },
+          { label: "File Size", value: file.filesize },
           { label: "Created", value: file.createdAt },
           { label: "Modified", value: file.updatedAt },
           
@@ -191,7 +192,13 @@ const AdminFileManagementPage = () => {
       try {
         const response = await api.get('/project/get-allusers-with-projects');
         const allUsersWithProjects = response.data.data || [];
-        const allProjects = allUsersWithProjects.flatMap(user => user.projects || []);
+        const allProjects = allUsersWithProjects.flatMap(user =>
+          (user.projects || []).map(project => ({
+            ...project,
+            username: user.username
+          }))
+        );
+
 
         const formattedProjects = allProjects.map(p => ({
           projectId: p.projectId,
@@ -199,6 +206,7 @@ const AdminFileManagementPage = () => {
           filesize: p.filesize,
           createdAt: p.createdAt?.slice(0, 10),
           updatedAt: p.updatedAt?.slice(0, 10),
+          username: p.username
         }));
         setFiles(formattedProjects);
 
@@ -235,16 +243,27 @@ const AdminFileManagementPage = () => {
     showToast(`${file.name} ${file.favorite ? 'removed from' : 'added to'} favorites`);
   };
   
-  const deleteFile = (fileId) => {
+  const deleteFile = async (fileId) => {
+  try {
+    const response = await api.delete(`/project/admin-delete-project/${fileId}`);
+  
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to delete project');
+    }
+  
+    // Update UI state
     setFiles(files.filter(file => file.projectId !== fileId));
     setSelectedFiles(selectedFiles.filter(id => id !== fileId));
-    
-    if (selectedFile && selectedfile.projectId === fileId) {
+    if (selectedFile && selectedFile.projectId === fileId) {
       setSelectedFile(null);
     }
-    
+  
     showToast('File deleted successfully');
-  };
+  } catch (error) {
+    console.error('Error deleting file:', error);
+    showToast(`Error: ${error.response?.data?.message || error.message}`);
+  }
+};
   
   const deleteSelectedFiles = () => {
     setFiles(files.filter(file => !selectedFiles.includes(file.projectId)));
@@ -655,6 +674,9 @@ const AdminFileManagementPage = () => {
                       <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Filename
                       </th>
+                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Username
+                      </th>
                       {/* <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell"> */}
                         {/* Type */}
                       {/* </th> */}
@@ -713,6 +735,9 @@ const AdminFileManagementPage = () => {
                         {/* <td className="px-4 py-4 hidden sm:table-cell"> */}
                           {/* <span className="capitalize text-sm text-gray-700">{file.category}</span> */}
                         {/* </td> */}
+                        <td className="px-4 py-4 text-sm text-gray-500 hidden lg:table-cell">
+                          {file.username}
+                        </td>
                         <td className="px-4 py-4 text-sm text-gray-500 hidden lg:table-cell">
                           {file.filesize}
                         </td>
