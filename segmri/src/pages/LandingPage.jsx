@@ -59,7 +59,7 @@ import BrushMaskCanvas from '../pages/Brush';
                 transition={{ duration: 2, ease: "easeOut" }}
                 className="hero-header text-7xl md:text-6xl font-light tracking-wider text-white m-0 drop-shadow-lg"
               >
-                QQ
+                Visheart
               </motion.h1>
               <motion.p
                 initial={{ opacity: 0 }}
