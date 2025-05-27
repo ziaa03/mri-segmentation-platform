@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { AlertCircle, Check, Download, Edit, Eye, FileText, Filter, Folder, Grid, List, 
-         MoreHorizontal, Plus, Search, Trash2, Upload, X } from 'lucide-react';
+         MoreHorizontal, Plus, Search, Trash2, Upload, X, Pencil } from 'lucide-react';
 import { Link } from "react-router-dom";
 import api from '../api/AxiosInstance';
 
@@ -19,8 +19,7 @@ const FileCard = ({ file, isSelected, onSelect, onView, onFavorite, onDelete }) 
     <div 
       className={`bg-white rounded-lg shadow-sm transition-all duration-200 hover:shadow-md cursor-pointer relative 
                   ${isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}
-      onClick={() => onView(file)}
-    >
+      onClick={() => onView(file)}>
       {/* Selection checkbox */}
       <div 
         className="absolute top-3 left-3 w-5 h-5 rounded-full border border-gray-300 flex items-center justify-center bg-white z-10"
@@ -70,7 +69,8 @@ const FileCard = ({ file, isSelected, onSelect, onView, onFavorite, onDelete }) 
         
         <div className="flex justify-center mt-4 space-x-2 text-gray-400">
           <button className="hover:text-gray-700 p-1" onClick={(e) => { e.stopPropagation(); onView(file); }}>
-            <Eye className="h-4 w-4" />
+            {/* <Eye className="h-4 w-4" /> */}
+            <Pencil className="h-4 w-4" />
           </button>
           <button className="hover:text-blue-600 p-1">
             <Download className="h-4 w-4" />
@@ -136,13 +136,19 @@ const FileDetailsSidebar = ({ file, onClose, onDelete, onFavorite, onRemoveTag }
       </div>
       
       <div className="mt-8 space-y-3">
-        <button className="w-full py-2 bg-[#5B7B9A] text-white rounded-md flex items-center justify-center hover:bg-[#4A6A89] transition-colors">
+        {/* <button className="w-full py-2 bg-gray-100 text-gray-800 rounded-md flex items-center justify-center hover:bg-gray-200 transition-colors"> */}
+          {/* <Eye className="h-4 w-4 mr-2" /> */}
+          {/* Preview */}
+        {/* </button> */}
+        <button className="w-full py-2 bg-[#5B7B9A] text-white rounded-md flex items-center justify-center hover:bg-[#4A6A89] 
+        transition-colors">
           <Download className="h-4 w-4 mr-2" />
           Download
         </button>
-        <button className="w-full py-2 bg-gray-100 text-gray-800 rounded-md flex items-center justify-center hover:bg-gray-200 transition-colors">
-          <Eye className="h-4 w-4 mr-2" />
-          Preview
+        <button className="w-full py-2 bg-gray-100 text-gray-800 rounded-md flex items-center justify-center hover:bg-gray-200 
+        transition-colors">
+          <Pencil className="h-4 w-4 mr-2" />
+          Edit
         </button>
         <button 
           className="w-full py-2 bg-red-50 text-red-600 rounded-md flex items-center justify-center hover:bg-red-100 transition-colors"
@@ -317,6 +323,7 @@ const FileManagementPage = () => {
       favorite: false
     }));
   };
+
   
   const handleFileUpload = (e) => {
     const uploadedFiles = Array.from(e.target.files);
@@ -735,6 +742,7 @@ const FileManagementPage = () => {
                         {/* </td> */}
                         <td className="px-4 py-4 text-sm text-gray-500 hidden lg:table-cell">
                           {file.filesize}
+                          {/* formatFileSize(file.size) */}
                         </td>
                         <td className="px-4 py-4 text-sm text-gray-500 hidden lg:table-cell">
                           {file.createdAt}
@@ -746,8 +754,12 @@ const FileManagementPage = () => {
                           <div className="flex justify-end space-x-3">
                             <button
                               className="text-gray-400 hover:text-gray-700"
-                              onClick={(e) => { e.stopPropagation(); }}
-                            >
+                              onClick={(e) => { e.stopPropagation(); }}>
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              className="text-gray-400 hover:text-gray-700"
+                              onClick={(e) => { e.stopPropagation(); }}>
                               <Download className="h-4 w-4" />
                             </button>
                             <button

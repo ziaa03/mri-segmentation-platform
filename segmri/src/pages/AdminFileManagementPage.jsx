@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { AlertCircle, Check, Download, Edit, Eye, FileText, Filter, Folder, Grid, List, 
-         MoreHorizontal, Plus, Search, Trash2, Upload, X } from 'lucide-react';
+         MoreHorizontal, Plus, Search, Trash2, Upload, X, Pencil} from 'lucide-react';
 import { Link } from "react-router-dom";
 import api from '../api/AxiosInstance';
 
@@ -70,7 +70,8 @@ const FileCard = ({ file, isSelected, onSelect, onView, onFavorite, onDelete }) 
         
         <div className="flex justify-center mt-4 space-x-2 text-gray-400">
           <button className="hover:text-gray-700 p-1" onClick={(e) => { e.stopPropagation(); onView(file); }}>
-            <Eye className="h-4 w-4" />
+            {/* <Eye className="h-4 w-4" /> */}
+            <Pencil className="h-4 w-4" />
           </button>
           <button className="hover:text-blue-600 p-1">
             <Download className="h-4 w-4" />
@@ -144,8 +145,8 @@ const FileDetailsSidebar = ({ file, onClose, onDelete, onFavorite, onRemoveTag }
           Download
         </button>
         <button className="w-full py-2 bg-gray-100 text-gray-800 rounded-md flex items-center justify-center hover:bg-gray-200 transition-colors">
-          <Eye className="h-4 w-4 mr-2" />
-          Preview
+          <Pencil className="h-4 w-4 mr-2" />
+          Edit
         </button>
         <button 
           className="w-full py-2 bg-red-50 text-red-600 rounded-md flex items-center justify-center hover:bg-red-100 transition-colors"
@@ -751,8 +752,12 @@ const AdminFileManagementPage = () => {
                           <div className="flex justify-end space-x-3">
                             <button
                               className="text-gray-400 hover:text-gray-700"
-                              onClick={(e) => { e.stopPropagation(); }}
-                            >
+                              onClick={(e) => { e.stopPropagation(); }}>
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              className="text-gray-400 hover:text-gray-700"
+                              onClick={(e) => { e.stopPropagation(); }}>
                               <Download className="h-4 w-4" />
                             </button>
                             <button
