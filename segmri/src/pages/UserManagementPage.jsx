@@ -169,18 +169,17 @@ const UserCard = ({ user, isSelected, onSelect, onView, onDelete }) => {
             <EyeIcon className="h-4 w-4 mr-1" />
             View
           </button>
-          <button 
-            className="flex-1 py-2 rounded-lg text-gray-600 hover:bg-gray-50 flex items-center justify-center"
-            onClick={() => {}}
-          >
-            <Edit className="h-4 w-4 mr-1" />
-            Edit
-          </button>
+          {/* <button  */}
+            {/* // className="flex-1 py-2 rounded-lg text-gray-600 hover:bg-gray-50 flex items-center justify-center" */}
+            {/* // onClick={() => {}}> */}
+            {/* <Edit className="h-4 w-4 mr-1" /> */}
+            {/* Edit */}
+          {/* </button> */}
           <button 
             className="flex-1 py-2 rounded-lg text-red-600 hover:bg-red-50 flex items-center justify-center"
             onClick={(e) => { 
               e.stopPropagation();
-              onDelete(user._id);
+              onDelete(user.username);
             }}
           >
             <Trash2 className="h-4 w-4 mr-1" />
