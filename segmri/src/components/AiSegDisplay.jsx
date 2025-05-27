@@ -238,6 +238,31 @@ const AISegmentationDisplay = ({
     const overlayCtx = overlayCanvas.getContext('2d');
     overlayCtx.clearRect(0, 0, canvasDimensions.width, canvasDimensions.height);
 
+    // 1. Render AI Segmentation Masks first
+    const sliceData = getCurrentSliceData();
+    if (sliceData?.segmentationMasks) {
+      sliceData.segmentationMasks.forEach((maskData) => {
+        const maskId = `${maskData.class}_${currentTimeIndex}_${currentLayerIndex}`;
+        const isVisible = visibleMasks[maskId] !== false;
+
+        if (isVisible) {
+          try {
+            const rleData = maskData.segmentationmaskcontents || maskData.rle;
+            if (rleData) {
+              const binaryMask = decodeRLE(rleData, canvasDimensions.height, canvasDimensions.width);
+              const classColor = getClassColor(maskData.class);
+              // Pass overlayCanvas itself, binaryMask, dimensions, color, opacity, and imageTransform
+              renderMaskOnCanvas(overlayCanvas, binaryMask, canvasDimensions.width, canvasDimensions.height, classColor, maskOpacity, imageTransform);
+            } else {
+              console.warn(`AISegDisplay (edit): No RLE data for mask: ${maskData.class}`);
+            }
+          } catch (error) {
+            console.error(`AISegDisplay (edit): Error processing mask ${maskData.class}:`, error);
+          }
+        }
+      });
+    }
+
     drawingHistory.forEach(action => {
       overlayCtx.globalAlpha = 1; // Reset opacity for each shape
       if ((action.type === 'brush' || action.type === 'eraser') && action.points && action.points.length > 0) {
@@ -275,7 +300,19 @@ const AISegmentationDisplay = ({
       }
     }
     overlayCtx.globalCompositeOperation = 'source-over'; // Reset composite operation
-  }, [drawingHistory, currentBoundingBox, canvasDimensions, getClassColor]);
+  }, [
+    drawingHistory, 
+    currentBoundingBox, 
+    canvasDimensions, 
+    getClassColor, 
+    getCurrentSliceData, // Added
+    visibleMasks,        // Added
+    maskOpacity,         // Added
+    imageTransform,      // Added
+    currentTimeIndex,    // Added (for maskId generation consistency with main display)
+    currentLayerIndex    // Added (for maskId generation consistency with main display)
+    // decodeRLE and renderMaskOnCanvas are stable imports, no need in deps array
+  ]);
 
   // Effect to redraw manual annotations when history or current bounding box changes
   useEffect(() => {
