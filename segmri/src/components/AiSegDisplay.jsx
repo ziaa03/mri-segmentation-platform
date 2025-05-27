@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Eye, EyeOff, Download, Upload, Info, RotateCcw, ZoomIn, ZoomOut, Play, Pause, Grid, Layers, Square, Eraser, Brush, Trash2, Edit, Save, Check } from 'lucide-react';
 import api from '../api/AxiosInstance'; // Ensure this path is correct for your project structure
-import { decodeRLE, renderMaskOnCanvas } from '../utils/RLE-Decoder'; 
+import { decodeRLE, renderMaskOnCanvas, encodeRLE } from '../utils/RLE-Decoder'; 
 import { 
   fetchAndExtractTarFile, 
   processExtractedImages, 
@@ -77,6 +77,7 @@ const AISegmentationDisplay = ({
   const [imageError, setImageError] = useState(null);
   const [availableFrames, setAvailableFrames] = useState([]);
   const [availableSlices, setAvailableSlices] = useState([]);
+  const [activeManualSegmentation, setActiveManualSegmentation] = useState(null); // ADDED: State for new manual segmentation
 
   const [unsavedEdit, setUnsavedEdit] = useState(false);
 
@@ -114,6 +115,124 @@ const AISegmentationDisplay = ({
     { value: 'eraser', label: 'Eraser', icon: Eraser },
     { value: 'boundingbox', label: 'Bounding Box', icon: Square }
   ];
+
+  // Helper function to generate a binary mask from brush strokes in drawingHistory
+  const generateBinaryMaskFromBrushStrokes = (
+    history,
+    targetClass,
+    canvasWidth,
+    canvasHeight
+  ) => {
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvasWidth;
+    tempCanvas.height = canvasHeight;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.clearRect(0, 0, canvasWidth, canvasHeight); // Start with a clear canvas
+
+    // Filter for brush strokes of the target class
+    const brushActions = history.filter(
+      action => action.type === 'brush' && action.class === targetClass
+    );
+
+    brushActions.forEach(action => {
+      if (action.points && action.points.length > 0) {
+        // Draw in a solid opaque color (e.g., black) to easily identify painted pixels
+        tempCtx.strokeStyle = '#000000'; 
+        tempCtx.lineWidth = action.lineWidth || 5;
+        tempCtx.lineCap = action.lineCap || 'round';
+        tempCtx.lineJoin = action.lineJoin || 'round';
+        
+        tempCtx.beginPath();
+        tempCtx.moveTo(action.points[0].x, action.points[0].y);
+        for (let i = 1; i < action.points.length; i++) {
+          tempCtx.lineTo(action.points[i].x, action.points[i].y);
+        }
+        tempCtx.stroke();
+      }
+    });
+
+    const imageData = tempCtx.getImageData(0, 0, canvasWidth, canvasHeight);
+    const data = imageData.data;
+    const binaryMask = new Uint8Array(canvasWidth * canvasHeight);
+
+    for (let i = 0; i < binaryMask.length; i++) {
+      // Check the alpha channel; if it's > 0, the pixel was touched by the brush.
+      if (data[i * 4 + 3] > 0) { 
+        binaryMask[i] = 1;
+      } else {
+        binaryMask[i] = 0;
+      }
+    }
+    return binaryMask;
+  };
+
+  // Initialize/Reset activeManualSegmentation when entering/exiting edit mode or when base data changes
+  useEffect(() => {
+    if (isEditMode) {
+      if (segmentationData && (!activeManualSegmentation || activeManualSegmentation.isMedSAMOutput === true /* or other reset condition */)) {
+        console.log("Edit mode: Initializing activeManualSegmentation from AI data.");
+
+        const transformedFrames = [];
+        if (segmentationData.masks && Array.isArray(segmentationData.masks)) {
+          segmentationData.masks.forEach((frameSlicesArray, frameIdx) => {
+            if (frameSlicesArray && Array.isArray(frameSlicesArray)) {
+              const slicesForCurrentFrame = [];
+              frameSlicesArray.forEach((sliceObject, sliceIdx) => {
+                if (sliceObject && sliceObject.segmentationMasks && Array.isArray(sliceObject.segmentationMasks)) {
+                  slicesForCurrentFrame.push({
+                    sliceindex: sliceIdx,
+                    segmentationmasks: JSON.parse(JSON.stringify(sliceObject.segmentationMasks)) // Deep copy
+                  });
+                }
+              });
+              if (slicesForCurrentFrame.length > 0) {
+                transformedFrames.push({
+                  frameindex: frameIdx,
+                  frameinferred: false, 
+                  slices: slicesForCurrentFrame
+                });
+              }
+            }
+          });
+        }
+
+        setActiveManualSegmentation({
+          name: `Manual Edit - ${segmentationData.name || `Project ${projectId}`}`,
+          description: segmentationData.description || "User-edited segmentation",
+          isMedSAMOutput: false,
+          isEditable: true,
+          isSaved: false,
+          frames: transformedFrames,
+        });
+      } else if (!segmentationData && !activeManualSegmentation) {
+        console.log("Edit mode: No AI data, initializing empty activeManualSegmentation.");
+        setActiveManualSegmentation({
+            name: `Manual Edit - Project ${projectId}`,
+            description: "User-edited segmentation",
+            isMedSAMOutput: false,
+            isEditable: true,
+            isSaved: false,
+            frames: []
+        });
+      }
+      // Drawing history is cleared by the next effect when slice/frame/mode changes
+    } else {
+      // Exiting edit mode
+      // Consider prompting to save if activeManualSegmentation has unsaved changes
+      // setDrawingHistory([]); // Also cleared by next effect
+    }
+  }, [isEditMode, segmentationData, projectId]); // activeManualSegmentation intentionally omitted from deps here to prevent re-init loops on its own update
+
+  // Effect to clear drawing history when slice/frame changes while in edit mode, or when exiting edit mode
+  useEffect(() => {
+    if (isEditMode) {
+      console.log(`Edit mode active or slice changed (F:${currentTimeIndex}, S:${currentLayerIndex}). Clearing drawing history.`);
+      setDrawingHistory([]);
+    } else {
+      // Clear history if exiting edit mode
+      setDrawingHistory([]);
+    }
+  }, [currentTimeIndex, currentLayerIndex, isEditMode]);
 
   // Fetch project dimensions when projectId changes
   useEffect(() => {
@@ -261,12 +380,35 @@ const AISegmentationDisplay = ({
   const overlayCtx = overlayCanvas.getContext('2d');
   overlayCtx.clearRect(0, 0, canvasDimensions.width, canvasDimensions.height);
 
-  // 1. Render AI Segmentation Masks first (existing code is fine)
-  const sliceData = getCurrentSliceData();
-  if (sliceData?.segmentationMasks) {
-    sliceData.segmentationMasks.forEach((maskData) => {
-      const maskId = `${maskData.class}_${currentTimeIndex}_${currentLayerIndex}`;
-      const isVisible = visibleMasks[maskId] !== false;
+  // Determine which segmentation data to use for the base masks on the manual canvas
+  let baseMasksToRender = [];
+  const originalSliceData = getCurrentSliceData(); // From original AI segmentation
+
+  let manualDataForCurrentSlice = null;
+  if (activeManualSegmentation && activeManualSegmentation.frames) {
+    const frameInData = activeManualSegmentation.frames.find(f => f.frameindex === currentTimeIndex);
+    if (frameInData && frameInData.slices) {
+        const sliceInData = frameInData.slices.find(s => s.sliceindex === currentLayerIndex);
+        if (sliceInData && sliceInData.segmentationmasks) {
+            manualDataForCurrentSlice = sliceInData.segmentationmasks;
+        }
+    }
+  }
+
+  if (manualDataForCurrentSlice) {
+    baseMasksToRender = manualDataForCurrentSlice;
+    console.log(`Redrawing manual canvas with activeManualSegmentation for F:${currentTimeIndex} S:${currentLayerIndex}`);
+  } else if (originalSliceData?.segmentationMasks) {
+    baseMasksToRender = originalSliceData.segmentationMasks;
+    console.log(`Redrawing manual canvas with original AI data for F:${currentTimeIndex} S:${currentLayerIndex}`);
+  }
+
+
+  // Render these baseMasksToRender
+  if (baseMasksToRender.length > 0) {
+    baseMasksToRender.forEach((maskData) => {
+      const maskId = `${maskData.class}_${currentTimeIndex}_${currentLayerIndex}`; // Ensure maskId is unique if classes can repeat
+      const isVisible = visibleMasks[maskId] !== false; // Default to visible if not in map
 
       if (isVisible) {
         try {
@@ -277,7 +419,7 @@ const AISegmentationDisplay = ({
             renderMaskOnCanvas(overlayCanvas, binaryMask, canvasDimensions.width, canvasDimensions.height, classColor, maskOpacity, imageTransform);
           }
         } catch (error) {
-          console.error(`Error processing mask ${maskData.class}:`, error);
+          console.error(`Error processing mask ${maskData.class} for manual canvas:`, error);
         }
       }
     });
@@ -331,7 +473,8 @@ const AISegmentationDisplay = ({
   maskOpacity,
   imageTransform,
   currentTimeIndex,
-  currentLayerIndex
+  currentLayerIndex,
+  activeManualSegmentation
 ]);
 
   // Effect to redraw manual annotations when history or current bounding box changes
@@ -730,7 +873,13 @@ const handleStartManualSegmentation = async () => {
     return;
   }
 
-  const box = boundingBoxes[boundingBoxes.length - 1].rect;
+  // Assuming the last drawn bounding box is the one to use
+  const lastBoundingBoxAction = boundingBoxes[boundingBoxes.length - 1];
+  if (!lastBoundingBoxAction || !lastBoundingBoxAction.rect) {
+    console.warn('Last bounding box action is invalid.');
+    return;
+  }
+  const box = lastBoundingBoxAction.rect;
   const bbox = [box.x, box.y, box.x + box.width, box.y + box.height];
 
   const image_name = currentImage?.name;
@@ -742,17 +891,102 @@ const handleStartManualSegmentation = async () => {
   const payload = {
     image_name,
     bbox,
-    segmentationName: `Manual - ${image_name}`,
-    segmentationDescription: `Manual bbox at ${JSON.stringify(bbox)}`
+    segmentationName: `Manual Seg - ${image_name} - Box@${Math.round(bbox[0])},${Math.round(bbox[1])}`,
+    segmentationDescription: `Manual segmentation for ${image_name} using bbox: ${JSON.stringify(bbox)}`
   };
 
   console.log('🚀 Starting manual segmentation with payload:', payload);
 
   try {
     const response = await api.post(`/segmentation/start-manual-segmentation/${projectId}`, payload);
-    console.log('✅ Manual segmentation result:', response.data);
+    console.log('✅ Manual segmentation result (MedSAM output for slice):', response.data);
+
+    if (response.data && response.data.segmentations && response.data.segmentations.length > 0) {
+      const newSliceMedSAMSegmentation = response.data.segmentations[0];
+
+      if (
+        newSliceMedSAMSegmentation.frames && newSliceMedSAMSegmentation.frames.length > 0 &&
+        newSliceMedSAMSegmentation.frames[0].slices && newSliceMedSAMSegmentation.frames[0].slices.length > 0
+      ) {
+        const medSAMFrameData = newSliceMedSAMSegmentation.frames[0];
+        const medSAMSliceData = medSAMFrameData.slices[0];
+        const newSegmentationMasksForSlice = medSAMSliceData.segmentationmasks;
+
+        // The frameindex and sliceindex from MedSAM output should match current view
+        // For robustness, you could verify:
+        // if (medSAMFrameData.frameindex !== currentTimeIndex || medSAMSliceData.sliceindex !== currentLayerIndex) {
+        //   console.error("MedSAM output frame/slice index mismatch with current view.");
+        //   return;
+        // }
+
+        setActiveManualSegmentation(prevEditableSegmentation => {
+          if (!prevEditableSegmentation) {
+            console.warn("activeManualSegmentation is null when trying to merge MedSAM output. This should have been initialized.");
+            // Fallback: create a new segmentation with only this slice.
+            // This might not be ideal as other slices won't be present.
+            return {
+              name: `Manual Edit - Project ${projectId}`,
+              description: "User-edited segmentation",
+              isMedSAMOutput: false, isEditable: true, isSaved: false,
+              frames: [{
+                frameindex: currentTimeIndex,
+                frameinferred: medSAMFrameData.frameinferred !== undefined ? medSAMFrameData.frameinferred : false,
+                slices: [{
+                  sliceindex: currentLayerIndex,
+                  componentboundingboxes: medSAMSliceData.componentboundingboxes || [],
+                  segmentationmasks: newSegmentationMasksForSlice
+                }]
+              }]
+            };
+          }
+
+          const updatedSegmentation = JSON.parse(JSON.stringify(prevEditableSegmentation));
+          updatedSegmentation.isSaved = false; // Mark as unsaved due to new changes
+
+          let targetFrame = updatedSegmentation.frames.find(f => f.frameindex === currentTimeIndex);
+          if (!targetFrame) {
+            targetFrame = {
+              frameindex: currentTimeIndex,
+              frameinferred: medSAMFrameData.frameinferred !== undefined ? medSAMFrameData.frameinferred : false,
+              slices: []
+            };
+            updatedSegmentation.frames.push(targetFrame);
+            updatedSegmentation.frames.sort((a, b) => a.frameindex - b.frameindex);
+          }
+
+          let targetSlice = targetFrame.slices.find(s => s.sliceindex === currentLayerIndex);
+          if (!targetSlice) {
+            targetSlice = {
+              sliceindex: currentLayerIndex,
+              segmentationmasks: [],
+              componentboundingboxes: []
+            };
+            targetFrame.slices.push(targetSlice);
+            targetFrame.slices.sort((a, b) => a.sliceindex - b.sliceindex);
+          }
+
+          targetSlice.segmentationmasks = newSegmentationMasksForSlice;
+          // Optionally update componentboundingboxes for this slice from MedSAM if provided and desired
+          if (medSAMSliceData.componentboundingboxes) {
+            targetSlice.componentboundingboxes = medSAMSliceData.componentboundingboxes;
+          }
+          
+          console.log(`Updated activeManualSegmentation for F:${currentTimeIndex}, S:${currentLayerIndex} with new MedSAM masks.`);
+          return updatedSegmentation;
+        });
+
+        // Clear the specific bounding box that was used for this segmentation from history
+        setDrawingHistory(prev => prev.filter(action => action !== lastBoundingBoxAction));
+
+      } else {
+        console.warn('Manual segmentation endpoint returned data, but in an unexpected structure (missing frames/slices/masks).');
+      }
+    } else {
+      console.warn('Manual segmentation endpoint did not return expected data structure (no segmentations array or empty).');
+    }
   } catch (error) {
     console.error('❌ Manual segmentation failed:', error);
+    // Optionally, provide user feedback here
   }
 };
 
