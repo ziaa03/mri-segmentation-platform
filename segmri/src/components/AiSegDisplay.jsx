@@ -211,6 +211,73 @@ const AISegmentationDisplay = ({
     }
   }, [currentTimeIndex, currentLayerIndex, isEditMode]);
 
+  const handleApplyBrushStrokes = () => {
+    if (!isEditMode || !activeManualSegmentation) {
+      console.warn("Cannot apply brush strokes: Not in edit mode or no active manual segmentation.");
+      return;
+    }
+
+    const relevantBrushActions = drawingHistory.filter(
+      action => action.type === 'brush' && action.class === selectedClass
+    );
+
+    if (relevantBrushActions.length === 0) {
+      console.log(`No brush strokes found for class ${selectedClass} to apply.`);
+      return;
+    }
+
+    console.log(`Applying ${relevantBrushActions.length} brush strokes for class ${selectedClass}.`);
+
+    const binaryMask = generateBinaryMaskFromBrushStrokes(
+      drawingHistory, // Pass the full history, the function filters by class
+      selectedClass,
+      canvasDimensions.width,
+      canvasDimensions.height
+    );
+
+    const rleString = encodeRLE(binaryMask, canvasDimensions.height, canvasDimensions.width);
+
+    setActiveManualSegmentation(prevSegmentation => {
+      if (!prevSegmentation) return null; // Should not happen if isEditMode is true and init effect ran
+
+      const updatedSegmentation = JSON.parse(JSON.stringify(prevSegmentation));
+      updatedSegmentation.isSaved = false;
+
+      let targetFrame = updatedSegmentation.frames.find(f => f.frameindex === currentTimeIndex);
+      if (!targetFrame) {
+        targetFrame = { frameindex: currentTimeIndex, frameinferred: false, slices: [] };
+        updatedSegmentation.frames.push(targetFrame);
+        updatedSegmentation.frames.sort((a, b) => a.frameindex - b.frameindex);
+      }
+
+      let targetSlice = targetFrame.slices.find(s => s.sliceindex === currentLayerIndex);
+      if (!targetSlice) {
+        targetSlice = { sliceindex: currentLayerIndex, segmentationmasks: [], componentboundingboxes: [] };
+        targetFrame.slices.push(targetSlice);
+        targetFrame.slices.sort((a, b) => a.sliceindex - b.sliceindex);
+      }
+
+      let maskForClass = targetSlice.segmentationmasks.find(m => m.class === selectedClass);
+      if (maskForClass) {
+        maskForClass.segmentationmaskcontents = rleString;
+      } else {
+        targetSlice.segmentationmasks.push({
+          class: selectedClass,
+          segmentationmaskcontents: rleString,
+          // You might want to add other default properties here if your mask objects expect them
+        });
+      }
+      console.log(`Applied brush strokes for class ${selectedClass} to activeManualSegmentation.`);
+      return updatedSegmentation;
+    });
+
+    // Clear only the applied brush strokes for the selected class from history
+    setDrawingHistory(prevHistory =>
+      prevHistory.filter(action => !(action.type === 'brush' && action.class === selectedClass))
+    );
+  };
+
+
   // Fetch project dimensions when projectId changes
   useEffect(() => {
     const fetchDimensions = async () => {
@@ -242,6 +309,8 @@ const AISegmentationDisplay = ({
     };
     fetchDimensions();
   }, [projectId]);
+
+
 
   const renderImageToCanvas = useCallback((ctx, imageUrl, targetCanvasWidth, targetCanvasHeight, callback, currentSetImageTransform) => {
     console.log('=== RENDERING IMAGE TO CANVAS ===');
@@ -1178,7 +1247,16 @@ return (
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition-colors"
               >
                 <Play size={16} />
-                Start Manual Segmentation
+                Start Segmentation (from BBox)
+              </button>
+              {/* New Button to Apply Brush Strokes */}
+              <button
+                onClick={handleApplyBrushStrokes}
+                disabled={!drawingHistory.some(action => action.type === 'brush' && action.class === selectedClass)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-teal-500 hover:bg-teal-600 text-white rounded-lg transition-colors disabled:opacity-50"
+              >
+                <Brush size={16} />
+                Apply Brush Strokes for {selectedClass}
               </button>
               <div className="text-xs text-gray-600">
                 <p>Drawing History: {drawingHistory.length} actions</p>
