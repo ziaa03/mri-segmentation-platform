@@ -79,6 +79,29 @@ const AISegmentationDisplay = ({
   const [availableSlices, setAvailableSlices] = useState([]);
   const [activeManualSegmentation, setActiveManualSegmentation] = useState(null); // ADDED: State for new manual segmentation
 
+  const [unsavedEdit, setUnsavedEdit] = useState(false);
+
+  useEffect(() => {
+  if (!unsavedEdit) return;
+  const handler = (e) => {
+    // Show browser dialog and alert
+    e.preventDefault();
+    e.returnValue = '';
+    return '';
+  };
+  window.addEventListener('beforeunload', handler);
+  return () => window.removeEventListener('beforeunload', handler);
+}, [unsavedEdit]);
+
+  // When entering edit mode, set unsavedEdit to true
+  const handleEditModeToggle = () => {
+    if (!isEditMode) setUnsavedEdit(true); // entering edit mode
+    setIsEditMode(!isEditMode);
+  };
+
+
+
+
   // Class options for radio buttons
   const classOptions = [
     { value: 'MYO', label: 'MYO', color: '#FFA726' },
@@ -770,11 +793,10 @@ const AISegmentationDisplay = ({
     }
   }, [canvasDimensions, currentTimeIndex, currentLayerIndex]);
 
-  // Handle save functions
+  // When saving, clear unsavedEdit
   const handleSaveAISegmentation = () => {
-    if (onSaveAISegmentation) {
-      onSaveAISegmentation();
-    }
+    setUnsavedEdit(false);
+    if (onSave) onSave();
   };
 
   const handleSaveManualAnnotations = () => {
@@ -1060,14 +1082,14 @@ return (
         </div>
         <div className="flex space-x-2">
           <button
-            onClick={onSave}
+            onClick={handleSaveAISegmentation}
             className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
           >
             <Save size={16} />
             Save AI Segmentation
           </button>
           <button
-            onClick={() => setIsEditMode(!isEditMode)}
+            onClick={handleEditModeToggle}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
               isEditMode 
                 ? 'bg-orange-500 hover:bg-orange-600 text-white' 
@@ -1080,6 +1102,12 @@ return (
         </div>
       </div>
     </div>
+
+    {unsavedEdit && (
+      <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4">
+        <strong>Warning:</strong> You have unsaved changes. Please save your segmentation before leaving or changes will be lost.
+      </div>
+    )}
 
     <div className="flex flex-1">
       {/* Main Content Area */}
