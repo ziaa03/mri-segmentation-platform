@@ -17,23 +17,23 @@ import {
   decodeRLE 
 } from '../utils/RLE-Decoder';
 
-function useNavigationPrompt(when, message) {
-  const navigator = useContext(NavigationContext).navigator;
-
-  useEffect(() => {
-    if (!when) return;
-    const push = navigator.push;
-    navigator.push = (...args) => {
-      if (window.confirm(message)) {
-        navigator.push = push;
-        push(...args);
-      }
-    };
-    return () => {
-      navigator.push = push;
-    };
-  }, [when, message, navigator]);
-}
+// function useNavigationPrompt(when, message) {
+  // const navigator = useContext(NavigationContext).navigator;
+// 
+  // useEffect(() => {
+    // if (!when) return;
+    // const push = navigator.push;
+    // navigator.push = (...args) => {
+      // if (window.confirm(message)) {
+        // navigator.push = push;
+        // push(...args);
+      // }
+    // };
+    // return () => {
+      // navigator.push = push;
+    // };
+  // }, [when, message, navigator]);
+// }
 
 const CardiacAnalysisPage = () => {
   // File upload states
@@ -76,10 +76,10 @@ const CardiacAnalysisPage = () => {
   // track if the project is saved
   const [isSaved, setIsSaved] = useState(true);
 
-  useNavigationPrompt(
-    processingComplete && !isSaved,
-    "⚠️ Warning: You have unsaved results. If you leave this page now, your changes will be lost. Are you sure you want to continue without saving?"
-  );
+  // useNavigationPrompt(
+    // processingComplete && !isSaved,
+    // // "⚠️ Warning: You have unsaved results. If you leave this page now, your changes will be lost. Are you sure you want to continue without saving?"
+  // );
 
   useEffect(() => {
     if (processingComplete && segmentationData) {
