@@ -81,7 +81,7 @@ const AISegmentationDisplay = ({
   // Class options for radio buttons
   const classOptions = [
     { value: 'MYO', label: 'MYO', color: '#FFA726' },
-    { value: 'LV', label: 'LV', color: '#4ECDC4' },
+    { value: 'LVC', label: 'LVC', color: '#4ECDC4' },
     { value: 'RV', label: 'RV', color: '#FF6B6B' }
   ];
 
@@ -225,7 +225,7 @@ const AISegmentationDisplay = ({
 
   const getClassColor = useCallback((className) => {
     const classOption = classOptions.find(opt => opt.value === className);
-    return classOption ? classOption.color : '#FFFFFF'; // Default to white if not found
+    return classOption ? classOption.color : '#FFF200'; // Default to white if not found
   }, [classOptions]); // Ensure classOptions is a dependency if it can change, or define it outside if static
 
   // Combined redraw function for the second overlay canvas
@@ -974,7 +974,10 @@ return (
                         className={`p-3 border rounded cursor-pointer ${
                           isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
                         }`}
-                        onClick={() => handleMaskClick(mask)}
+                        onClick={() => {
+                          handleMaskClick(mask);
+                          toggleMaskVisibility(maskId);
+                        }}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-2">
@@ -985,18 +988,10 @@ return (
                             <span className="font-medium text-sm">{mask.class}</span>
                           </div>
                           <div className="flex items-center space-x-1">
+                            {/* The Eye/EyeOff button has been removed here */}
                             <button
                               onClick={(e) => {
-                                e.stopPropagation();
-                                toggleMaskVisibility(maskId);
-                              }}
-                              className="p-1 hover:bg-gray-100 rounded"
-                            >
-                              {isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
+                                e.stopPropagation(); // Keep stopPropagation if download should not trigger the parent div's onClick
                                 downloadMask(mask);
                               }}
                               className="p-1 hover:bg-gray-100 rounded"
@@ -1043,7 +1038,10 @@ return (
                         className={`p-3 border rounded cursor-pointer ${
                           isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
                         }`}
-                        onClick={() => handleMaskClick(mask)}
+                        onClick={() => {
+                          handleMaskClick(mask);
+                          toggleMaskVisibility(maskId);
+                        }}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-2">
@@ -1054,18 +1052,10 @@ return (
                             <span className="font-medium text-sm">{mask.class}</span>
                           </div>
                           <div className="flex items-center space-x-1">
+                            {/* The Eye/EyeOff button has been removed here */}
                             <button
                               onClick={(e) => {
-                                e.stopPropagation();
-                                toggleMaskVisibility(maskId);
-                              }}
-                              className="p-1 hover:bg-gray-100 rounded"
-                            >
-                              {isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
+                                e.stopPropagation(); // Keep stopPropagation if download should not trigger the parent div's onClick
                                 downloadMask(mask);
                               }}
                               className="p-1 hover:bg-gray-100 rounded"

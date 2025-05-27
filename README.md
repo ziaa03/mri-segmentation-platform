@@ -4,7 +4,7 @@
 Web-Based Application for Cardiac Component Segmentation
 
 ## Project Overview
-This project aims to develop a web-based application that integrates existing deep learning models for cardiac segmentation. The application will allow users to upload MRI images, perform segmentation to identify key cardiac components (e.g., left ventricle, myocardium, right ventricle), and view the results in a user-friendly interface.
+This project aims to develop a web-based application that integrates existing deep learning models for cardiac segmentation. The application will allow users to upload MRI images, perform segmentation to identify key cardiac components (left ventricle cavity, myocardium, right ventricle), and view the results in a user-friendly interface.
 
 The goal is to create a platform that will be useful for medical professionals (e.g., cardiologists, radiologists) and researchers to automatically segment MRI scans for improved diagnosis and analysis.
 
@@ -15,7 +15,7 @@ The goal is to create a platform that will be useful for medical professionals (
 
 2. Cardiac Segmentation:
 - Integrate with existing state-of-the-art (SOTA) cardiac segmentation models.
-- Perform segmentation on the MRI images and display segmentation results for different components (left ventricle, myocardium, right ventricle).
+- Perform segmentation on the MRI images and display segmentation results for different components (left ventricle cavity, myocardium, right ventricle).
 
 3. Visualization and Interaction:
 - Allow users to interact with MRI images and segmentation results.

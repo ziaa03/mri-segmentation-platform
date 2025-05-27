@@ -70,7 +70,9 @@ const FileCard = ({ file, isSelected, onSelect, onView, onFavorite, onDelete }) 
         <div className="flex justify-center mt-4 space-x-2 text-gray-400">
           <button className="hover:text-gray-700 p-1" onClick={(e) => { e.stopPropagation(); onView(file); }}>
             {/* <Eye className="h-4 w-4" /> */}
-            <Pencil className="h-4 w-4" />
+            <Link to={`/cardiac-analysis?projectId=${file.projectId}`}>
+              <Pencil className="h-4 w-4" />
+            </Link>
           </button>
           <button className="hover:text-blue-600 p-1">
             <Download className="h-4 w-4" />
@@ -145,11 +147,22 @@ const FileDetailsSidebar = ({ file, onClose, onDelete, onFavorite, onRemoveTag }
           <Download className="h-4 w-4 mr-2" />
           Download
         </button>
-        <button className="w-full py-2 bg-gray-100 text-gray-800 rounded-md flex items-center justify-center hover:bg-gray-200 
+        <button className="w-full py-2 bg-gray-100 text-gray-800 rounded-md flex items-center justify-center hover:bg-gray-200 transition-colors
         transition-colors">
-          <Pencil className="h-4 w-4 mr-2" />
-          Edit
+          <Link
+            to={`/cardiac-analysis?projectId=${file.projectId}`}
+            className="w-full py-2 bg-gray-100 text-gray-800 rounded-md flex items-center justify-center          hover:bg-gray-200 transition-colors"
+          >
+            <Pencil className="h-4 w-4 mr-2" />
+            Edit
+          </Link>
         </button>
+        {/* <button className="w-full py-2 bg-gray-100 text-gray-800 rounded-md flex items-center justify-center hover:bg-gray-200 transition-colors"> */}
+          {/* <Link to={`/cardiac-analysis?projectId=${file.projectId}`} className="flex items-center w-full h-full"> */}
+            {/* <Pencil className="h-4 w-4 mr-2" /> */}
+            {/* Edit */}
+          {/* </Link> */}
+        {/* </button> */}
         <button 
           className="w-full py-2 bg-red-50 text-red-600 rounded-md flex items-center justify-center hover:bg-red-100 transition-colors"
           onClick={() => onDelete(file.projectId)}>
@@ -755,7 +768,9 @@ const FileManagementPage = () => {
                             <button
                               className="text-gray-400 hover:text-gray-700"
                               onClick={(e) => { e.stopPropagation(); }}>
-                              <Pencil className="h-4 w-4" />
+                              <Link to={`/cardiac-analysis?projectId=${file.projectId}`}>
+                                <Pencil className="h-4 w-4" />
+                              </Link>
                             </button>
                             <button
                               className="text-gray-400 hover:text-gray-700"
