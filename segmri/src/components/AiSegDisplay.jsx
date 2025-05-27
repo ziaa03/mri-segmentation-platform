@@ -228,7 +228,7 @@ const AISegmentationDisplay = ({
         }
 
         if (currentSetImageTransform) {
-          currentSetImageTransform({
+          const newTransformData = {
             scaleX: drawWidth / img.naturalWidth,
             scaleY: drawHeight / img.naturalHeight,
             offsetX,
@@ -239,6 +239,23 @@ const AISegmentationDisplay = ({
             canvasHeightWhenCalculated: targetCanvasHeight,
             originalImageWidth: img.naturalWidth,
             originalImageHeight: img.naturalHeight
+          };
+          currentSetImageTransform(prevTransform => {
+            if (prevTransform &&
+                prevTransform.scaleX === newTransformData.scaleX &&
+                prevTransform.scaleY === newTransformData.scaleY &&
+                prevTransform.offsetX === newTransformData.offsetX &&
+                prevTransform.offsetY === newTransformData.offsetY &&
+                prevTransform.drawWidth === newTransformData.drawWidth &&
+                prevTransform.drawHeight === newTransformData.drawHeight &&
+                prevTransform.canvasWidthWhenCalculated === newTransformData.canvasWidthWhenCalculated &&
+                prevTransform.canvasHeightWhenCalculated === newTransformData.canvasHeightWhenCalculated &&
+                prevTransform.originalImageWidth === newTransformData.originalImageWidth &&
+                prevTransform.originalImageHeight === newTransformData.originalImageHeight
+            ) {
+              return prevTransform; // Return previous object if data is the same
+            }
+            return newTransformData; // Return new object if data changed
           });
         }
 
