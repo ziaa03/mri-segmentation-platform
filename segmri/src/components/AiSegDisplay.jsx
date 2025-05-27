@@ -41,7 +41,8 @@ const AISegmentationDisplay = ({
   onUploadSelectedMask,
   projectId,
   onSave, 
-  onSaveManualAnnotations
+  onSaveManualAnnotations,
+  setSegmentationData
 }) => {
   const canvasRef = useRef(null);
   const overlayCanvasRef = useRef(null);
@@ -79,7 +80,7 @@ const AISegmentationDisplay = ({
   const [availableSlices, setAvailableSlices] = useState([]);
   const [activeManualSegmentation, setActiveManualSegmentation] = useState(null); // ADDED: State for new manual segmentation
 
-  const [unsavedEdit, setUnsavedEdit] = useState(false);
+const [unsavedEdit, setUnsavedEdit] = useState(false);
 
   useEffect(() => {
   if (!unsavedEdit) return;
@@ -98,8 +99,6 @@ const AISegmentationDisplay = ({
     if (!isEditMode) setUnsavedEdit(true); // entering edit mode
     setIsEditMode(!isEditMode);
   };
-
-
 
 
   // Class options for radio buttons
@@ -300,7 +299,6 @@ const AISegmentationDisplay = ({
     );
   };
 
-
   // Fetch project dimensions when projectId changes
   useEffect(() => {
     const fetchDimensions = async () => {
@@ -332,8 +330,6 @@ const AISegmentationDisplay = ({
     };
     fetchDimensions();
   }, [projectId]);
-
-
 
   const renderImageToCanvas = useCallback((ctx, imageUrl, targetCanvasWidth, targetCanvasHeight, callback, currentSetImageTransform) => {
     console.log('=== RENDERING IMAGE TO CANVAS ===');
@@ -1082,14 +1078,14 @@ return (
         </div>
         <div className="flex space-x-2">
           <button
-            onClick={handleSaveAISegmentation}
+            onClick={onSave}
             className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
           >
             <Save size={16} />
-            Save AI Segmentation
+            Save Project
           </button>
           <button
-            onClick={handleEditModeToggle}
+            onClick={() => setIsEditMode(!isEditMode)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
               isEditMode 
                 ? 'bg-orange-500 hover:bg-orange-600 text-white' 
@@ -1108,6 +1104,7 @@ return (
         <strong>Warning:</strong> You have unsaved changes. Please save your segmentation before leaving or changes will be lost.
       </div>
     )}
+
 
     <div className="flex flex-1">
       {/* Main Content Area */}
