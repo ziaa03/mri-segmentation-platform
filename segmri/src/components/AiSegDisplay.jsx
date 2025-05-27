@@ -701,6 +701,39 @@ const handleSecondCanvasMouseUp = useCallback(() => {
   }
 }, [isDrawingOnSecondCanvas, selectedTool, secondOverlayCanvasRef, currentBoundingBox, drawingHistory, isEditMode]);
 
+const handleStartManualSegmentation = async () => {
+  const boundingBoxes = drawingHistory.filter(action => action.type === 'boundingbox');
+  if (boundingBoxes.length === 0) {
+    console.warn('No bounding boxes available for manual segmentation.');
+    return;
+  }
+
+  const box = boundingBoxes[boundingBoxes.length - 1].rect;
+  const bbox = [box.x, box.y, box.x + box.width, box.y + box.height];
+
+  const image_name = currentImage?.name;
+  if (!image_name || !projectId) {
+    console.error('Missing image_name or projectId.');
+    return;
+  }
+
+  const payload = {
+    image_name,
+    bbox,
+    segmentationName: `Manual - ${image_name}`,
+    segmentationDescription: `Manual bbox at ${JSON.stringify(bbox)}`
+  };
+
+  console.log('🚀 Starting manual segmentation with payload:', payload);
+
+  try {
+    const response = await api.post(`/segmentation/start-manual-segmentation/${projectId}`, payload);
+    console.log('✅ Manual segmentation result:', response.data);
+  } catch (error) {
+    console.error('❌ Manual segmentation failed:', error);
+  }
+};
+
 // Return the JSX with the new features
 return (
   <div className="flex flex-col h-full bg-gray-100">
@@ -905,6 +938,13 @@ return (
               >
                 <Check size={16} />
                 Update and Save Changes
+              </button>
+              <button
+                onClick={handleStartManualSegmentation}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition-colors"
+              >
+                <Play size={16} />
+                Start Manual Segmentation
               </button>
               <div className="text-xs text-gray-600">
                 <p>Drawing History: {drawingHistory.length} actions</p>
