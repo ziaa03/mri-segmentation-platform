@@ -81,15 +81,15 @@ const AISegmentationDisplay = ({
   // Class options for radio buttons
   const classOptions = [
     { value: 'MYO', label: 'MYO', color: '#FFA726' },
-    { value: 'LV', label: 'LV', color: '#4ECDC4' },
+    { value: 'LVC', label: 'LVC', color: '#4ECDC4' },
     { value: 'RV', label: 'RV', color: '#FF6B6B' }
   ];
 
   // Tool options
   const toolOptions = [
     { value: 'brush', label: 'Brush', icon: Brush },
-    { value: 'eraser', label: 'Eraser', icon: Eraser },
-    { value: 'boundingbox', label: 'Bounding Box', icon: Square }
+    { value: 'boundingbox', label: 'Bounding Box', icon: Square },
+        { value: 'eraser', label: 'Eraser', icon: Eraser }
   ];
 
   // Fetch project dimensions when projectId changes
@@ -267,7 +267,7 @@ const AISegmentationDisplay = ({
       overlayCtx.globalAlpha = 1; // Reset opacity for each shape
       if ((action.type === 'brush' || action.type === 'eraser') && action.points && action.points.length > 0) {
         overlayCtx.globalCompositeOperation = action.type === 'eraser' ? 'destination-out' : 'source-over';
-        overlayCtx.strokeStyle = getClassColor(action.class);
+        overlayCtx.strokeStyle = 'transparent'; 
         overlayCtx.lineWidth = action.lineWidth || 5;
         overlayCtx.lineCap = action.lineCap || 'round';
         overlayCtx.lineJoin = action.lineJoin || 'round';
@@ -280,7 +280,7 @@ const AISegmentationDisplay = ({
         overlayCtx.stroke();
       } else if (action.type === 'boundingbox' && action.rect) {
         overlayCtx.globalCompositeOperation = 'source-over';
-        overlayCtx.fillStyle = '#FFA726'; // Orange for filled bounding box
+        overlayCtx.fillStyle = 'transparent'; // Orange for filled bounding box
         overlayCtx.fillRect(action.rect.x, action.rect.y, action.rect.width, action.rect.height);
       }
     });
@@ -288,7 +288,7 @@ const AISegmentationDisplay = ({
     // Draw current bounding box preview if it exists
     if (currentBoundingBox) {
       overlayCtx.globalCompositeOperation = 'source-over';
-      overlayCtx.strokeStyle = '#FFA726'; // Orange for preview outline
+      overlayCtx.strokeStyle = getClassColor(action.class);
       overlayCtx.lineWidth = 2; 
       const { startX, startY, currentX, currentY } = currentBoundingBox;
       const rectX = Math.min(startX, currentX);
@@ -819,13 +819,6 @@ return (
                 Manual Annotation
               </div>
               <div className="absolute top-2 right-2 z-10 flex space-x-2">
-                <button
-                  onClick={handleSaveManualAnnotations}
-                  className="bg-green-500 hover:bg-green-600 text-white p-2 rounded"
-                  title="Update and Save Changes"
-                >
-                  <Check className="w-4 h-4" />
-                </button>
                 <button
                   onClick={undoLastAction}
                   className="bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded"
