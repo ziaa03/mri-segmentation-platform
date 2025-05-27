@@ -133,8 +133,6 @@ const FileDetailsSidebar = ({ file, onClose, onDelete, onFavorite, onRemoveTag }
             <span className={`text-sm font-medium ${item.capitalize ? 'capitalize' : ''}`}>{item.value}</span>
           </div>
         ))}
-        
-        {/* Tags Section */}
       </div>
       
       <div className="mt-8 space-y-3">
@@ -148,8 +146,7 @@ const FileDetailsSidebar = ({ file, onClose, onDelete, onFavorite, onRemoveTag }
         </button>
         <button 
           className="w-full py-2 bg-red-50 text-red-600 rounded-md flex items-center justify-center hover:bg-red-100 transition-colors"
-          onClick={() => onDelete(file.projectId)}
-        >
+          onClick={() => onDelete(file.projectId)}>
           <Trash2 className="h-4 w-4 mr-2" />
           Delete
         </button>
@@ -186,6 +183,7 @@ const FileManagementPage = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState([]);
   
+  // api for fetch own projects
   useEffect(() => {
     const fetchFiles = async () => {
       try {
@@ -208,6 +206,7 @@ const FileManagementPage = () => {
 
     fetchFiles();
   }, []);
+  
   
   const fileInputRef = useRef(null);
   
@@ -234,16 +233,38 @@ const FileManagementPage = () => {
     showToast(`${file.name} ${file.favorite ? 'removed from' : 'added to'} favorites`);
   };
   
-  const deleteFile = (fileId) => {
-    setFiles(files.filter(file => file.projectId !== fileId));
-    setSelectedFiles(selectedFiles.filter(id => id !== fileId));
+  // const deleteFile = (fileId) => {
+    // setFiles(files.filter(file => file.projectId !== fileId));
+    // setSelectedFiles(selectedFiles.filter(id => id !== fileId));
+    // 
+    // if (selectedFile && selectedfile.projectId === fileId) {
+      // setSelectedFile(null);
+    // }
+    // 
+    // showToast('File deleted successfully');
+  // };
+  const deleteFile = async (fileId) => {
+    try {
+      const response = await api.delete(`/project/user-delete-project/${fileId}`);
     
-    if (selectedFile && selectedfile.projectId === fileId) {
-      setSelectedFile(null);
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to delete project');
+      }
+    
+      // Update UI state
+      setFiles(files.filter(file => file.projectId !== fileId));
+      setSelectedFiles(selectedFiles.filter(id => id !== fileId));
+      if (selectedFile && selectedFile.projectId === fileId) {
+        setSelectedFile(null);
+      }
+    
+      showToast('File deleted successfully');
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      showToast(`Error: ${error.response?.data?.message || error.message}`);
     }
-    
-    showToast('File deleted successfully');
   };
+
   
   const deleteSelectedFiles = () => {
     setFiles(files.filter(file => !selectedFiles.includes(file.projectId)));
@@ -628,7 +649,7 @@ const FileManagementPage = () => {
                     onDelete={deleteFile}
                   />
                 ))}
-              </div>
+          </div>
             )}
             
             {/* List View */}
@@ -734,8 +755,7 @@ const FileManagementPage = () => {
                               onClick={(e) => { 
                                 e.stopPropagation();
                                 deleteFile(file.projectId);
-                              }}
-                            >
+                              }}>
                               <Trash2 className="h-4 w-4" />
                             </button>
                           </div>
@@ -743,21 +763,21 @@ const FileManagementPage = () => {
                       </tr>
                     ))}
 
-    {filteredFiles.length === 0 && (
-      <tr>
-        <td colSpan="6" className="px-4 py-8 text-center">
-          <div className="flex flex-col items-center">
-            <Search className="h-8 w-8 text-gray-300 mb-2" />
-            <h3 className="text-base font-medium text-gray-900 mb-1">No files found</h3>
-            <p className="text-sm text-gray-500">
-              {searchTerm ? `No results found for "${searchTerm}"` : 'Try uploading a file or changing your filters'}
-            </p>
-          </div>
-        </td>
-      </tr>
-    )}
-  </tbody>
-</table>
+                    {filteredFiles.length === 0 && (
+                      <tr>
+                        <td colSpan="6" className="px-4 py-8 text-center">
+                          <div className="flex flex-col items-center">
+                            <Search className="h-8 w-8 text-gray-300 mb-2" />
+                            <h3 className="text-base font-medium text-gray-900 mb-1">No files found</h3>
+                            <p className="text-sm text-gray-500">
+                              {searchTerm ? `No results found for "${searchTerm}"` : 'Try uploading a file or changing your filters'}
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             )}
             
