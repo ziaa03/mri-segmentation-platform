@@ -64,6 +64,7 @@ const AISegmentationDisplay = ({
   // New state for edit mode
   const [isEditMode, setIsEditMode] = useState(false);
   const [isDrawingOnSecondCanvas, setIsDrawingOnSecondCanvas] = useState(false); // New state
+  const [currentBoundingBox, setCurrentBoundingBox] = useState(null); // For live bounding box drawing
 
   // New states for toolbox controls
   const [selectedClass, setSelectedClass] = useState('MYO');
@@ -223,18 +224,65 @@ const AISegmentationDisplay = ({
   }, [segmentationData, currentTimeIndex, currentLayerIndex]);
 
   const getClassColor = useCallback((className) => {
-    const classColors = {
-      'RV': '#FF6B6B', 'LV': '#4ECDC4', 'LVC': '#45B7D1',
-      'MYO': '#FFA726', 'LA': '#9C27B0', 'RA': '#FF5722',
-      'AORTA': '#E91E63', 'PA': '#795548'
-    };
-    if (!classColors[className]) {
-      const hash = className.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0);
-      const hue = Math.abs(hash) % 360;
-      return `hsl(${hue}, 70%, 55%)`;
+    const classOption = classOptions.find(opt => opt.value === className);
+    return classOption ? classOption.color : '#FFFFFF'; // Default to white if not found
+  }, [classOptions]); // Ensure classOptions is a dependency if it can change, or define it outside if static
+
+  // Combined redraw function for the second overlay canvas
+  const redrawSecondOverlayCanvas = useCallback(() => {
+    const overlayCanvas = secondOverlayCanvasRef.current;
+    if (!overlayCanvas || canvasDimensions.width === 0 || canvasDimensions.height === 0) return;
+    
+    overlayCanvas.width = canvasDimensions.width; // Ensure dimensions are up-to-date
+    overlayCanvas.height = canvasDimensions.height;
+    const overlayCtx = overlayCanvas.getContext('2d');
+    overlayCtx.clearRect(0, 0, canvasDimensions.width, canvasDimensions.height);
+
+    drawingHistory.forEach(action => {
+      overlayCtx.globalAlpha = 1; // Reset opacity for each shape
+      if ((action.type === 'brush' || action.type === 'eraser') && action.points && action.points.length > 0) {
+        overlayCtx.globalCompositeOperation = action.type === 'eraser' ? 'destination-out' : 'source-over';
+        overlayCtx.strokeStyle = getClassColor(action.class);
+        overlayCtx.lineWidth = action.lineWidth || 5;
+        overlayCtx.lineCap = action.lineCap || 'round';
+        overlayCtx.lineJoin = action.lineJoin || 'round';
+        
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(action.points[0].x, action.points[0].y);
+        for (let i = 1; i < action.points.length; i++) {
+          overlayCtx.lineTo(action.points[i].x, action.points[i].y);
+        }
+        overlayCtx.stroke();
+      } else if (action.type === 'boundingbox' && action.rect) {
+        overlayCtx.globalCompositeOperation = 'source-over';
+        overlayCtx.fillStyle = '#FFA726'; // Orange for filled bounding box
+        overlayCtx.fillRect(action.rect.x, action.rect.y, action.rect.width, action.rect.height);
+      }
+    });
+
+    // Draw current bounding box preview if it exists
+    if (currentBoundingBox) {
+      overlayCtx.globalCompositeOperation = 'source-over';
+      overlayCtx.strokeStyle = '#FFA726'; // Orange for preview outline
+      overlayCtx.lineWidth = 2; 
+      const { startX, startY, currentX, currentY } = currentBoundingBox;
+      const rectX = Math.min(startX, currentX);
+      const rectY = Math.min(startY, currentY);
+      const rectWidth = Math.abs(startX - currentX);
+      const rectHeight = Math.abs(startY - currentY);
+      if (rectWidth > 0 || rectHeight > 0) { // Draw even if it's just a line during drag
+        overlayCtx.strokeRect(rectX, rectY, rectWidth, rectHeight);
+      }
     }
-    return classColors[className];
-  }, []);
+    overlayCtx.globalCompositeOperation = 'source-over'; // Reset composite operation
+  }, [drawingHistory, currentBoundingBox, canvasDimensions, getClassColor]);
+
+  // Effect to redraw manual annotations when history or current bounding box changes
+  useEffect(() => {
+    if (isEditMode) {
+      redrawSecondOverlayCanvas();
+    }
+  }, [drawingHistory, currentBoundingBox, isEditMode, redrawSecondOverlayCanvas]);
 
   const renderBackground = useCallback((ctx, width, height) => {
     console.log('Rendering background:', { width, height, hasCurrentImage: !!currentImage, currentFrame: currentTimeIndex, currentSlice: currentLayerIndex });
@@ -415,11 +463,22 @@ const AISegmentationDisplay = ({
   }, [extractedImages, currentTimeIndex, currentLayerIndex]);
 
   useEffect(() => {
-    renderCanvas(canvasRef, overlayCanvasRef);
+    renderCanvas(canvasRef, overlayCanvasRef); // For the main display
     if (isEditMode) {
-      renderCanvas(secondCanvasRef, secondOverlayCanvasRef);
+      // Setup for the second canvas (manual annotation)
+      const bgCanvas = secondCanvasRef.current;
+      // secondOverlayCanvasRef is handled by redrawSecondOverlayCanvas effect
+
+      if (bgCanvas && canvasDimensions.width > 0 && canvasDimensions.height > 0) {
+        bgCanvas.width = canvasDimensions.width;
+        bgCanvas.height = canvasDimensions.height;
+        
+        const bgCtx = bgCanvas.getContext('2d');
+        renderBackground(bgCtx, canvasDimensions.width, canvasDimensions.height); // Draw base image on secondCanvasRef
+      }
+      redrawSecondOverlayCanvas(); // Initial draw of history + current preview on the overlay
     }
-  }, [renderCanvas, isEditMode]);
+  }, [renderCanvas, isEditMode, canvasDimensions, renderBackground, redrawSecondOverlayCanvas]);
 
   useEffect(() => {
     const sliceData = getCurrentSliceData();
@@ -527,19 +586,19 @@ const maskStats = React.useMemo(() => availableMasksForStats.map(mask => {
 
 // Add drawing functionality for second canvas
 const handleSecondCanvasMouseDown = useCallback((e) => {
+  const canvas = secondOverlayCanvasRef.current;
+  if (!canvas || !isEditMode) return; // Only allow drawing in edit mode
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  setIsDrawingOnSecondCanvas(true); 
+
   if (selectedTool === 'brush' || selectedTool === 'eraser') {
-    setIsDrawingOnSecondCanvas(true); // Start drawing
-    const canvas = secondOverlayCanvasRef.current;
-    if (!canvas) return;
-    
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d'); // Get context here as it's needed for brush/eraser
     ctx.globalCompositeOperation = selectedTool === 'eraser' ? 'destination-out' : 'source-over';
     ctx.strokeStyle = getClassColor(selectedClass);
-    const currentBrushSize = 5; // TODO: Make this dynamic if needed
+    const currentBrushSize = 5; 
     const currentLineCap = 'round';
     const currentLineJoin = 'round';
 
@@ -549,6 +608,8 @@ const handleSecondCanvasMouseDown = useCallback((e) => {
     ctx.beginPath();
     ctx.moveTo(x, y);
     
+    // Add initial point for brush/eraser stroke to history immediately
+    // This helps if it's just a click without a drag
     setDrawingHistory(prev => [...prev, { 
       type: selectedTool, 
       class: selectedClass, 
@@ -557,59 +618,82 @@ const handleSecondCanvasMouseDown = useCallback((e) => {
       lineJoin: currentLineJoin,
       points: [{ x, y }] 
     }]);
+  } else if (selectedTool === 'boundingbox') {
+    setCurrentBoundingBox({ startX: x, startY: y, currentX: x, currentY: y, class: selectedClass });
   }
-  // Add logic for other tools like bounding box if needed
-}, [selectedTool, selectedClass, getClassColor, secondOverlayCanvasRef]);
+}, [selectedTool, selectedClass, getClassColor, secondOverlayCanvasRef, isEditMode]);
 
 const handleSecondCanvasMouseMove = useCallback((e) => {
-  if (!isDrawingOnSecondCanvas || !(selectedTool === 'brush' || selectedTool === 'eraser')) return;
+  if (!isDrawingOnSecondCanvas || !isEditMode) return;
 
   const canvas = secondOverlayCanvasRef.current;
   if (!canvas) return;
-
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
 
-  const ctx = canvas.getContext('2d');
-  // Styles (lineWidth, strokeStyle, globalCompositeOperation, lineCap, lineJoin) are set on mousedown
-  // and persist for the current stroke.
-  ctx.lineTo(x, y);
-  ctx.stroke();
+  if (selectedTool === 'brush' || selectedTool === 'eraser') {
+    const ctx = canvas.getContext('2d');
+    ctx.lineTo(x, y);
+    ctx.stroke();
 
-  setDrawingHistory(prevHistory => {
-    const newHistory = [...prevHistory];
-    if (newHistory.length > 0) {
-      const lastActionIndex = newHistory.length - 1;
-      const lastAction = newHistory[lastActionIndex];
-      // Ensure we are updating the correct type of action and it has points
-      if ((lastAction.type === 'brush' || lastAction.type === 'eraser') && lastAction.points) {
-        newHistory[lastActionIndex] = {
-          ...lastAction,
-          points: [...lastAction.points, { x, y }],
-        };
+    setDrawingHistory(prevHistory => {
+      const newHistory = [...prevHistory];
+      if (newHistory.length > 0) {
+        const lastAction = newHistory[newHistory.length - 1];
+        if ((lastAction.type === 'brush' || lastAction.type === 'eraser') && lastAction.points) {
+          lastAction.points.push({ x, y }); // Mutate last action's points for performance during drag
+        }
       }
-    }
-    return newHistory;
-  });
-  
-  // Prepare for the next segment of the stroke
-  ctx.beginPath();
-  ctx.moveTo(x, y);
+      return newHistory; // This will trigger a re-render due to object identity change if state is complex
+                          // For simple array of points, React might not re-render if only points array is mutated.
+                          // To be safe, ensure a new history array is returned if points are added.
+                          // The current approach of adding initial point on mousedown and then pushing here is okay.
+    });
+    
+    // For continuous drawing, begin new path segment from current point
+    // This is important if stroke() doesn't implicitly do this for all browsers/cases
+    ctx.beginPath();
+    ctx.moveTo(x, y);
 
-}, [isDrawingOnSecondCanvas, selectedTool, secondOverlayCanvasRef]);
+  } else if (selectedTool === 'boundingbox' && currentBoundingBox) {
+    setCurrentBoundingBox(prev => ({ ...prev, currentX: x, currentY: y }));
+    // Redraw for bounding box preview is handled by useEffect watching currentBoundingBox
+  }
+}, [isDrawingOnSecondCanvas, selectedTool, secondOverlayCanvasRef, currentBoundingBox, isEditMode]);
 
 const handleSecondCanvasMouseUp = useCallback(() => {
-  if (isDrawingOnSecondCanvas) {
-    setIsDrawingOnSecondCanvas(false); // Stop drawing
+  if (!isDrawingOnSecondCanvas || !isEditMode) return;
+  
+  setIsDrawingOnSecondCanvas(false); 
+
+  if (selectedTool === 'brush' || selectedTool === 'eraser') {
     const canvas = secondOverlayCanvasRef.current;
-    if (canvas && (selectedTool === 'brush' || selectedTool === 'eraser')) {
+    if (canvas) {
       const ctx = canvas.getContext('2d');
-      ctx.closePath(); // End the current path
-      // Drawing history is already updated by mouseMove
+      ctx.closePath(); 
+      // Brush/eraser history is updated during mouseMove.
+      // Force a re-render of history if points were mutated directly for performance.
+      // This can be done by creating a new array: setDrawingHistory([...drawingHistory]);
+      // However, since we add the first point on mousedown, this should be fine.
     }
+  } else if (selectedTool === 'boundingbox' && currentBoundingBox) {
+    const { startX, startY, currentX, currentY, class: boxClass } = currentBoundingBox;
+    const rectX = Math.min(startX, currentX);
+    const rectY = Math.min(startY, currentY);
+    const rectWidth = Math.abs(startX - currentX);
+    const rectHeight = Math.abs(startY - currentY);
+
+    if (rectWidth > 0 && rectHeight > 0) { 
+      setDrawingHistory(prev => [...prev, {
+        type: 'boundingbox',
+        class: boxClass, // Use the class selected when drawing started
+        rect: { x: rectX, y: rectY, width: rectWidth, height: rectHeight }
+      }]);
+    }
+    setCurrentBoundingBox(null); 
   }
-}, [isDrawingOnSecondCanvas, selectedTool, secondOverlayCanvasRef]);
+}, [isDrawingOnSecondCanvas, selectedTool, secondOverlayCanvasRef, currentBoundingBox, drawingHistory, isEditMode]);
 
 // Return the JSX with the new features
 return (
