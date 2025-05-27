@@ -48,7 +48,7 @@ const AboutUsPage = () => {
                 className="text-center flex flex-col items-center">
                 <h1 className='pt-4 pb-10 text-6xl text-[#74342B]'>About Us</h1>
                 <p className='text-lg text-[#343231] max-w-4xl'>
-                    Our cardiac component segmentation website is a web-based platform designed to assist in the analysis of cardiac MRI images. By integrating advanced AI segmentation models, it enables accurate identification of key cardiac structures such as the left ventricle, myocardium, and right ventricle. The platform focuses on creating a seamless experience for image uploading, segmentation, and results visualization, all within a secure and intuitive environment tailored for medical imaging.
+                    Our cardiac component segmentation website is a web-based platform designed to assist in the analysis of cardiac MRI images. By integrating advanced AI segmentation models, it enables accurate identification of key cardiac structures such as the left ventricle cavity, myocardium, and right ventricle. The platform focuses on creating a seamless experience for image uploading, segmentation, and results visualization, all within a secure and intuitive environment tailored for medical imaging.
                 </p>
             </motion.div>
         </div>
