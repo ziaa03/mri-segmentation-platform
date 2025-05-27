@@ -388,10 +388,6 @@ const VisualizationControls = ({
 
         {/* Enhanced Project Actions */}
         <div className="space-y-4 pt-4 border-t border-gray-200">
-          <h5 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-            <Settings size={16} className="text-gray-600" />
-            Project Actions
-          </h5>
           
           <div className="grid grid-cols-1 gap-3">
             {/* Show Check Results button if processing but not complete */}
@@ -433,27 +429,6 @@ const VisualizationControls = ({
                   </div>
                 </div>
               </>
-            )}
-            
-            {/* Only show save/export if processing is complete */}
-            {processingComplete && (
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={onSave}
-                  className="flex items-center justify-center gap-2 px-4 py-4 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
-                >
-                  <Save size={18} />
-                  <span className="font-medium">Save Project</span>
-                </button>
-                
-                <button
-                  onClick={onExport}
-                  className="flex items-center justify-center gap-2 px-4 py-4 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
-                >
-                  <Download size={18} />
-                  <span className="font-medium">Export Results</span>
-                </button>
-              </div>
             )}
           </div>
         </div>

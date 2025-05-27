@@ -1,8 +1,14 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Eye, EyeOff, Download, Upload, Info, RotateCcw, ZoomIn, ZoomOut, Play, Pause, Grid, Layers, Square, Eraser, Brush, Trash2 } from 'lucide-react';
+import { Eye, EyeOff, Download, Upload, Info, RotateCcw, ZoomIn, ZoomOut, Play, Pause, Grid, Layers, Square, Eraser, Brush, Trash2, Edit, Save, Check } from 'lucide-react';
 import api from '../api/AxiosInstance'; // Ensure this path is correct for your project structure
-import { decodeRLE } from '../utils/RLE-Decoder'; // Assuming encodeRLE is not used in this component
-import { renderMaskOnCanvas } from '../utils/RLE-Decoder';
+import { decodeRLE, renderMaskOnCanvas } from '../utils/RLE-Decoder'; 
+import { 
+  fetchAndExtractTarFile, 
+  processExtractedImages, 
+  getAvailableFramesAndSlices, 
+  findClosestImage, 
+  cleanupImageUrls 
+} from '../utils/TarExtractor'; // Import the new utilities
 
 // Placeholder for the medical image loading functions from your existing code
 const fetchPresignedUrl = async (projectId) => {
@@ -25,85 +31,6 @@ const fetchPresignedUrl = async (projectId) => {
   }
 };
 
-const parseTarFile = (buffer) => {
-  const files = [];
-  const view = new Uint8Array(buffer);
-  let offset = 0;
-  while (offset < view.length) {
-    const header = view.slice(offset, offset + 512);
-    if (header.every(byte => byte === 0)) break;
-    let nameBytes = header.slice(0, 100);
-    let nameEnd = nameBytes.indexOf(0);
-    if (nameEnd === -1) nameEnd = 100;
-    const name = new TextDecoder().decode(nameBytes.slice(0, nameEnd));
-    const sizeBytes = header.slice(124, 135);
-    const sizeStr = new TextDecoder().decode(sizeBytes).replace(/\0/g, '').trim();
-    const size = parseInt(sizeStr, 8) || 0;
-    const typeFlag = header[156];
-    const isRegularFile = typeFlag === 0 || typeFlag === 48;
-    offset += 512;
-    if (isRegularFile && size > 0 && name) {
-      const fileData = view.slice(offset, offset + size);
-      files.push({
-        name: name,
-        buffer: fileData.buffer.slice(fileData.byteOffset, fileData.byteOffset + fileData.byteLength),
-        size: size
-      });
-    }
-    offset += Math.ceil(size / 512) * 512;
-  }
-  return files;
-};
-
-const fetchAndExtractTarFile = async (presignedUrl) => {
-  console.log('=== FETCHING TAR FILE ===');
-  console.log('Presigned URL:', presignedUrl);
-  try {
-    const response = await fetch(presignedUrl);
-    if (!response.ok) throw new Error(`Failed to fetch tar file: ${response.statusText}`);
-    const arrayBuffer = await response.arrayBuffer();
-    console.log('Tar file downloaded, size:', arrayBuffer.byteLength);
-    const extractedFiles = parseTarFile(arrayBuffer);
-    console.log('Files extracted:', extractedFiles.length);
-    const imageFiles = extractedFiles.filter(file =>
-      file.name && (file.name.toLowerCase().endsWith('.jpg') || file.name.toLowerCase().endsWith('.jpeg') || file.name.toLowerCase().endsWith('.png'))
-    );
-    console.log('Image files found:', imageFiles.length, 'Sample names:', imageFiles.slice(0, 5).map(f => f.name));
-    return imageFiles;
-  } catch (error) {
-    console.error('Error fetching/extracting tar file:', error);
-    throw error;
-  }
-};
-
-const processExtractedImages = (extractedFiles) => {
-  console.log('=== PROCESSING EXTRACTED IMAGES ===');
-  try {
-    const processedImages = extractedFiles
-      .filter(file => file.name.endsWith('.jpg') || file.name.endsWith('.jpeg'))
-      .map(file => {
-        const parts = file.name.split('_');
-        if (parts.length < 4) { console.warn(`Unexpected filename format: ${file.name}`); return null; }
-        const frameIdx = parseInt(parts[parts.length - 2]);
-        const sliceIdx = parseInt(parts[parts.length - 1].split('.')[0]);
-        if (isNaN(frameIdx) || isNaN(sliceIdx)) { console.warn(`Could not parse indices from filename: ${file.name}`); return null; }
-        const blob = new Blob([file.buffer], { type: 'image/jpeg' });
-        const url = URL.createObjectURL(blob);
-        return { name: file.name, frame: frameIdx, slice: sliceIdx, url: url, blob: blob, size: file.buffer.byteLength };
-      })
-      .filter(Boolean)
-      .sort((a, b) => {
-        if (a.frame !== b.frame) return a.frame - b.frame;
-        return a.slice - b.slice;
-      });
-    console.log('Processed images:', { total: processedImages.length, frames: [...new Set(processedImages.map(img => img.frame))], slices: [...new Set(processedImages.map(img => img.slice))], sampleNames: processedImages.slice(0, 3).map(img => img.name) });
-    return processedImages;
-  } catch (error) {
-    console.error('Error processing extracted images:', error);
-    return [];
-  }
-};
-
 const AISegmentationDisplay = ({
   segmentationData,
   currentTimeIndex,
@@ -112,7 +39,9 @@ const AISegmentationDisplay = ({
   onMaskSelected,
   selectedMask,
   onUploadSelectedMask,
-  projectId
+  projectId,
+  onSave, 
+  onSaveManualAnnotations
 }) => {
   const canvasRef = useRef(null);
   const overlayCanvasRef = useRef(null);
@@ -131,6 +60,9 @@ const AISegmentationDisplay = ({
   const [isDragging, setIsDragging] = useState(false);
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
   const [showStats, setShowStats] = useState(true);
+
+  // New state for edit mode
+  const [isEditMode, setIsEditMode] = useState(false);
 
   // New states for toolbox controls
   const [selectedClass, setSelectedClass] = useState('MYO');
@@ -282,45 +214,6 @@ const AISegmentationDisplay = ({
     img.src = imageUrl;
   }, []);
 
-  const renderFallbackBackground = useCallback((ctx, width, height) => {
-    console.log('Rendering fallback background');
-    ctx.fillStyle = '#2a2a2a';
-    ctx.fillRect(0, 0, width, height);
-    ctx.strokeStyle = '#4a4a4a';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(1, 1, width - 2, height - 2);
-    ctx.save();
-    ctx.translate(width / 2, height / 2);
-    const mainRadiusX = Math.min(width, height) * 0.25;
-    const mainRadiusY = Math.min(width, height) * 0.20;
-    ctx.strokeStyle = 'rgba(100, 100, 100, 0.5)';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, mainRadiusX, mainRadiusY, 0, 0, 2 * Math.PI);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.ellipse(-mainRadiusX * 0.25, -mainRadiusY * 0.1, mainRadiusX * 0.5, mainRadiusY * 0.4, 0, 0, 2 * Math.PI);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.ellipse(mainRadiusX * 0.25, -mainRadiusY * 0.1, mainRadiusX * 0.4, mainRadiusY * 0.3, 0, 0, 2 * Math.PI);
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(-width / 2, 0); ctx.lineTo(width / 2, 0);
-    ctx.moveTo(0, -height / 2); ctx.lineTo(0, height / 2);
-    ctx.stroke();
-    ctx.restore();
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.font = '12px Arial';
-    ctx.fillText(`${width}x${height}`, 10, height - 10);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.font = 'bold 16px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('No Image Available', width / 2, height / 2 + mainRadiusY + 20);
-    ctx.textAlign = 'left';
-  }, []);
-
   const getCurrentSliceData = useCallback(() => {
     if (!segmentationData?.masks?.[currentTimeIndex]?.[currentLayerIndex]) {
       return null;
@@ -347,11 +240,10 @@ const AISegmentationDisplay = ({
     if (currentImage && currentImage.url) {
       renderImageToCanvas(ctx, currentImage.url, width, height, null, setImageTransform);
     } else {
-      renderFallbackBackground(ctx, width, height);
       setImageTransform(null); // Reset transform if no image
     }
     console.log('Background rendered successfully');
-  }, [currentImage, currentTimeIndex, currentLayerIndex, renderImageToCanvas, renderFallbackBackground, setImageTransform]);
+  }, [currentImage, currentTimeIndex, currentLayerIndex, renderImageToCanvas, setImageTransform]);
 
   const renderCanvas = useCallback((canvasRef, overlayCanvasRef) => {
     console.log('=== CANVAS RENDERING START ===');
@@ -455,21 +347,32 @@ const AISegmentationDisplay = ({
     }
   }, [drawingHistory, canvasDimensions]);
 
-  // Load extracted images when projectId changes
+  // Load extracted images when projectId changes - Updated to use new utilities
   useEffect(() => {
     const loadExtractedImages = async () => {
-      if (!projectId) { console.log('No projectId, skipping image load'); return; }
-      setIsLoadingImages(true); setImageError(null);
+      if (!projectId) { 
+        console.log('No projectId, skipping image load'); 
+        return; 
+      }
+      
+      setIsLoadingImages(true); 
+      setImageError(null);
+      
       try {
+        // Use the utility functions
         const presignedUrl = await fetchPresignedUrl(projectId);
         const extractedTarFiles = await fetchAndExtractTarFile(presignedUrl);
         const processedImages = processExtractedImages(extractedTarFiles);
+        
         setExtractedImages(processedImages);
+        
         if (processedImages.length > 0) {
-          const frames = [...new Set(processedImages.map(img => img.frame))].sort((a, b) => a - b);
-          const slices = [...new Set(processedImages.map(img => img.slice))].sort((a, b) => a - b);
-          setAvailableFrames(frames); setAvailableSlices(slices);
-          const initialImage = processedImages.find(img => img.frame === (frames[0] ?? 0) && img.slice === (slices[0] ?? 0));
+          const { frames, slices } = getAvailableFramesAndSlices(processedImages);
+          setAvailableFrames(frames); 
+          setAvailableSlices(slices);
+          
+          // Find initial image
+          const initialImage = findClosestImage(processedImages, frames[0] ?? 0, slices[0] ?? 0);
           if (initialImage) setCurrentImage(initialImage);
         }
       } catch (error) {
@@ -479,37 +382,29 @@ const AISegmentationDisplay = ({
         setIsLoadingImages(false);
       }
     };
+    
     loadExtractedImages();
-    return () => { extractedImages.forEach(img => { if (img.url) URL.revokeObjectURL(img.url); }); };
+    
+    // Cleanup function using the utility
+    return () => {
+      cleanupImageUrls(extractedImages);
+    };
   }, [projectId]);
 
-  // Update current image when time/layer indices change
+  // Update current image when time/layer indices change - Updated to use new utilities
   useEffect(() => {
     if (extractedImages.length === 0) return;
-    const targetImage = extractedImages.find(img => img.frame === currentTimeIndex && img.slice === currentLayerIndex);
-    if (targetImage) {
-      setCurrentImage(targetImage);
-    } else {
-      // Fallback logic if needed, or set to null
-      const availableFramesSet = new Set(extractedImages.map(img => img.frame));
-      const availableSlicesSet = new Set(extractedImages.map(img => img.slice));
-      if (availableFramesSet.size > 0 && availableSlicesSet.size > 0) {
-        const closestFrame = Array.from(availableFramesSet).sort((a, b) => Math.abs(a - currentTimeIndex) - Math.abs(b - currentTimeIndex))[0];
-        const closestSlice = Array.from(availableSlicesSet).sort((a, b) => Math.abs(a - currentLayerIndex) - Math.abs(b - currentLayerIndex))[0];
-        const fallbackImage = extractedImages.find(img => img.frame === closestFrame && img.slice === closestSlice);
-        setCurrentImage(fallbackImage || null);
-        console.log(fallbackImage ? `⚠️ Using closest available image: ${fallbackImage.name}` : '❌ No suitable image found');
-      } else {
-        setCurrentImage(null);
-        console.log('❌ No suitable image found, no frames/slices available.');
-      }
-    }
+    
+    const targetImage = findClosestImage(extractedImages, currentTimeIndex, currentLayerIndex);
+    setCurrentImage(targetImage);
   }, [extractedImages, currentTimeIndex, currentLayerIndex]);
 
   useEffect(() => {
     renderCanvas(canvasRef, overlayCanvasRef);
-    renderCanvas(secondCanvasRef, secondOverlayCanvasRef);
-  }, [renderCanvas]);
+    if (isEditMode) {
+      renderCanvas(secondCanvasRef, secondOverlayCanvasRef);
+    }
+  }, [renderCanvas, isEditMode]);
 
   useEffect(() => {
     const sliceData = getCurrentSliceData();
@@ -579,6 +474,24 @@ const AISegmentationDisplay = ({
     }
   }, [canvasDimensions, currentTimeIndex, currentLayerIndex]);
 
+  // Handle save functions
+  const handleSaveAISegmentation = () => {
+    if (onSaveAISegmentation) {
+      onSaveAISegmentation();
+    }
+  };
+
+  const handleSaveManualAnnotations = () => {
+    if (onSaveManualAnnotations) {
+      // You can pass the drawing history or canvas data here
+      onSaveManualAnnotations({
+        drawingHistory,
+        frameIndex: currentTimeIndex,
+        sliceIndex: currentLayerIndex
+      });
+    }
+  };
+
   const sliceDataForStats = getCurrentSliceData();
   const availableMasksForStats = sliceDataForStats?.segmentationMasks || [];
 
@@ -627,26 +540,45 @@ const handleSecondCanvasMouseDown = useCallback((e) => {
 return (
   <div className="flex flex-col h-full bg-gray-100">
     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                  <Layers size={20} className="text-blue-600" />
-                  AI Segmentation Display
-                  {isLoadingImages && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>}
-                </h4>
-                <p className="text-sm text-gray-600 mt-1">
-                  Frame {availableFrames.length > 0 ? currentTimeIndex + 1 : '?'} • Slice {availableSlices.length > 0 ? currentLayerIndex + 1 : '?'} • 
-                  {canvasDimensions.width} x {canvasDimensions.height} px • 
-                  {availableMasksForStats.length} masks
-                  {imageError && <span className="text-red-500"> • Image Error</span>}
-                </p>
-                {currentImage && (
-                  <p className="text-xs text-green-600 mt-1">Current Image: {currentImage.name}</p>
-                )}
-              </div>
-              {/* ... other header buttons ... */}
-            </div>
-          </div>
+      <div className="flex items-center justify-between">
+        <div>
+          <h4 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+            <Layers size={20} className="text-blue-600" />
+            AI Segmentation Display
+            {isLoadingImages && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>}
+          </h4>
+          <p className="text-sm text-gray-600 mt-1">
+            Frame {availableFrames.length > 0 ? currentTimeIndex + 1 : '?'} • Slice {availableSlices.length > 0 ? currentLayerIndex + 1 : '?'} • 
+            {canvasDimensions.width} x {canvasDimensions.height} px • 
+            {availableMasksForStats.length} masks
+            {imageError && <span className="text-red-500"> • Image Error</span>}
+          </p>
+          {currentImage && (
+            <p className="text-xs text-green-600 mt-1">Current Image: {currentImage.name}</p>
+          )}
+        </div>
+        <div className="flex space-x-2">
+          <button
+            onClick={onSave}
+            className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+          >
+            <Save size={16} />
+            Save AI Segmentation
+          </button>
+          <button
+            onClick={() => setIsEditMode(!isEditMode)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              isEditMode 
+                ? 'bg-orange-500 hover:bg-orange-600 text-white' 
+                : 'bg-blue-500 hover:bg-blue-600 text-white'
+            }`}
+          >
+            <Edit size={16} />
+            {isEditMode ? 'Exit Edit Mode' : 'Edit'}
+          </button>
+        </div>
+      </div>
+    </div>
 
     <div className="flex flex-1">
       {/* Main Content Area */}
@@ -654,9 +586,9 @@ return (
         {/* Canvas Display Area */}
         <div className="flex-1 flex">
           {/* First Canvas */}
-          <div className="flex-1 relative border-r border-gray-300">
+          <div className={`${isEditMode ? 'flex-1' : 'w-full'} relative ${isEditMode ? 'border-r border-gray-300' : ''}`}>
             <div className="absolute top-2 left-2 z-10 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">
-              Original AI Segmentation
+              AI Segmentation {isEditMode ? '(Original)' : ''}
             </div>
             <div 
               className="relative w-full h-full cursor-move"
@@ -684,47 +616,56 @@ return (
             </div>
           </div>
 
-          {/* Second Canvas */}
-          <div className="flex-1 relative">
-            <div className="absolute top-2 left-2 z-10 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">
-              Manual Annotation
+          {/* Second Canvas - Only show in edit mode */}
+          {isEditMode && (
+            <div className="flex-1 relative">
+              <div className="absolute top-2 left-2 z-10 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">
+                Manual Annotation
+              </div>
+              <div className="absolute top-2 right-2 z-10 flex space-x-2">
+                <button
+                  onClick={handleSaveManualAnnotations}
+                  className="bg-green-500 hover:bg-green-600 text-white p-2 rounded"
+                  title="Update and Save Changes"
+                >
+                  <Check className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={undoLastAction}
+                  className="bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded"
+                  title="Undo"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={clearSecondCanvas}
+                  className="bg-red-500 hover:bg-red-600 text-white p-2 rounded"
+                  title="Clear Canvas"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="relative w-full h-full">
+                <canvas
+                  ref={secondCanvasRef}
+                  className="absolute inset-0"
+                  style={{
+                    transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
+                    transformOrigin: 'center'
+                  }}
+                />
+                <canvas
+                  ref={secondOverlayCanvasRef}
+                  className="absolute inset-0 cursor-crosshair"
+                  style={{
+                    transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
+                    transformOrigin: 'center'
+                  }}
+                  onMouseDown={handleSecondCanvasMouseDown}
+                />
+              </div>
             </div>
-            <div className="absolute top-2 right-2 z-10 flex space-x-2">
-              <button
-                onClick={undoLastAction}
-                className="bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded"
-                title="Undo"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-              <button
-                onClick={clearSecondCanvas}
-                className="bg-red-500 hover:bg-red-600 text-white p-2 rounded"
-                title="Clear Canvas"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="relative w-full h-full">
-              <canvas
-                ref={secondCanvasRef}
-                className="absolute inset-0"
-                style={{
-                  transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
-                  transformOrigin: 'center'
-                }}
-              />
-              <canvas
-                ref={secondOverlayCanvasRef}
-                className="absolute inset-0 cursor-crosshair"
-                style={{
-                  transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
-                  transformOrigin: 'center'
-                }}
-                onMouseDown={handleSecondCanvasMouseDown}
-              />
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Zoom Controls */}
@@ -742,121 +683,211 @@ return (
         </div>
       </div>
 
-      {/* Right Sidebar */}
-      <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
-        {/* Class Selection */}
-        <div className="p-4 border-b border-gray-200">
-          <h4 className="font-semibold mb-3">Class Selection</h4>
-          <div className="space-y-2">
-            {classOptions.map((option) => (
-              <label key={option.value} className="flex items-center space-x-3 cursor-pointer">
-                <input
-                  type="radio"
-                  name="class"
-                  value={option.value}
-                  checked={selectedClass === option.value}
-                  onChange={(e) => setSelectedClass(e.target.value)}
-                  className="form-radio"
-                />
-                <div 
-                  className="w-4 h-4 rounded" 
-                  style={{ backgroundColor: option.color }}
-                />
-                <span className="text-sm font-medium">{option.label}</span>
-              </label>
-            ))}
+      {/* Right Sidebar - Only show in edit mode */}
+      {isEditMode && (
+        <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
+          {/* Class Selection */}
+          <div className="p-4 border-b border-gray-200">
+            <h4 className="font-semibold mb-3">Class Selection</h4>
+            <div className="space-y-2">
+              {classOptions.map((option) => (
+                <label key={option.value} className="flex items-center space-x-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="class"
+                    value={option.value}
+                    checked={selectedClass === option.value}
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                    className="form-radio"
+                  />
+                  <div 
+                    className="w-4 h-4 rounded" 
+                    style={{ backgroundColor: option.color }}
+                  />
+                  <span className="text-sm font-medium">{option.label}</span>
+                </label>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Toolbox */}
-        <div className="p-4 border-b border-gray-200">
-          <h4 className="font-semibold mb-3">Tools</h4>
-          <div className="grid grid-cols-3 gap-2">
-            {toolOptions.map((tool) => {
-              const IconComponent = tool.icon;
-              return (
-                <button
-                  key={tool.value}
-                  onClick={() => setSelectedTool(tool.value)}
-                  className={`p-3 rounded border-2 flex flex-col items-center space-y-1 ${
-                    selectedTool === tool.value
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <IconComponent className="w-5 h-5" />
-                  <span className="text-xs">{tool.label}</span>
-                </button>
-              );
-            })}
+          {/* Toolbox */}
+          <div className="p-4 border-b border-gray-200">
+            <h4 className="font-semibold mb-3">Tools</h4>
+            <div className="grid grid-cols-3 gap-2">
+              {toolOptions.map((tool) => {
+                const IconComponent = tool.icon;
+                return (
+                  <button
+                    key={tool.value}
+                    onClick={() => setSelectedTool(tool.value)}
+                    className={`p-3 rounded border-2 flex flex-col items-center space-y-1 ${
+                      selectedTool === tool.value
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <IconComponent className="w-5 h-5" />
+                    <span className="text-xs">{tool.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        {/* Mask List */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-4">
-            <h4 className="font-semibold mb-3">Available Masks</h4>
-            {availableMasksForStats.length === 0 ? (
-              <p className="text-gray-500 text-sm">No masks available for this slice</p>
-            ) : (
-              <div className="space-y-2">
-                {availableMasksForStats.map((mask, index) => {
-                  const maskId = `${mask.class}_${currentTimeIndex}_${currentLayerIndex}`;
-                  const isVisible = visibleMasks[maskId] !== false;
-                  const isSelected = selectedMask && selectedMask.class === mask.class;
-                  const stats = maskStats.find(s => s.class === mask.class);
-                  
-                  return (
-                    <div
-                      key={maskId}
-                      className={`p-3 border rounded cursor-pointer ${
-                        isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                      onClick={() => handleMaskClick(mask)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <div
-                            className="w-4 h-4 rounded"
-                            style={{ backgroundColor: getClassColor(mask.class) }}
-                          />
-                          <span className="font-medium text-sm">{mask.class}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleMaskVisibility(maskId);
-                            }}
-                            className="p-1 hover:bg-gray-100 rounded"
-                          >
-                            {isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              downloadMask(mask);
-                            }}
-                            className="p-1 hover:bg-gray-100 rounded"
-                          >
-                            <Download className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                      {showStats && stats && (
-                        <div className="mt-2 text-xs text-gray-600">
-                          <div>Pixels: {stats.pixelCount.toLocaleString()}</div>
-                          <div>Area: {stats.area.toFixed(2)} mm²</div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+          {/* Manual Annotation Actions */}
+          <div className="p-4 border-b border-gray-200">
+            <h4 className="font-semibold mb-3">Manual Annotation</h4>
+            <div className="space-y-3">
+              <button
+                onClick={handleSaveManualAnnotations}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+              >
+                <Check size={16} />
+                Update and Save Changes
+              </button>
+              <div className="text-xs text-gray-600">
+                <p>Drawing History: {drawingHistory.length} actions</p>
+                <p>Selected Class: <span className="font-medium" style={{ color: getClassColor(selectedClass) }}>{selectedClass}</span></p>
+                <p>Selected Tool: <span className="font-medium">{selectedTool}</span></p>
               </div>
-            )}
+            </div>
+          </div>
+
+          {/* Mask List - Collapsed in edit mode */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-4">
+              <h4 className="font-semibold mb-3">Available Masks</h4>
+              {availableMasksForStats.length === 0 ? (
+                <p className="text-gray-500 text-sm">No masks available for this slice</p>
+              ) : (
+                <div className="space-y-2">
+                  {availableMasksForStats.map((mask, index) => {
+                    const maskId = `${mask.class}_${currentTimeIndex}_${currentLayerIndex}`;
+                    const isVisible = visibleMasks[maskId] !== false;
+                    const isSelected = selectedMask && selectedMask.class === mask.class;
+                    const stats = maskStats.find(s => s.class === mask.class);
+                    
+                    return (
+                      <div
+                        key={maskId}
+                        className={`p-3 border rounded cursor-pointer ${
+                          isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        onClick={() => handleMaskClick(mask)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <div
+                              className="w-4 h-4 rounded"
+                              style={{ backgroundColor: getClassColor(mask.class) }}
+                            />
+                            <span className="font-medium text-sm">{mask.class}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleMaskVisibility(maskId);
+                              }}
+                              className="p-1 hover:bg-gray-100 rounded"
+                            >
+                              {isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                downloadMask(mask);
+                              }}
+                              className="p-1 hover:bg-gray-100 rounded"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        {showStats && stats && (
+                          <div className="mt-2 text-xs text-gray-600">
+                            <div>Pixels: {stats.pixelCount.toLocaleString()}</div>
+                            <div>Area: {stats.area.toFixed(2)} mm²</div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Simplified Mask List when not in edit mode */}
+      {!isEditMode && (
+        <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-4">
+              <h4 className="font-semibold mb-3">Available Masks</h4>
+              {availableMasksForStats.length === 0 ? (
+                <p className="text-gray-500 text-sm">No masks available for this slice</p>
+              ) : (
+                <div className="space-y-2">
+                  {availableMasksForStats.map((mask, index) => {
+                    const maskId = `${mask.class}_${currentTimeIndex}_${currentLayerIndex}`;
+                    const isVisible = visibleMasks[maskId] !== false;
+                    const isSelected = selectedMask && selectedMask.class === mask.class;
+                    const stats = maskStats.find(s => s.class === mask.class);
+                    
+                    return (
+                      <div
+                        key={maskId}
+                        className={`p-3 border rounded cursor-pointer ${
+                          isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        onClick={() => handleMaskClick(mask)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <div
+                              className="w-4 h-4 rounded"
+                              style={{ backgroundColor: getClassColor(mask.class) }}
+                            />
+                            <span className="font-medium text-sm">{mask.class}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleMaskVisibility(maskId);
+                              }}
+                              className="p-1 hover:bg-gray-100 rounded"
+                            >
+                              {isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                downloadMask(mask);
+                              }}
+                              className="p-1 hover:bg-gray-100 rounded"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        {showStats && stats && (
+                          <div className="mt-2 text-xs text-gray-600">
+                            <div>Pixels: {stats.pixelCount.toLocaleString()}</div>
+                            <div>Area: {stats.area.toFixed(2)} mm²</div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   </div>
 );

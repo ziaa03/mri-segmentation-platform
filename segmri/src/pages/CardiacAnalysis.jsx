@@ -836,6 +836,7 @@ const handleSave = async () => {
                     selectedMask={selectedMask}
                     onUploadSelectedMask={handleUploadSelectedMask}  
                     projectId={projectId} 
+                    onSave={handleSave}
                   />
                 </div>
               </div>
