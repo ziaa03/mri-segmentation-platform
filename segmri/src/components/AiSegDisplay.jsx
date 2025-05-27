@@ -63,6 +63,7 @@ const AISegmentationDisplay = ({
 
   // New state for edit mode
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isDrawingOnSecondCanvas, setIsDrawingOnSecondCanvas] = useState(false); // New state
 
   // New states for toolbox controls
   const [selectedClass, setSelectedClass] = useState('MYO');
@@ -340,12 +341,26 @@ const AISegmentationDisplay = ({
         
         // Re-apply all remaining drawing actions
         newHistory.forEach(action => {
-          // Apply drawing action based on type
-          // This would need to be implemented based on your drawing logic
+          if ((action.type === 'brush' || action.type === 'eraser') && action.points && action.points.length > 0) {
+            overlayCtx.globalCompositeOperation = action.type === 'eraser' ? 'destination-out' : 'source-over';
+            overlayCtx.strokeStyle = getClassColor(action.class);
+            overlayCtx.lineWidth = action.lineWidth || 5; // Use stored lineWidth or default
+            overlayCtx.lineCap = action.lineCap || 'round'; // Use stored lineCap or default
+            overlayCtx.lineJoin = action.lineJoin || 'round'; // Use stored lineJoin or default
+            
+            overlayCtx.beginPath();
+            overlayCtx.moveTo(action.points[0].x, action.points[0].y);
+            for (let i = 1; i < action.points.length; i++) {
+              overlayCtx.lineTo(action.points[i].x, action.points[i].y);
+            }
+            overlayCtx.stroke();
+          }
+          // Add logic for other tool types if any (e.g., bounding box)
         });
+        overlayCtx.globalCompositeOperation = 'source-over'; // Reset composite operation
       }
     }
-  }, [drawingHistory, canvasDimensions]);
+  }, [drawingHistory, canvasDimensions, getClassColor, secondOverlayCanvasRef]);
 
   // Load extracted images when projectId changes - Updated to use new utilities
   useEffect(() => {
@@ -513,6 +528,7 @@ const maskStats = React.useMemo(() => availableMasksForStats.map(mask => {
 // Add drawing functionality for second canvas
 const handleSecondCanvasMouseDown = useCallback((e) => {
   if (selectedTool === 'brush' || selectedTool === 'eraser') {
+    setIsDrawingOnSecondCanvas(true); // Start drawing
     const canvas = secondOverlayCanvasRef.current;
     if (!canvas) return;
     
@@ -523,18 +539,77 @@ const handleSecondCanvasMouseDown = useCallback((e) => {
     const ctx = canvas.getContext('2d');
     ctx.globalCompositeOperation = selectedTool === 'eraser' ? 'destination-out' : 'source-over';
     ctx.strokeStyle = getClassColor(selectedClass);
-    ctx.lineWidth = 5;
-    ctx.lineCap = 'round';
+    const currentBrushSize = 5; // TODO: Make this dynamic if needed
+    const currentLineCap = 'round';
+    const currentLineJoin = 'round';
+
+    ctx.lineWidth = currentBrushSize;
+    ctx.lineCap = currentLineCap;
+    ctx.lineJoin = currentLineJoin;
     ctx.beginPath();
     ctx.moveTo(x, y);
     
     setDrawingHistory(prev => [...prev, { 
       type: selectedTool, 
       class: selectedClass, 
+      lineWidth: currentBrushSize,
+      lineCap: currentLineCap,
+      lineJoin: currentLineJoin,
       points: [{ x, y }] 
     }]);
   }
-}, [selectedTool, selectedClass, getClassColor]);
+  // Add logic for other tools like bounding box if needed
+}, [selectedTool, selectedClass, getClassColor, secondOverlayCanvasRef]);
+
+const handleSecondCanvasMouseMove = useCallback((e) => {
+  if (!isDrawingOnSecondCanvas || !(selectedTool === 'brush' || selectedTool === 'eraser')) return;
+
+  const canvas = secondOverlayCanvasRef.current;
+  if (!canvas) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  const ctx = canvas.getContext('2d');
+  // Styles (lineWidth, strokeStyle, globalCompositeOperation, lineCap, lineJoin) are set on mousedown
+  // and persist for the current stroke.
+  ctx.lineTo(x, y);
+  ctx.stroke();
+
+  setDrawingHistory(prevHistory => {
+    const newHistory = [...prevHistory];
+    if (newHistory.length > 0) {
+      const lastActionIndex = newHistory.length - 1;
+      const lastAction = newHistory[lastActionIndex];
+      // Ensure we are updating the correct type of action and it has points
+      if ((lastAction.type === 'brush' || lastAction.type === 'eraser') && lastAction.points) {
+        newHistory[lastActionIndex] = {
+          ...lastAction,
+          points: [...lastAction.points, { x, y }],
+        };
+      }
+    }
+    return newHistory;
+  });
+  
+  // Prepare for the next segment of the stroke
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+
+}, [isDrawingOnSecondCanvas, selectedTool, secondOverlayCanvasRef]);
+
+const handleSecondCanvasMouseUp = useCallback(() => {
+  if (isDrawingOnSecondCanvas) {
+    setIsDrawingOnSecondCanvas(false); // Stop drawing
+    const canvas = secondOverlayCanvasRef.current;
+    if (canvas && (selectedTool === 'brush' || selectedTool === 'eraser')) {
+      const ctx = canvas.getContext('2d');
+      ctx.closePath(); // End the current path
+      // Drawing history is already updated by mouseMove
+    }
+  }
+}, [isDrawingOnSecondCanvas, selectedTool, secondOverlayCanvasRef]);
 
 // Return the JSX with the new features
 return (
@@ -662,6 +737,9 @@ return (
                     transformOrigin: 'center'
                   }}
                   onMouseDown={handleSecondCanvasMouseDown}
+                  onMouseMove={handleSecondCanvasMouseMove}
+                  onMouseUp={handleSecondCanvasMouseUp}
+                  onMouseLeave={handleSecondCanvasMouseUp} // Stop drawing if mouse leaves canvas
                 />
               </div>
             </div>

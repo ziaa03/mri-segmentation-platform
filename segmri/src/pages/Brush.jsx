@@ -6,12 +6,6 @@ const Tools = {
   BOUNDING_BOX: 'boundingBox'
 };
 
-const SegmentationClasses = {
-  CLASS_1: { name: 'Class 1 (e.g., RV)', color: '#FF6B6B' }, // Red
-  CLASS_2: { name: 'Class 2 (e.g., LV)', color: '#4ECDC4' }, // Teal
-  CLASS_3: { name: 'Class 3 (e.g., MYO)', color: '#FFA726' }  // Orange
-};
-
 // Renamed prop currentSliceImageSrc to initialMaskDataUrl
 // Added canvasWidth, canvasHeight, onConfirmEdits, onCancelEdits
 const Brush = ({ initialMaskDataUrl, canvasWidth, canvasHeight, onConfirmEdits, onCancelEdits }) => {
