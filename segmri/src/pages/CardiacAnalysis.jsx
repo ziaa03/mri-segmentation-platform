@@ -7,6 +7,8 @@ import VisualizationControls from '../components/VisualizationControls';
 import AISegmentationDisplay from '../components/AiSegDisplay';
 import Notification from '../components/Notifications';
 import api from '../api/AxiosInstance';
+import { useNavigate, UNSAFE_NavigationContext as NavigationContext } from "react-router-dom";
+import { useContext } from "react";
 
 import { 
   processAndUploadMasks, 
@@ -14,6 +16,24 @@ import {
   uploadMaskToS3,
   decodeRLE 
 } from '../utils/RLE-Decoder';
+
+function useNavigationPrompt(when, message) {
+  const navigator = useContext(NavigationContext).navigator;
+
+  useEffect(() => {
+    if (!when) return;
+    const push = navigator.push;
+    navigator.push = (...args) => {
+      if (window.confirm(message)) {
+        navigator.push = push;
+        push(...args);
+      }
+    };
+    return () => {
+      navigator.push = push;
+    };
+  }, [when, message, navigator]);
+}
 
 const CardiacAnalysisPage = () => {
   // File upload states
@@ -52,6 +72,34 @@ const CardiacAnalysisPage = () => {
   const [statusCheckInterval, setStatusCheckInterval] = useState(null);
 
   const location = useLocation();
+
+  // track if the project is saved
+  const [isSaved, setIsSaved] = useState(true);
+
+  useNavigationPrompt(
+    processingComplete && !isSaved,
+    "⚠️ Warning: You have unsaved results. If you leave this page now, your changes will be lost. Are you sure you want to continue without saving?"
+  );
+
+  useEffect(() => {
+    if (processingComplete && segmentationData) {
+      setIsSaved(false); // Mark as unsaved when new results are ready
+    }
+  }, [processingComplete, segmentationData]);
+
+  // Warn user on page unload if processing is complete and not saved
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (processingComplete && !isSaved) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [processingComplete, isSaved]);
+
+
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -727,6 +775,7 @@ const handleSave = async () => {
     // Check if the response indicates success
     if (response.data && response.data.success) {
       alert('Project saved successfully.');
+      setIsSaved(true); // Mark as saved
     } else {
       // Handle case where request succeeded but operation failed
       const errorMsg = response.data?.message || 'Unknown error occurred';
@@ -811,7 +860,7 @@ const handleSave = async () => {
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="bg-white rounded-xl shadow-xl overflow-hidden border border-gray-200"
+            className="bg-white rounded-xl shadow-xl overflow-hidden border border-gray-200 mt-8"
           >
             <div className="bg-gradient-to-r from-orange-500 to-red-500 p-6 text-white">
               <div className="flex items-center justify-between">
