@@ -1,31 +1,26 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Eye, EyeOff, Download, Upload, Info, RotateCcw, ZoomIn, ZoomOut, Play, Pause, Grid, Layers } from 'lucide-react';
+import { Eye, EyeOff, Download, Upload, Info, RotateCcw, ZoomIn, ZoomOut, Play, Pause, Grid, Layers, Square, Eraser, Brush, Trash2 } from 'lucide-react';
 import api from '../api/AxiosInstance'; // Ensure this path is correct for your project structure
 import { decodeRLE } from '../utils/RLE-Decoder'; // Assuming encodeRLE is not used in this component
 import { renderMaskOnCanvas } from '../utils/RLE-Decoder';
 
-// Enhanced Medical Image Loading Functions (fetchPresignedUrl, parseTarFile, fetchAndExtractTarFile, processExtractedImages)
-// These functions (fetchPresignedUrl, parseTarFile, fetchAndExtractTarFile, processExtractedImages)
-// should remain as they are in your existing code. For brevity, they are not repeated here.
-// Make sure they are defined before AISegmentationDisplay or imported if they are in a separate utility file.
-
 // Placeholder for the medical image loading functions from your existing code
 const fetchPresignedUrl = async (projectId) => {
-  console.log('🔍 Fetching presigned URL for projectId:', projectId);
+  console.log('Fetching presigned URL for projectId:', projectId);
   try {
     const response = await api.get(`/project/get-project-presigned-url?projectId=${projectId}`);
-    console.log('📡 Response:', { status: response.status, data: response.data });
+    console.log('Response:', { status: response.status, data: response.data });
     const data = response.data;
     if (data && data.success === false) throw new Error(data.message || 'Backend returned an error');
     const presignedUrl = data?.presignedUrl || data?.url || data?.data?.presignedUrl;
     if (!presignedUrl) {
-      console.error('❌ No presigned URL found. Response keys:', Object.keys(data || {}));
+      console.error('No presigned URL found. Response keys:', Object.keys(data || {}));
       throw new Error('No presigned URL found in response');
     }
-    console.log('✅ Got presigned URL');
+    console.log('Got presigned URL');
     return presignedUrl;
   } catch (error) {
-    console.error('❌ Error fetching presigned URL:', error);
+    console.error('Error fetching presigned URL:', error);
     throw error;
   }
 };
@@ -109,7 +104,6 @@ const processExtractedImages = (extractedFiles) => {
   }
 };
 
-
 const AISegmentationDisplay = ({
   segmentationData,
   currentTimeIndex,
@@ -122,6 +116,8 @@ const AISegmentationDisplay = ({
 }) => {
   const canvasRef = useRef(null);
   const overlayCanvasRef = useRef(null);
+  const secondCanvasRef = useRef(null);
+  const secondOverlayCanvasRef = useRef(null);
 
   // State for dynamic canvas dimensions
   const [canvasDimensions, setCanvasDimensions] = useState({ width: 512, height: 512 });
@@ -135,9 +131,11 @@ const AISegmentationDisplay = ({
   const [isDragging, setIsDragging] = useState(false);
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
   const [showStats, setShowStats] = useState(true);
-  const [showGrid, setShowGrid] = useState(false);
-  // const [isAutoPlaying, setIsAutoPlaying] = useState(false); // Assuming this might be used later
-  // const [playSpeed, setPlaySpeed] = useState(500); // Assuming this might be used later
+
+  // New states for toolbox controls
+  const [selectedClass, setSelectedClass] = useState('MYO');
+  const [selectedTool, setSelectedTool] = useState('brush');
+  const [drawingHistory, setDrawingHistory] = useState([]);
 
   const [extractedImages, setExtractedImages] = useState([]);
   const [currentImage, setCurrentImage] = useState(null);
@@ -145,6 +143,20 @@ const AISegmentationDisplay = ({
   const [imageError, setImageError] = useState(null);
   const [availableFrames, setAvailableFrames] = useState([]);
   const [availableSlices, setAvailableSlices] = useState([]);
+
+  // Class options for radio buttons
+  const classOptions = [
+    { value: 'MYO', label: 'MYO', color: '#FFA726' },
+    { value: 'LV', label: 'LV', color: '#4ECDC4' },
+    { value: 'RV', label: 'RV', color: '#FF6B6B' }
+  ];
+
+  // Tool options
+  const toolOptions = [
+    { value: 'brush', label: 'Brush', icon: Brush },
+    { value: 'eraser', label: 'Eraser', icon: Eraser },
+    { value: 'boundingbox', label: 'Bounding Box', icon: Square }
+  ];
 
   // Fetch project dimensions when projectId changes
   useEffect(() => {
@@ -241,19 +253,17 @@ const AISegmentationDisplay = ({
 
       } catch (error) {
         console.error('Error rendering image:', error);
-        // renderFallbackBackground(ctx, targetCanvasWidth, targetCanvasHeight); // Defined below
         if (callback) callback();
       }
     };
 
     img.onerror = (error) => {
       console.error('Error loading image:', error);
-      // renderFallbackBackground(ctx, targetCanvasWidth, targetCanvasHeight); // Defined below
       if (callback) callback();
     };
 
     img.src = imageUrl;
-  }, []); // No dependencies needed if renderFallbackBackground is also stable or part of it
+  }, []);
 
   const renderFallbackBackground = useCallback((ctx, width, height) => {
     console.log('Rendering fallback background');
@@ -294,7 +304,6 @@ const AISegmentationDisplay = ({
     ctx.textAlign = 'left';
   }, []);
 
-
   const getCurrentSliceData = useCallback(() => {
     if (!segmentationData?.masks?.[currentTimeIndex]?.[currentLayerIndex]) {
       return null;
@@ -327,7 +336,7 @@ const AISegmentationDisplay = ({
     console.log('Background rendered successfully');
   }, [currentImage, currentTimeIndex, currentLayerIndex, renderImageToCanvas, renderFallbackBackground, setImageTransform]);
 
-  const renderCanvas = useCallback(() => {
+  const renderCanvas = useCallback((canvasRef, overlayCanvasRef) => {
     console.log('=== CANVAS RENDERING START ===');
     const canvas = canvasRef.current;
     const overlayCanvas = overlayCanvasRef.current;
@@ -380,41 +389,54 @@ const AISegmentationDisplay = ({
       }
     });
 
-    sliceData.boundingBoxes?.forEach((box) => {
-      if (box.x_min !== undefined && box.y_min !== undefined && box.x_max !== undefined && box.y_max !== undefined) {
-        // Note: Bounding box coordinates might need scaling if they are relative to original image
-        // and not the canvas. Assuming they are already scaled or relative to canvas for now.
-        // If imageTransform is applied, bounding boxes should also use it.
-        let x_min = box.x_min, y_min = box.y_min, box_width = box.x_max - box.x_min, box_height = box.y_max - box.y_min;
-
-        if (imageTransform) {
-          // Scale and offset bounding box coordinates based on imageTransform
-          // This assumes box coordinates are relative to the original image dimensions
-          x_min = box.x_min * imageTransform.scaleX + imageTransform.offsetX;
-          y_min = box.y_min * imageTransform.scaleY + imageTransform.offsetY;
-          box_width = (box.x_max - box.x_min) * imageTransform.scaleX;
-          box_height = (box.y_max - box.y_min) * imageTransform.scaleY;
-        }
-
-        overlayCtx.strokeStyle = getClassColor(box.class);
-        overlayCtx.lineWidth = 2;
-        overlayCtx.strokeRect(x_min, y_min, box_width, box_height);
-
-        overlayCtx.fillStyle = getClassColor(box.class);
-        overlayCtx.font = 'bold 12px Arial';
-        const textMetrics = overlayCtx.measureText(box.class);
-        overlayCtx.fillRect(x_min, y_min - 18, textMetrics.width + 6, 16);
-        overlayCtx.fillStyle = 'white';
-        overlayCtx.fillText(box.class, x_min + 3, y_min - 5);
-      }
-    });
-
     console.log('=== CANVAS RENDERING COMPLETE ===');
   }, [
     segmentationData, currentTimeIndex, currentLayerIndex, visibleMasks,
     maskOpacity, renderBackground, canvasDimensions, imageTransform,
     getCurrentSliceData, getClassColor
   ]);
+
+  // Clear canvas function for second display
+  const clearSecondCanvas = useCallback(() => {
+    const canvas = secondCanvasRef.current;
+    const overlayCanvas = secondOverlayCanvasRef.current;
+    
+    if (canvas && overlayCanvas) {
+      const ctx = canvas.getContext('2d');
+      const overlayCtx = overlayCanvas.getContext('2d');
+      
+      ctx.clearRect(0, 0, canvasDimensions.width, canvasDimensions.height);
+      overlayCtx.clearRect(0, 0, canvasDimensions.width, canvasDimensions.height);
+      
+      // Re-render background
+      renderBackground(ctx, canvasDimensions.width, canvasDimensions.height);
+    }
+    
+    // Clear drawing history
+    setDrawingHistory([]);
+  }, [canvasDimensions, renderBackground]);
+
+  // Undo function for second display
+  const undoLastAction = useCallback(() => {
+    if (drawingHistory.length > 0) {
+      const newHistory = [...drawingHistory];
+      newHistory.pop();
+      setDrawingHistory(newHistory);
+      
+      // Re-render canvas with remaining history
+      const overlayCanvas = secondOverlayCanvasRef.current;
+      if (overlayCanvas) {
+        const overlayCtx = overlayCanvas.getContext('2d');
+        overlayCtx.clearRect(0, 0, canvasDimensions.width, canvasDimensions.height);
+        
+        // Re-apply all remaining drawing actions
+        newHistory.forEach(action => {
+          // Apply drawing action based on type
+          // This would need to be implemented based on your drawing logic
+        });
+      }
+    }
+  }, [drawingHistory, canvasDimensions]);
 
   // Load extracted images when projectId changes
   useEffect(() => {
@@ -468,8 +490,9 @@ const AISegmentationDisplay = ({
   }, [extractedImages, currentTimeIndex, currentLayerIndex]);
 
   useEffect(() => {
-    renderCanvas();
-  }, [renderCanvas]); // renderCanvas has its own dependencies including canvasDimensions
+    renderCanvas(canvasRef, overlayCanvasRef);
+    renderCanvas(secondCanvasRef, secondOverlayCanvasRef);
+  }, [renderCanvas]);
 
   useEffect(() => {
     const sliceData = getCurrentSliceData();
@@ -542,195 +565,284 @@ const AISegmentationDisplay = ({
   const sliceDataForStats = getCurrentSliceData();
   const availableMasksForStats = sliceDataForStats?.segmentationMasks || [];
 
-  const maskStats = React.useMemo(() => availableMasksForStats.map(mask => {
-    try {
-      const { width, height } = canvasDimensions; // Use dynamic dimensions
-      const rleData = mask.segmentationmaskcontents || mask.rle;
-      const binaryMask = decodeRLE(rleData, height, width); // Use dynamic dimensions
-      const pixelCount = binaryMask.reduce((sum, pixel) => sum + pixel, 0);
-      const area = pixelCount * 0.25; // Assuming pixel size of 0.5mm x 0.5mm, adjust if needed
-      const percentage = ((pixelCount / (width * height)) * 100).toFixed(1);
-      return { ...mask, pixelCount, area, percentage };
-    } catch {
-      return { ...mask, pixelCount: 0, area: 0, percentage: '0.0' };
-    }
-  }), [availableMasksForStats, canvasDimensions]);
+  // Complete the maskStats calculation
+const maskStats = React.useMemo(() => availableMasksForStats.map(mask => {
+  try {
+    const { width, height } = canvasDimensions;
+    const rleData = mask.segmentationmaskcontents || mask.rle;
+    const binaryMask = decodeRLE(rleData, height, width);
+    const pixelCount = binaryMask.reduce((sum, pixel) => sum + pixel, 0);
+    const area = pixelCount * 0.25; // Assuming 0.25 mm² per pixel
+    return { ...mask, pixelCount, area };
+  } catch (error) {
+    console.error('Error calculating stats for mask:', mask.class, error);
+    return { ...mask, pixelCount: 0, area: 0 };
+  }
+}), [availableMasksForStats, canvasDimensions]);
 
-  return (
-    <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <h4 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-              <Layers size={20} className="text-blue-600" />
-              AI Segmentation Display
-              {isLoadingImages && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>}
-            </h4>
-            <p className="text-sm text-gray-600 mt-1">
-              Frame {availableFrames.length > 0 ? currentTimeIndex + 1 : '?'} • Slice {availableSlices.length > 0 ? currentLayerIndex + 1 : '?'} •
-              {canvasDimensions.width}x{canvasDimensions.height}px •
-              {availableMasksForStats.length} masks
-              {imageError && <span className="text-red-500"> • Image Error</span>}
-            </p>
-            {currentImage && (
-              <p className="text-xs text-green-600 mt-1">Current Image: {currentImage.name}</p>
-            )}
+// Add drawing functionality for second canvas
+const handleSecondCanvasMouseDown = useCallback((e) => {
+  if (selectedTool === 'brush' || selectedTool === 'eraser') {
+    const canvas = secondOverlayCanvasRef.current;
+    if (!canvas) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    const ctx = canvas.getContext('2d');
+    ctx.globalCompositeOperation = selectedTool === 'eraser' ? 'destination-out' : 'source-over';
+    ctx.strokeStyle = getClassColor(selectedClass);
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    
+    setDrawingHistory(prev => [...prev, { 
+      type: selectedTool, 
+      class: selectedClass, 
+      points: [{ x, y }] 
+    }]);
+  }
+}, [selectedTool, selectedClass, getClassColor]);
+
+// Return the JSX with the new features
+return (
+  <div className="flex flex-col h-full bg-gray-100">
+    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                  <Layers size={20} className="text-blue-600" />
+                  AI Segmentation Display
+                  {isLoadingImages && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>}
+                </h4>
+                <p className="text-sm text-gray-600 mt-1">
+                  Frame {availableFrames.length > 0 ? currentTimeIndex + 1 : '?'} • Slice {availableSlices.length > 0 ? currentLayerIndex + 1 : '?'} • 
+                  {canvasDimensions.width} x {canvasDimensions.height} px • 
+                  {availableMasksForStats.length} masks
+                  {imageError && <span className="text-red-500"> • Image Error</span>}
+                </p>
+                {currentImage && (
+                  <p className="text-xs text-green-600 mt-1">Current Image: {currentImage.name}</p>
+                )}
+              </div>
+              {/* ... other header buttons ... */}
+            </div>
           </div>
-          {/* ... other header buttons ... */}
+
+    <div className="flex flex-1">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col">
+        {/* Canvas Display Area */}
+        <div className="flex-1 flex">
+          {/* First Canvas */}
+          <div className="flex-1 relative border-r border-gray-300">
+            <div className="absolute top-2 left-2 z-10 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">
+              Original AI Segmentation
+            </div>
+            <div 
+              className="relative w-full h-full cursor-move"
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+            >
+              <canvas
+                ref={canvasRef}
+                className="absolute inset-0"
+                style={{
+                  transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
+                  transformOrigin: 'center'
+                }}
+              />
+              <canvas
+                ref={overlayCanvasRef}
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
+                  transformOrigin: 'center'
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Second Canvas */}
+          <div className="flex-1 relative">
+            <div className="absolute top-2 left-2 z-10 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">
+              Manual Annotation
+            </div>
+            <div className="absolute top-2 right-2 z-10 flex space-x-2">
+              <button
+                onClick={undoLastAction}
+                className="bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded"
+                title="Undo"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+              <button
+                onClick={clearSecondCanvas}
+                className="bg-red-500 hover:bg-red-600 text-white p-2 rounded"
+                title="Clear Canvas"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="relative w-full h-full">
+              <canvas
+                ref={secondCanvasRef}
+                className="absolute inset-0"
+                style={{
+                  transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
+                  transformOrigin: 'center'
+                }}
+              />
+              <canvas
+                ref={secondOverlayCanvasRef}
+                className="absolute inset-0 cursor-crosshair"
+                style={{
+                  transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
+                  transformOrigin: 'center'
+                }}
+                onMouseDown={handleSecondCanvasMouseDown}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Zoom Controls */}
+        <div className="bg-white border-t border-gray-200 p-2 flex justify-center space-x-2">
+          <button onClick={() => handleZoom(-0.2)} className="p-2 hover:bg-gray-100 rounded">
+            <ZoomOut className="w-4 h-4" />
+          </button>
+          <span className="px-4 py-2 text-sm">{Math.round(zoomLevel * 100)}%</span>
+          <button onClick={() => handleZoom(0.2)} className="p-2 hover:bg-gray-100 rounded">
+            <ZoomIn className="w-4 h-4" />
+          </button>
+          <button onClick={resetView} className="p-2 hover:bg-gray-100 rounded">
+            <RotateCcw className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
-      <div className="p-6">
-        <div className="relative mb-6">
-          <div
-            className="canvas-container relative border-2 border-gray-300 rounded-lg overflow-hidden bg-black shadow-inner"
-            style={{
-              width: `${canvasDimensions.width}px`,  // Dynamic CSS width
-              height: `${canvasDimensions.height}px`, // Dynamic CSS height
-              transform: `scale(${zoomLevel}) translate(${panOffset.x}px, ${panOffset.y}px)`,
-              transformOrigin: 'center center',
-              cursor: isDragging ? 'grabbing' : 'grab'
-            }}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp} // Important to stop dragging if mouse leaves canvas container
-          >
-            <canvas
-              ref={canvasRef}
-              className="background-canvas absolute top-0 left-0"
-              // width & height attributes are set in renderCanvas
-              style={{
-                width: `${canvasDimensions.width}px`,  // Dynamic CSS width
-                height: `${canvasDimensions.height}px`, // Dynamic CSS height
-                display: 'block'
-              }}
-            />
-            <canvas
-              ref={overlayCanvasRef}
-              className="overlay-canvas absolute top-0 left-0"
-              // width & height attributes are set in renderCanvas
-              style={{
-                width: `${canvasDimensions.width}px`,  // Dynamic CSS width
-                height: `${canvasDimensions.height}px`, // Dynamic CSS height
-                display: 'block',
-                pointerEvents: 'auto' // If you need to interact with overlay
-              }}
-            />
-            <div className="absolute top-2 left-2 bg-black/70 text-white text-xs p-2 rounded pointer-events-none">
-              <div>Frame: {currentTimeIndex + 1} / {availableFrames.length || '?'}</div>
-              <div>Slice: {currentLayerIndex + 1} / {availableSlices.length || '?'}</div>
-              <div>Dim: {canvasDimensions.width}x{canvasDimensions.height}</div>
-              <div>Zoom: {Math.round(zoomLevel * 100)}%</div>
-              <div>Images: {isLoadingImages ? 'Loading...' : `${extractedImages.length} loaded`}</div>
-              <div>Current Img: {currentImage ? '✅' : '❌'}</div>
-              <div>Transform: {imageTransform ? '✅' : '❌'}</div>
-            </div>
-          </div>
-
-          {/* ... Zoom and Opacity Controls ... */}
-          <div className="absolute top-4 right-4 flex flex-col space-y-2">
-            <button onClick={() => handleZoom(0.2)} className="p-2 bg-white/90 hover:bg-white text-gray-700 rounded-lg shadow-md transition-all backdrop-blur-sm"><ZoomIn size={16} /></button>
-            <button onClick={() => handleZoom(-0.2)} className="p-2 bg-white/90 hover:bg-white text-gray-700 rounded-lg shadow-md transition-all backdrop-blur-sm"><ZoomOut size={16} /></button>
-            <div className="text-xs text-white bg-black/50 px-2 py-1 rounded text-center backdrop-blur-sm">{Math.round(zoomLevel * 100)}%</div>
-          </div>
-          <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm rounded-lg p-3 shadow-md border border-gray-200">
-            <label className="text-sm font-medium text-gray-700 block mb-2">Mask Opacity</label>
-            <div className="flex items-center gap-2">
-              <input type="range" min="0" max="1" step="0.1" value={maskOpacity} onChange={(e) => setMaskOpacity(parseFloat(e.target.value))} className="w-24 accent-blue-500" />
-              <span className="text-xs text-gray-600 min-w-[3ch]">{Math.round(maskOpacity * 100)}%</span>
-            </div>
+      {/* Right Sidebar */}
+      <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
+        {/* Class Selection */}
+        <div className="p-4 border-b border-gray-200">
+          <h4 className="font-semibold mb-3">Class Selection</h4>
+          <div className="space-y-2">
+            {classOptions.map((option) => (
+              <label key={option.value} className="flex items-center space-x-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="class"
+                  value={option.value}
+                  checked={selectedClass === option.value}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                  className="form-radio"
+                />
+                <div 
+                  className="w-4 h-4 rounded" 
+                  style={{ backgroundColor: option.color }}
+                />
+                <span className="text-sm font-medium">{option.label}</span>
+              </label>
+            ))}
           </div>
         </div>
 
-        {/* Image Navigation Controls */}
-        {extractedImages.length > 0 && (
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <h5 className="text-sm font-semibold text-gray-800 mb-3">Image Navigation</h5>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-gray-600 block mb-1">Available Frames:</label>
-                <div className="text-sm text-gray-800">{availableFrames.join(', ') || 'None'}</div>
-              </div>
-              <div>
-                <label className="text-xs text-gray-600 block mb-1">Available Slices:</label>
-                <div className="text-sm text-gray-800">{availableSlices.join(', ') || 'None'}</div>
-              </div>
-            </div>
+        {/* Toolbox */}
+        <div className="p-4 border-b border-gray-200">
+          <h4 className="font-semibold mb-3">Tools</h4>
+          <div className="grid grid-cols-3 gap-2">
+            {toolOptions.map((tool) => {
+              const IconComponent = tool.icon;
+              return (
+                <button
+                  key={tool.value}
+                  onClick={() => setSelectedTool(tool.value)}
+                  className={`p-3 rounded border-2 flex flex-col items-center space-y-1 ${
+                    selectedTool === tool.value
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <IconComponent className="w-5 h-5" />
+                  <span className="text-xs">{tool.label}</span>
+                </button>
+              );
+            })}
           </div>
-        )}
+        </div>
 
-        {/* Mask Controls */}
-        {availableMasksForStats.length > 0 && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h5 className="text-lg font-semibold text-gray-800">Segmentation Masks</h5>
-              {/* ... Toggle All button ... */}
-            </div>
-            <div className="grid grid-cols-1 gap-3">
-              {availableMasksForStats.map((mask, index) => {
-                const maskId = `${mask.class}_${currentTimeIndex}_${currentLayerIndex}`;
-                const isVisible = visibleMasks[maskId] !== false;
-                const isSelected = selectedMask?.class === mask.class && selectedMask?.frameIndex === currentTimeIndex && selectedMask?.sliceIndex === currentLayerIndex;
-                const stats = maskStats[index];
-                return (
-                  <div key={maskId} className={`p-4 rounded-lg border-2 transition-all ${isSelected ? 'border-blue-400 bg-blue-50 shadow-md' : 'border-gray-200 bg-gray-50 hover:border-gray-300 hover:shadow-sm'}`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3 cursor-pointer flex-1" onClick={() => handleMaskClick(mask)}>
-                        <div className="w-6 h-6 rounded-full border-2 border-white shadow-md flex-shrink-0" style={{ backgroundColor: getClassColor(mask.class) }} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center space-x-2">
-                            <span className="font-semibold text-gray-800">{mask.class}</span>
-                            {mask.confidence && (<span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">{(mask.confidence * 100).toFixed(1)}%</span>)}
-                          </div>
-                          {showStats && stats && (
-                            <div className="text-xs text-gray-600 mt-1 space-y-1">
-                              <div>{stats.pixelCount?.toLocaleString()} pixels ({stats.percentage}% of image)</div>
-                              <div>{stats.area?.toFixed(1)} mm² area</div>
-                            </div>
-                          )}
+        {/* Mask List */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-4">
+            <h4 className="font-semibold mb-3">Available Masks</h4>
+            {availableMasksForStats.length === 0 ? (
+              <p className="text-gray-500 text-sm">No masks available for this slice</p>
+            ) : (
+              <div className="space-y-2">
+                {availableMasksForStats.map((mask, index) => {
+                  const maskId = `${mask.class}_${currentTimeIndex}_${currentLayerIndex}`;
+                  const isVisible = visibleMasks[maskId] !== false;
+                  const isSelected = selectedMask && selectedMask.class === mask.class;
+                  const stats = maskStats.find(s => s.class === mask.class);
+                  
+                  return (
+                    <div
+                      key={maskId}
+                      className={`p-3 border rounded cursor-pointer ${
+                        isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                      onClick={() => handleMaskClick(mask)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <div
+                            className="w-4 h-4 rounded"
+                            style={{ backgroundColor: getClassColor(mask.class) }}
+                          />
+                          <span className="font-medium text-sm">{mask.class}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleMaskVisibility(maskId);
+                            }}
+                            className="p-1 hover:bg-gray-100 rounded"
+                          >
+                            {isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              downloadMask(mask);
+                            }}
+                            className="p-1 hover:bg-gray-100 rounded"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2 flex-shrink-0">
-                        <button onClick={() => downloadMask(mask)} className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Download Mask"><Download size={16} /></button>
-                        {onUploadSelectedMask && (<button onClick={() => onUploadSelectedMask(mask)} className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Upload to S3"><Upload size={16} /></button>)}
-                        <button onClick={() => toggleMaskVisibility(maskId)} className={`p-2 rounded-lg transition-colors ${isVisible ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' : 'text-gray-400 bg-gray-100 hover:bg-gray-200'}`} title={isVisible ? 'Hide Mask' : 'Show Mask'}>{isVisible ? <Eye size={16} /> : <EyeOff size={16} />}</button>
-                      </div>
+                      {showStats && stats && (
+                        <div className="mt-2 text-xs text-gray-600">
+                          <div>Pixels: {stats.pixelCount.toLocaleString()}</div>
+                          <div>Area: {stats.area.toFixed(2)} mm²</div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-        {/* ... Bounding Boxes Info and No Data Message ... */}
-        {sliceDataForStats?.boundingBoxes?.length > 0 && (
-          <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-            <h5 className="text-sm font-semibold text-amber-800 mb-3 flex items-center gap-2"><Info size={16} />Detected Bounding Boxes ({sliceDataForStats.boundingBoxes.length})</h5>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-amber-700">
-              {sliceDataForStats.boundingBoxes.map((box, index) => (
-                <div key={index} className="bg-amber-100 p-2 rounded">
-                  <div className="font-medium">{box.class}</div>
-                  <div>Pos: ({box.x_min},{box.y_min})-({box.x_max},{box.y_max})</div>
-                  <div>Size: {box.x_max - box.x_min}×{box.y_max - box.y_min}px</div>
-                  {box.confidence && (<div>Conf: {(box.confidence * 100).toFixed(1)}%</div>)}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {availableMasksForStats.length === 0 && (!sliceDataForStats?.boundingBoxes || sliceDataForStats.boundingBoxes.length === 0) && (
-          <div className="text-center py-12 text-gray-500">
-            <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center"><Layers size={32} className="text-gray-400" /></div>
-            <p className="text-lg font-medium">No segmentation data available</p>
-            <p className="text-sm mt-1">Frame {currentTimeIndex + 1}, Slice {currentLayerIndex + 1}</p>
-            {isLoadingImages && (<p className="text-sm mt-2 text-blue-600">Loading images...</p>)}
-          </div>
-        )}
+        </div>
       </div>
     </div>
-  );
+  </div>
+);
 };
 
 export default AISegmentationDisplay;

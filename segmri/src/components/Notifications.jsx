@@ -178,7 +178,7 @@ const Notification = ({
                     <span>Progress</span>
                     <span>{uploadProgress}%</span>
                   </div>
-                  <div className="w-full bg-blue-200 rounded-full h-2">
+                  <div className="w-1/4 bg-blue-200 rounded-full h-2">
                     <motion.div 
                       className="bg-blue-600 h-2 rounded-full"
                       initial={{ width: 0 }}
@@ -254,12 +254,6 @@ const Notification = ({
                 <div className="text-xs text-green-600">
                   Ready to view results
                 </div>
-                <button
-                  onClick={handleClose}
-                  className="text-xs px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-                >
-                  View Analysis
-                </button>
               </div>
             </div>
           )}

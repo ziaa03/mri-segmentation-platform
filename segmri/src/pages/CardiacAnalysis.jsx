@@ -4,8 +4,6 @@ import { Settings } from 'lucide-react';
 import FileUpload from '../components/FileUpload';
 import VisualizationControls from '../components/VisualizationControls';
 import AISegmentationDisplay from '../components/AiSegDisplay';
-import EditableSegmentation from '../components/EditableSeg';
-
 import Notification from '../components/Notifications';
 import api from '../api/AxiosInstance';
 
@@ -16,45 +14,12 @@ import {
   decodeRLE 
 } from '../utils/RLE-Decoder';
 
-// Enhanced debug logger utility
-const DebugLogger = {
-  isDebugMode: true, // Set this to false in production
-  log: function(component, message, data = null) {
-    if (!this.isDebugMode) return;
-    const formattedMessage = `[DEBUG][${component}] ${message}`;
-    if (data) {
-      console.log(formattedMessage, data);
-    } else {
-      console.log(formattedMessage);
-    }
-  },
-  error: function(component, message, error = null) {
-    if (!this.isDebugMode) return;
-    const formattedMessage = `[ERROR][${component}] ${message}`;
-    if (error) {
-      console.error(formattedMessage, error);
-    } else {
-      console.error(formattedMessage);
-    }
-  },
-  warn: function(component, message, data = null) {
-    if (!this.isDebugMode) return;
-    const formattedMessage = `[WARN][${component}] ${message}`;
-    if (data) {
-      console.warn(formattedMessage, data);
-    } else {
-      console.warn(formattedMessage);
-    }
-  }
-};
-
 const CardiacAnalysisPage = () => {
   // File upload states
   const [files, setFiles] = useState([]);
   const [uploadStatus, setUploadStatus] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState('');
-  const [debugMessages, setDebugMessages] = useState([]);
   
   // Image navigation states
   const [currentTimeIndex, setCurrentTimeIndex] = useState(0);
@@ -85,26 +50,15 @@ const CardiacAnalysisPage = () => {
   const [jobId, setJobId] = useState(null);
   const [statusCheckInterval, setStatusCheckInterval] = useState(null);
 
-  // Debug message logging
-  const addDebugMessage = useCallback((message) => {
-    const timestamp = new Date().toISOString();
-    setDebugMessages(prev => [...prev, { timestamp, message }]);
-    DebugLogger.log('CardiacAnalysisPage', message);
-  }, []);
-
   // Fetch the most recent project ID after upload
   const fetchMostRecentProject = async (uploadedFileName) => {
-    try {
-      addDebugMessage(`Fetching most recent project for file: ${uploadedFileName}`);
-      
+    try {     
       const response = await api.get('/project/get-projects-list', {
         params: {
           // You can add filters here if needed, like name or date range
           // For now, we'll get all projects and find the most recent one
         }
       });
-
-      DebugLogger.log('CardiacAnalysisPage', 'Projects list response', response.data);
 
       if (response.data && response.data.projects && Array.isArray(response.data.projects)) {
         const projects = response.data.projects;
@@ -136,7 +90,6 @@ const CardiacAnalysisPage = () => {
         const projectId = mostRecentProject.projectId;
         
         if (projectId) {
-          addDebugMessage(`Found project ID: ${projectId} for file: ${uploadedFileName}`);
           return projectId;
         } else {
           throw new Error('Project ID not found in project data');
@@ -145,7 +98,6 @@ const CardiacAnalysisPage = () => {
         throw new Error('Invalid response structure from projects list endpoint');
       }
     } catch (err) {
-      DebugLogger.error('CardiacAnalysisPage', 'Error fetching most recent project', err);
       throw err;
     }
   };
@@ -156,9 +108,7 @@ const CardiacAnalysisPage = () => {
       alert('No active project or segmentation data available.');
       return;
     }
-
     setUploadingMasks(true);
-    addDebugMessage(`Starting mask upload for frame ${currentTimeIndex}, slice ${currentLayerIndex}`);
 
     try {
       const results = await processAndUploadMasks(
@@ -172,12 +122,10 @@ const CardiacAnalysisPage = () => {
       
       const successCount = results.filter(r => r.success).length;
       const totalCount = results.length;
-      
-      addDebugMessage(`Mask upload completed: ${successCount}/${totalCount} successful`);
+
       alert(`Uploaded ${successCount}/${totalCount} masks successfully`);
 
     } catch (error) {
-      addDebugMessage(`Mask upload failed: ${error.message}`);
       alert('Failed to upload masks: ' + error.message);
     } finally {
       setUploadingMasks(false);
@@ -198,7 +146,6 @@ const CardiacAnalysisPage = () => {
     if (!confirmUpload) return;
 
     setUploadingMasks(true);
-    addDebugMessage('Starting batch upload of all masks...');
 
     try {
       const allResults = await batchUploadAllMasks(segmentationData, projectId, api);
@@ -217,11 +164,9 @@ const CardiacAnalysisPage = () => {
       const successCount = flatResults.filter(r => r.success).length;
       const totalCount = flatResults.length;
       
-      addDebugMessage(`Batch upload completed: ${successCount}/${totalCount} masks uploaded`);
       alert(`Batch upload completed: ${successCount}/${totalCount} masks uploaded successfully`);
 
     } catch (error) {
-      addDebugMessage(`Batch upload failed: ${error.message}`);
       alert('Batch upload failed: ' + error.message);
     } finally {
       setUploadingMasks(false);
@@ -242,7 +187,6 @@ const CardiacAnalysisPage = () => {
     }
 
     setUploadingMasks(true);
-    addDebugMessage(`Uploading selected mask: ${maskData.class}`);
 
     try {
       // Decode the RLE data
@@ -259,14 +203,12 @@ const CardiacAnalysisPage = () => {
       });
 
       if (result.success) {
-        addDebugMessage(`Successfully uploaded mask: ${maskData.class} to ${result.s3Url}`);
         alert(`Mask uploaded successfully!\nFile: ${result.filename}\nSize: ${result.size} bytes`);
       } else {
         throw new Error(result.error);
       }
 
     } catch (error) {
-      addDebugMessage(`Failed to upload selected mask: ${error.message}`);
       alert('Failed to upload mask: ' + error.message);
     } finally {
       setUploadingMasks(false);
@@ -338,8 +280,6 @@ const CardiacAnalysisPage = () => {
       const frameIndex = frame.frameindex;
       maxFrameIndex = Math.max(maxFrameIndex, frameIndex);
       
-      console.log(`Processing frame ${frameIndex} (${frameIdx + 1}/${segmentationDocument.frames.length})`);
-      
       if (!transformedData.masks[frameIndex]) {
         transformedData.masks[frameIndex] = [];
       }
@@ -347,15 +287,6 @@ const CardiacAnalysisPage = () => {
       frame.slices.forEach((slice, sliceIdx) => {
         const sliceIndex = slice.sliceindex;
         maxSliceIndex = Math.max(maxSliceIndex, sliceIndex);
-
-        console.log(`  Processing slice ${sliceIndex} (${sliceIdx + 1}/${frame.slices.length})`);
-        console.log(`    Bounding boxes: ${slice.componentboundingboxes?.length || 0}`);
-        console.log(`    Segmentation masks: ${slice.segmentationmasks?.length || 0}`);
-
-        // Collect unique classes and validate data
-        slice.componentboundingboxes?.forEach(box => {
-          if (box.class) uniqueClasses.add(box.class);
-        });
         
         slice.segmentationmasks?.forEach(mask => {
           if (mask.class) uniqueClasses.add(mask.class);
@@ -368,17 +299,6 @@ const CardiacAnalysisPage = () => {
           }
         });
 
-        // Transform data structures
-        const transformedBoundingBoxes = (slice.componentboundingboxes || []).map(box => ({
-          class: box.class,
-          confidence: box.confidence || 0,
-          x_min: box.x_min,
-          y_min: box.y_min,
-          x_max: box.x_max,
-          y_max: box.y_max,
-          bbox: [box.x_min, box.y_min, box.x_max, box.y_max]
-        }));
-
         const transformedSegmentationMasks = (slice.segmentationmasks || []).map(mask => ({
           class: mask.class,
           segmentationmaskcontents: mask.segmentationmaskcontents,
@@ -388,7 +308,6 @@ const CardiacAnalysisPage = () => {
 
         // Store slice data
         transformedData.masks[frameIndex][sliceIndex] = {
-          boundingBoxes: transformedBoundingBoxes,
           segmentationMasks: transformedSegmentationMasks,
           frameIndex: frameIndex,
           sliceIndex: sliceIndex
@@ -436,11 +355,8 @@ const CardiacAnalysisPage = () => {
     
     setSegmentItems(transformedData.segments);
     setProcessingComplete(true);
-    
-    console.log('✅ Segmentation data processing completed successfully');
-    addDebugMessage(`✅ Processing completed: ${uniqueClasses.size} classes, ${masksWithRLE} masks with RLE data`);
 
-  }, [addDebugMessage, currentTimeIndex, currentLayerIndex]);
+  }, [currentTimeIndex, currentLayerIndex]);
 
   // Handle file upload and start segmentation
   const handleFilesSelected = async (selectedFiles, status, message) => {
@@ -454,7 +370,6 @@ const CardiacAnalysisPage = () => {
     setFiles(selectedFiles);
     const fileName = selectedFiles[0]?.name || '';
     setUploadedFileName(fileName);
-    addDebugMessage(`Starting upload of ${selectedFiles.length} files`);
 
     const formData = new FormData();
     selectedFiles.forEach(file => formData.append('files', file));
@@ -464,15 +379,12 @@ const CardiacAnalysisPage = () => {
         withCredentials: true,
       });
 
-      DebugLogger.log('CardiacAnalysisPage', 'Upload response', response.data);
-
-      // Check for success in multiple ways since backend might return different formats
+      // Check for success
       const isSuccess = response.data.success === true || 
                        response.status === 200 || 
                        (response.data.message && response.data.message.includes('successfully'));
       
       if (isSuccess) {
-        addDebugMessage('Upload successful, fetching project ID...');
         
         // Wait a moment for the database to be updated
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -482,7 +394,6 @@ const CardiacAnalysisPage = () => {
         
         if (projectId) {
           setProjectId(projectId);
-          addDebugMessage(`Project ID obtained: ${projectId}`);
 
           setUploadStatus('processing');
           setIsProcessing(true);
@@ -493,30 +404,25 @@ const CardiacAnalysisPage = () => {
           throw new Error('Could not obtain project ID after upload');
         }
       } else {
-        throw new Error('Upload failed: ' + (response.data.message || 'Unknown error'));
+        throw new Error('Upload failed. A project with the same name and content already exists.');
       }
     } catch (err) {
       setUploadStatus('error');
       setErrorMessage(err.message);
-      DebugLogger.error('CardiacAnalysisPage', 'Upload/Project ID fetch failed', err);
     }
   };
 
   // Trigger Segmentation
   const triggerSegmentation = async (projectId) => {
-  addDebugMessage(`Starting segmentation for project ${projectId}`);
   
   try {
     const response = await api.post(`/segmentation/start-segmentation/${projectId}`, {
       projectId: projectId
     });
-    
-    DebugLogger.log('CardiacAnalysisPage', 'Segmentation start response', response.data);
 
     if (response.data.uuid) {
       setJobId(response.data.uuid);
       setJobStatus('SUBMITTED');
-      addDebugMessage(`Segmentation job submitted with ID: ${response.data.uuid}`);
       
       // Start automatic status checking
       startStatusPolling(projectId, response.data.uuid);
@@ -530,7 +436,6 @@ const CardiacAnalysisPage = () => {
     setErrorMessage('Segmentation failed: ' + err.message);
     setUploadStatus('error');
     setIsProcessing(false);
-    DebugLogger.error('CardiacAnalysisPage', 'Segmentation failed', err);
   }
 };
 
@@ -544,8 +449,6 @@ const startStatusPolling = (projectId, jobUuid) => {
 
   const pollInterval = setInterval(async () => {
     try {
-      addDebugMessage(`Checking status for job: ${jobUuid}`);
-      
       // First check if results are available
       const resultsResponse = await api.get(`/segmentation/segmentation-results/${projectId}`);
       
@@ -566,8 +469,7 @@ const startStatusPolling = (projectId, jobUuid) => {
           clearInterval(pollInterval);
           setStatusCheckInterval(null);
           setJobStatus('COMPLETED');
-          addDebugMessage('✅ Segmentation job completed successfully!');
-          
+
           // Show completion notification
           showCompletionNotification();
           
@@ -578,12 +480,7 @@ const startStatusPolling = (projectId, jobUuid) => {
           return;
         }
       }
-
-      // If no results yet, continue polling
-      addDebugMessage('Job still processing...');
-      
     } catch (error) {
-      addDebugMessage(`Status check error: ${error.message}`);
     }
   }, 10000); // Check every 10 seconds
 
@@ -594,7 +491,6 @@ const startStatusPolling = (projectId, jobUuid) => {
     if (pollInterval) {
       clearInterval(pollInterval);
       setStatusCheckInterval(null);
-      addDebugMessage('⚠️ Status polling stopped after 10 minutes. Please check manually.');
     }
   }, 600000);
 };
@@ -608,11 +504,6 @@ const showCompletionNotification = () => {
       icon: '/favicon.ico'
     });
   }
-  
-  // Also show an alert for immediate feedback
-  setTimeout(() => {
-    alert('🎉 Segmentation Complete!\n\nYour cardiac analysis results are now available for visualization and download.');
-  }, 500);
 };
 
 // Don't forget to clear intervals on component unmount
@@ -632,21 +523,10 @@ useEffect(() => {
     return;
   }
 
-  addDebugMessage('Manually checking for segmentation results...');
   setIsProcessing(true);
 
-  try {
-    console.log('Making request to:', `/segmentation/segmentation-results/${projectId}`);
-    
+  try {   
     const response = await api.get(`/segmentation/segmentation-results/${projectId}`);
-    
-    // Detailed response logging
-    console.log('=== SEGMENTATION RESULTS RESPONSE ===');
-    console.log('Response status:', response.status);
-    console.log('Response headers:', response.headers);
-    console.log('Response data:', response.data);
-    console.log('Response data type:', typeof response.data);
-    console.log('Is array:', Array.isArray(response.data));
     
     if (response.data) {
       console.log('Response data keys:', Object.keys(response.data));
@@ -730,8 +610,6 @@ useEffect(() => {
       });
       
       if (hasActualMasks) {
-        addDebugMessage(`✅ Segmentation results validated! Found ${maskCount} masks with RLE data.`);
-        console.log('Processing segmentation data...');
         
         processSegmentationData(response.data);
         setUploadStatus('success');
@@ -741,25 +619,14 @@ useEffect(() => {
         alert(`🎉 Segmentation Complete!\n\nFound ${maskCount} masks ready for visualization.`);
         
       } else {
-        addDebugMessage(`⚠️ Found ${maskCount} masks but no RLE content. Processing may still be in progress.`);
-        console.warn('Results structure exists but no RLE data found');
         alert(`Found ${maskCount} mask records but no segmentation content yet.\nProcessing may still be in progress. Please wait a few more minutes.`);
         setIsProcessing(false);
       }
     } else {
-      addDebugMessage('❌ No segmentation results structure found.');
-      console.warn('No results found in expected format');
       alert('No results found yet. Please ensure:\n1. The segmentation job was submitted successfully\n2. Sufficient time has passed (5-10 minutes)\n3. The project ID is correct');
       setIsProcessing(false);
     }
   } catch (err) {
-    console.error('=== SEGMENTATION RESULTS ERROR ===');
-    console.error('Error:', err);
-    console.error('Error response:', err.response?.data);
-    console.error('Error status:', err.response?.status);
-    
-    addDebugMessage(`❌ Error checking for results: ${err.message}`);
-    
     let errorMessage = 'Error checking for results: ' + err.message;
     if (err.response?.status === 404) {
       errorMessage += '\n\nThis might mean:\n• Project not found\n• No segmentation job was started\n• Results not yet available';
@@ -775,20 +642,18 @@ useEffect(() => {
   // Handle mask selection
   const handleMaskSelected = useCallback((maskData) => {
     setSelectedMask(maskData);
-    addDebugMessage(`Mask selected: ${maskData.class} at frame ${maskData.frameIndex}, slice ${maskData.sliceIndex}`);
-  }, [addDebugMessage]);
+  }, 
+  []);
 
   // Visualization Controls Handlers
   const handleTimeSliderChange = (e) => {
     const newTimeIndex = parseInt(e.target.value);
     setCurrentTimeIndex(newTimeIndex);
-    addDebugMessage(`Time index changed to: ${newTimeIndex}`);
   };
 
   const handleLayerSliderChange = (e) => {
     const newLayerIndex = parseInt(e.target.value);
     setCurrentLayerIndex(newLayerIndex);
-    addDebugMessage(`Layer index changed to: ${newLayerIndex}`);
   };
 
   // Reset handler
@@ -807,31 +672,50 @@ useEffect(() => {
     setProjectId(null);
     setSelectedMask(null);
     setSegmentItems([]);
-    setDebugMessages([]);
     setUploadedFileName('');
     setMaskUploadResults([]);
-    addDebugMessage('Application reset');
   };
 
   // Save Project Status
-  const handleSave = async () => {
-    if (!projectId) {
-      alert('No active project to save.');
-      return;
-    }
+const handleSave = async () => {
+  if (!projectId) {
+    alert('No active project to save.');
+    return;
+  }
 
-    try {
-      await api.patch('/project/save-project', {
-        projectId: projectId,
-        isSaved: true
-      });
+  try {
+    // Show loading state
+    const response = await api.patch('/project/save-project', {
+      projectId: projectId,
+      isSaved: true
+    });
+
+    // Check if the response indicates success
+    if (response.data && response.data.success) {
       alert('Project saved successfully.');
-      addDebugMessage('Project saved successfully');
-    } catch (error) {
-      alert('Failed to save project.');
-      DebugLogger.error('CardiacAnalysisPage', 'Save failed', error);
+    } else {
+      // Handle case where request succeeded but operation failed
+      const errorMsg = response.data?.message || 'Unknown error occurred';
+      alert(`Failed to save project: ${errorMsg}`);
     }
-  };
+  } catch (error) {
+    // Handle network errors or other exceptions
+    let errorMessage = 'Failed to save project.';
+    
+    if (error.response) {
+      // Server responded with error status
+      const serverMessage = error.response.data?.message || error.response.statusText;
+      errorMessage = `Failed to save project: ${serverMessage}`;
+    } else if (error.request) {
+      // Network error
+      errorMessage = 'Failed to save project: Network error';
+    } else {
+      // Other error
+      errorMessage = `Failed to save project: ${error.message}`;
+    }  
+    alert(errorMessage);
+  }
+};
 
   // Export handler
   const handleExport = async () => {
@@ -852,15 +736,13 @@ useEffect(() => {
       document.body.appendChild(link);
       link.click();
       link.remove();
-      addDebugMessage('Project exported successfully');
     } catch (error) {
       alert('Failed to export project.');
-      DebugLogger.error('CardiacAnalysisPage', 'Export failed', error);
     }
   };
 
   return (
-    <div className="py-16 px-8 bg-gradient-to-br from-blue-50 via-white to-indigo-50 min-h-screen w-full">
+    <div className="py-16 px-8 bg-[#FFFCF6] min-h-screen w-full">
       <div className="mx-auto max-w-[98%]">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -869,7 +751,7 @@ useEffect(() => {
           className="flex flex-col items-center text-center mb-12"
         >
           <h2 className="text-4xl font-light text-[#3A4454] mb-6">
-            dwdwef
+            AI-Powered Cardiac Analysis
           </h2>
           <p className="text-xl text-[#3A4454] opacity-80 max-w-3xl">
             Upload your cardiac MRI images for advanced AI segmentation and detailed visualization
@@ -911,28 +793,6 @@ useEffect(() => {
               </div>
             </div>
 
-            <div className="p-6">
-              <div className="flex">
-                <div className="w-full">
-                  <VisualizationControls
-                    currentTimeIndex={0}
-                    maxTimeIndex={0}
-                    currentLayerIndex={0}
-                    maxLayerIndex={0}
-                    onTimeSliderChange={() => {}}
-                    onLayerSliderChange={() => {}}
-                    onSave={() => {}}
-                    onExport={() => {}}
-                    onUploadCurrentMasks={() => {}}
-                    onUploadAllMasks={() => {}}
-                    onCheckResults={checkForResults}
-                    uploadingMasks={false}
-                    isProcessing={isProcessing}
-                    processingComplete={processingComplete}
-                  />
-                </div>
-              </div>
-            </div>
           </motion.div>
         )}
 
@@ -944,26 +804,10 @@ useEffect(() => {
             transition={{ duration: 0.6 }}
             className="bg-white rounded-xl shadow-xl overflow-hidden border border-gray-200"
           >
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-2xl font-light">AI Segmentation Results</h3>
-                  <p className="text-blue-100 mt-1">
-                    Interactive visualization and analysis tools
-                  </p>
-                </div>
-                <button
-                  onClick={handleReset}
-                  className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors duration-200 backdrop-blur-sm"
-                >
-                  New Analysis
-                </button>
-              </div>
-            </div>
 
             <div className="p-6">
               <div className="flex gap-6">
-                <div className="w-1/4">
+                <div className="w-1/3">
                   <VisualizationControls
                     currentTimeIndex={currentTimeIndex}
                     maxTimeIndex={maxTimeIndex}
@@ -982,7 +826,7 @@ useEffect(() => {
                   />
                 </div>
 
-                <div className="w-1/2">
+                <div className="w-full">
                   <AISegmentationDisplay
                     segmentationData={segmentationData}
                     currentTimeIndex={currentTimeIndex}
@@ -994,42 +838,7 @@ useEffect(() => {
                     projectId={projectId} 
                   />
                 </div>
-
-                <div className="w-1/4">
-                  <EditableSegmentation selectedMask={selectedMask} />
-                </div>
               </div>
-
-
-            </div>
-          </motion.div>
-        )}
-
-        {/* Enhanced Debug Panel */}
-        {DebugLogger.isDebugMode && debugMessages.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            className="mt-8 bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-medium text-green-300">Debug Console</h4>
-              <button
-                onClick={() => setDebugMessages([])}
-                className="text-gray-400 hover:text-green-400 text-xs"
-              >
-                Clear
-              </button>
-            </div>
-            <div className="max-h-40 overflow-y-auto space-y-1">
-              {debugMessages.slice(-15).map((msg, index) => (
-                <div key={index} className="text-xs">
-                  <span className="text-gray-500">
-                    [{msg.timestamp.split('T')[1].split('.')[0]}]
-                  </span>
-                  <span className="ml-2">{msg.message}</span>
-                </div>
-              ))}
             </div>
           </motion.div>
         )}

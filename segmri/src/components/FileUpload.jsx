@@ -245,7 +245,7 @@ const validateFiles = (files) => {
                 Upload Medical Images
               </h3>
               <p className="text-sm text-gray-600 mt-1">
-                Upload DICOM, NIfTI, or MetaImage files for AI-powered cardiac segmentation
+                Upload NIfTI files for AI-powered cardiac segmentation
               </p>
             </div>
             {selectedFiles.length > 0 && (
@@ -314,7 +314,7 @@ const validateFiles = (files) => {
                     Drop files here or click to browse
                   </p>
                   <p className="text-sm text-gray-500">
-                    Supports DICOM (.dcm), NIfTI (.nii, .nii.gz)
+                    Supports NIfTI (.nii, .nii.gz)
                   </p>
                 </div>
               )}
@@ -328,7 +328,6 @@ const validateFiles = (files) => {
               <div className="text-sm text-blue-800">
                 <p className="font-medium mb-1">Supported Medical Image Formats:</p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-                  <div>• DICOM (.dcm) - Medical imaging standard</div>
                   <div>• NIfTI (.nii, .nii.gz) - Neuroimaging format</div>
                   <div>• Max size: {maxSizeMB}MB per file</div>
                 </div>
