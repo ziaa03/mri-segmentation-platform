@@ -368,7 +368,7 @@ import BrushMaskCanvas from '../pages/Brush';
                           <span className="text-white">90% accuracy rate</span>
                         </div>
                       </div>
-                      <Link to="/demo">
+                      <Link to="/cardiac-analysis">
                         <motion.button 
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}

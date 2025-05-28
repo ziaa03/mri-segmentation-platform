@@ -906,6 +906,7 @@ const handleSave = async () => {
                     uploadingMasks={uploadingMasks}
                     isProcessing={isProcessing}
                     processingComplete={processingComplete}
+                    projectId={projectId}
                   />
                 </div>
 

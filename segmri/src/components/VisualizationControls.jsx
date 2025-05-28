@@ -24,6 +24,7 @@ import {
   Timer,
   Zap
 } from 'lucide-react';
+import ExportButton from './ExportButton';
 
 const VisualizationControls = ({
   currentTimeIndex,
@@ -39,7 +40,8 @@ const VisualizationControls = ({
   onCheckResults,
   uploadingMasks,
   isProcessing,
-  processingComplete
+  processingComplete,
+  projectId
 }) => {
   // Enhanced state management
   const [isPlaying, setIsPlaying] = useState(false);
@@ -388,7 +390,10 @@ const VisualizationControls = ({
 
         {/* Enhanced Project Actions */}
         <div className="space-y-4 pt-4 border-t border-gray-200">
-          
+          { /* Export Button */}
+          <div className="flex items-center justify-between">
+            <ExportButton projectId={projectId} />
+
           <div className="grid grid-cols-1 gap-3">
             {/* Show Check Results button if processing but not complete */}
             {!processingComplete && onCheckResults && (
@@ -433,6 +438,7 @@ const VisualizationControls = ({
           </div>
         </div>
       </div>
+      
 
       {/* Custom CSS for slider styling */}
       <style jsx>{`
@@ -464,6 +470,7 @@ const VisualizationControls = ({
         }
       `}</style>
     </div>
+  </div>
   );
 };
 
