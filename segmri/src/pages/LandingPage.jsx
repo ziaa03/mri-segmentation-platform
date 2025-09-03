@@ -1,13 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import BrushMaskCanvas from '../pages/Brush';
 
   const LandingPage = () => {
     // State for image slider
     const [currentSlide, setCurrentSlide] = useState(0);
-
-    const sampleImage = '/image-1.png';
     
     // Images for slider
     const sliderImages = [
@@ -213,127 +210,42 @@ import BrushMaskCanvas from '../pages/Brush';
         </div>
       </div>
         
-        {/* Features Section */}
+        {/* Features Preview Section */}
         <div className="feature-sect py-24 px-8 bg-white">
           <div className="max-w-6xl mx-auto">
             <motion.div 
-                        initial={{ opacity: 0, y: 30 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.8 }}
-                        viewport={{ once: true }}
-                        className="flex flex-col items-center text-center mb-24"
-                      >
-                        <h2 className="feature-title text-4xl font-light text-[#3A4454] mb-6 max-w-3xl">
-                          Precision Cardiac Tools
-                        </h2>
-                        <p className="feature-desc text-xl text-[#3A4454] opacity-80 max-w-3xl">
-                          Our platform combines cutting-edge AI technology with intuitive interfaces to provide cardiac specialists with the tools they need for accurate diagnosis and treatment planning.
-                        </p>
-                      </motion.div>
-            
-            <div className="feature-cards grid grid-cols-1 md:grid-cols-3 gap-8">
-              {[
-                {
-                  icon: (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8 }}
+              viewport={{ once: true }}
+              className="flex flex-col items-center text-center mb-16"
+            >
+              <h2 className="feature-title text-4xl font-light text-[#3A4454] mb-6 max-w-3xl">
+                Precision Cardiac Tools
+              </h2>
+              <p className="feature-desc text-xl text-[#3A4454] opacity-80 max-w-3xl mb-8">
+                Our platform combines cutting-edge AI technology with intuitive interfaces to provide cardiac specialists with the tools they need for accurate diagnosis and treatment planning.
+              </p>
+
+              {/* Call to Action */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                whileInView={{ opacity: 1 }}
+                transition={{ delay: 0.6, duration: 0.8 }}
+                viewport={{ once: true }}
+              >
+                <Link to="/features">
+                  <button className="px-8 py-3 bg-[#5B7B9A] hover:bg-[#4A6A89] text-white rounded-lg transition-all duration-300 shadow-lg text-lg font-medium flex items-center group">
+                    Explore All Features
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-2 transition-transform duration-300 group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                     </svg>
-                  ),
-                  title: "Automated Cardiac Segmentation",
-                  description: "Leverage advanced AI algorithms to automatically segment cardiac MRI scans with precision and accuracy."
-                },
-                {
-                  icon: (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                    </svg>
-                  ),
-                  title: "MRI Image Upload and Analysis",
-                  description: "Easily upload and analyze cardiac MRI images on our secure platform, enabling seamless collaboration and detailed insights for specialists."
-                },
-                {
-                  icon: (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                    </svg>
-                  ),
-                  title: "Real-Time Result Viewing",
-                  description: "Access and view segmentation results in real-time, empowering specialists to make informed decisions quickly and efficiently."
-                }
-              ].map((feature, index) => (
-                            <motion.div 
-                              key={index}
-                              initial={{ opacity: 0, y: 30 }}
-                              whileInView={{ opacity: 1, y: 0 }}
-                              transition={{ delay: index * 0.2, duration: 0.8 }}
-                              viewport={{ once: true }}
-                              whileHover={{ y: -10, boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)" }}
-                              onHoverStart={() => setActiveFeature(index)}
-                              onHoverEnd={() => setActiveFeature(null)}
-                              className="bg-[#F8F2E6] p-8 rounded-lg shadow-md transition-all duration-300 hover:shadow-lg border-t-4 border-[#A87C5F]"
-                            >
-                              <div className={`text-[#5B7B9A] mb-6 transition-all duration-300 ${activeFeature === index ? 'scale-110' : ''}`}>{feature.icon}</div>
-                              <h3 className="text-2xl font-medium mb-4 text-[#3A4454]">{feature.title}</h3>
-                              <p className="text-[#3A4454] text-lg opacity-80">{feature.description}</p>
-                            </motion.div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-        
-        {/* Team Section */}
-        <div className="team-sect py-24 px-8 bg-[#FFFCF6]">
-          <div className="max-w-5xl mx-auto">
-            <motion.h2 
-                        initial={{ opacity: 0 }}
-                        whileInView={{ opacity: 1 }}
-                        transition={{ duration: 0.8 }}
-                        viewport={{ once: true }}
-                        className="text-4xl font-light text-center text-gray-800 mb-16"
-                      >
-                        Our Expert Team
-                      </motion.h2>
-            
-            <div className="team-cards grid grid-cols-2 md:grid-cols-5 gap-8">
-                        {[
-                          { name: "James Muking", role: "Lead Backend Developer", avatar: "/pfp-james.jpg" },
-                          { name: "Jesmine Ting", role: "Backend Developer", avatar: "/pfp-jes.jpg" },
-                          { name: "Clarissa Wong", role: "Backend Developer", avatar: "/pfp-cla.jpg" },
-                          { name: "Yee Qian Hui", role: "Frontend Developer", avatar: "/pfp-qh.jpg" },
-                          { name: "Zia Tan", role: "Lead Frontend Developer", avatar: "/pfp-zia.jpg" }
-                        ].map((member, index) => (
-                          <motion.div 
-                            key={index}
-                            initial={{ opacity: 0, y: 30 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            transition={{ delay: index * 0.1, duration: 0.6 }}
-                            viewport={{ once: true }}
-                            whileHover={{ y: -10 }}
-                            className="text-center"
-                          >
-                            <div className="flex justify-center mb-4">
-                              <motion.div 
-                                whileHover={{ scale: 1.1 }}
-                                className="w-32 h-32 rounded-full p-1 shadow-lg overflow-hidden"
-                              >
-                                <img 
-                                  src={member.avatar} 
-                                  alt={member.name}
-                                  className="w-full h-full object-cover rounded-full"
-                                  onError={(e) => {
-                                    e.target.onerror = null;
-                                    e.target.src = "/placeholder-pfp.png";
-                                  }}
-                                />
-                              </motion.div>
-                            </div>
-                            <h4 className="text-lg font-medium mb-1 text-gray-500">{member.name}</h4>
-                            <p className="text-gray-500">{member.role}</p>
-                          </motion.div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                  </button>
+                </Link>
+              </motion.div>
+            </motion.div>
+          </div>
+        </div>
 
         {/* Interactive Demo Section */}
               <div className="demo-section py-32 px-8 bg-gradient-to-r bg-[#5B7B9A]">
@@ -439,7 +351,7 @@ import BrushMaskCanvas from '../pages/Brush';
                         answer: "VisHeart's AI algorithms achieve up to 90% accuracy in cardiac segmentation, validated against expert manual segmentation in multiple clinical studies."
                       },
                       {
-                        question: "Is my patients' data secure on your platform?",
+                        question: "Is my patient's data secure on your platform?",
                         answer: "Absolutely. VisHeart employs end-to-end encryption, HIPAA compliance protocols, and secure cloud infrastructure to ensure all patient data remains private and protected."
                       },
                       {

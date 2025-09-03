@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { IoMdEye, IoMdEyeOff } from "react-icons/io";
+import React, { useState, useEffect } from 'react';
+import { Eye, EyeOff, Heart, Shield, User, Lock, ArrowRight, CheckCircle, ArrowLeft } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -11,147 +11,237 @@ const LoginPage = () => {
   const [welcome, setWelcome] = useState(false);
   const [welcomeMessage, setWelcomeMessage] = useState('');
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [fadeIn, setFadeIn] = useState(false);
 
   const navigate = useNavigate();
   const { login } = useAuth();
+
+  // Smooth fade-in animation on component mount
+  useEffect(() => {
+    setFadeIn(true);
+  }, []);
 
   const handleClick = () => {
     setShow(!show);
   };
 
-  // Handle regular user login
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsLoading(true);
+    setError('');
+
     try {
       const result = await login(username, password);
-      
+
       if (result.success) {
         // Set welcome message based on role
         const role = result.user.role || 'user';
         let redirectPath = '/landing';
-        
+
         if (role === 'admin') {
           setWelcomeMessage(`Welcome, Admin ${result.user.username}!`);
         } else {
           setWelcomeMessage(`Welcome back, ${result.user.username}!`);
         }
-        
+
         // Show welcome message and start redirect timer
         setWelcome(true);
         setIsRedirecting(true);
-        
+
         // Redirect after delay
         setTimeout(() => {
           navigate(redirectPath);
         }, 1500);
       } else {
-        setError(result.error);
+        setError(result.error || 'Invalid credentials');
       }
     } catch (err) {
       console.error('Login error:', err);
       setError('Login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className='h-screen flex flex-col md:flex-row bg-[#FFFCF6]'>
-      {/* Left side */}
-      <div className='flex-1 flex flex-col'>
-        {/* Logo div */}
-        <div className='h-1/8 mt-8 ml-16'>
-          <img src="./heart-logo.png" alt="VisHeart Logo" className='w-40 h-24' />
-        </div>
+    <div className={`h-screen relative flex items-center justify-center p-6 overflow-hidden transition-opacity duration-700 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}>
+      
+      {/* Background Image */}
+      <div className='absolute inset-0'>
+        <img 
+          src="./heart3.jpeg" 
+          alt="Medical Background" 
+          className='w-full h-full object-cover'
+        />
+        <div className='absolute inset-0 bg-black/40'></div>
+      </div>
 
-        {/* Login div */}
-        <div className='h-7/8 flex-1 flex items-center justify-center'>
-          <div className='w-full max-w-md px-6'>
-            <div className='mb-10 text-[#741E20]'>
-              {/* Show original welcome message only when redirect message is not shown */}
-              {!welcome && (
-                <>
-                  <p className='text-4xl mb-3 font-bold tracking-wider'>WELCOME BACK !</p>
-                  <p className='text-xl font-thin tracking-wide'>Please enter your details</p>
-                </>
-              )}
+      {/* Main container */}
+      <div className='relative z-10 w-full max-w-4xl h-full flex items-center'>
+        <div className='bg-white/20 backdrop-blur-xl border border-white/30 rounded-3xl shadow-2xl p-8 w-full h-[90vh] flex flex-col justify-center'>
+          
+          {/* Header Section */}
+          <div className='text-center mb-8'>
+            {/* Logo */}
+            <div className='mb-8 mt-4 flex justify-center'>
+              <img src="./heart-logo.png" alt="VisHeart Logo" className='w-42 h-28' />
             </div>
 
-            {/* Display the welcome message */}
-            {welcome && (
-              <div className="text-left justify-center w-[500px] h-[200px]">
-                <h1 className="text-5xl font-bold text-[#741E20] tracking-wide mb-4">{welcomeMessage}</h1>
-                <p className="text-xl mt-4">Redirecting you to the landing page...</p>
+            {!welcome && (
+              <div>
+                <h2 className='text-2xl text-white mb-2'>
+                  Professional Access Portal
+                </h2>
+                <p className='text-base text-white'>
+                  Enter your credentials to access the healthcare management system
+                </p>
               </div>
             )}
+          </div>
 
-                            {/* Show the login form only if we're not redirecting and haven't shown the welcome message */}
-            {!isRedirecting && !welcome && (
-              <form onSubmit={handleSubmit}>
-                {/* Username input */}
-                <div className='border border-[#4D6885] px-2 py-3 mb-10 shadow-md hover:shadow-lg transition-transform duration-700 focus-within:scale-105'>
-                  <input 
-                    type="text" 
-                    placeholder="Username" 
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className='focus:outline-none w-full bg-[#FFFCF6]' 
-                    required 
-                  />
+          {/* Welcome Message */}
+          {welcome && (
+            <div className="text-center animate-fadeIn">
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-6 mx-auto">
+                <CheckCircle className="w-10 h-10 text-green-600" />
+              </div>
+              <h1 className="text-3xl font-bold text-[#741E20] mb-4">{welcomeMessage}</h1>
+              <p className="text-lg text-slate-600 mb-6">Authentication successful</p>
+              <div className="flex items-center justify-center text-slate-600">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#741E20] mr-3"></div>
+                Accessing your dashboard...
+              </div>
+            </div>
+          )}
+
+          {/* Login Form */}
+          {!isRedirecting && !welcome && (
+            <div className='flex-1 max-w-md mx-auto w-full'>
+              <form onSubmit={handleSubmit} className='space-y-6'>
+                
+                {/* Username Field */}
+                <div className='group'>
+                  <label className='block text-sm font-semibold text-white mb-2'>
+                    Username / Employee ID
+                  </label>
+                  <div className='relative'>
+                    <User className='absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-[#741E20] transition-colors' />
+                    <input 
+                      type="text" 
+                      placeholder="Enter your username" 
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className='w-full pl-12 pr-4 py-4 bg-white/80 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-[#741E20] focus:bg-white transition-all duration-300 text-slate-800 placeholder-slate-500' 
+                      required 
+                    />
+                  </div>
                 </div>
 
-                {/* Password input */}
-                <div className='border border-[#4D6885] px-2 py-3 mb-10 flex items-center shadow-md hover:shadow-lg transition-transform duration-700 focus-within:scale-105'>
-                  <input 
-                    type={show ? "text" : "password"} 
-                    placeholder="Password" 
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className='focus:outline-none w-full bg-[#FFFCF6]' 
-                    required 
-                  />
-                  {show ? (
-                    <IoMdEye className="text-[#74342B] cursor-pointer ml-2 hover:text-black" onClick={handleClick} />
-                  ) : (
-                    <IoMdEyeOff className="text-[#74342B] cursor-pointer ml-2 hover:text-black" onClick={handleClick} />
-                  )}
+                {/* Password Field */}
+                <div className='group'>
+                  <label className='block text-sm font-semibold text-white mb-2'>
+                    Password
+                  </label>
+                  <div className='relative'>
+                    <Lock className='absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-[#741E20] transition-colors' />
+                    <input 
+                      type={show ? "text" : "password"} 
+                      placeholder="Enter your password" 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className='w-full pl-12 pr-12 py-4 bg-white/80 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-[#741E20] focus:bg-white transition-all duration-300 text-slate-800 placeholder-slate-500' 
+                      required 
+                    />
+                    <button
+                      type="button"
+                      onClick={handleClick}
+                      className='absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-500 hover:text-[#741E20] transition-colors'
+                    >
+                      {show ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
                 </div>
 
-                {/* Login button */}
+                {/* Error Message */}
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                    <p className="text-red-700 text-sm font-medium">{error}</p>
+                  </div>
+                )}
+
+                {/* Login Button */}
                 <button 
-                  type="submit" 
-                  className='text-[#FFFCF6] px-8 py-2 bg-[#741E20] hover:shadow-2xl hover:bg-opacity-85 duration-500 transform transition-transform hover:scale-110 text-xl w-full'
+                  type="submit"
+                  disabled={isLoading}
+                  className='w-full bg-gradient-to-r from-[#741E20] to-[#9D4C51] text-white py-4 px-6 rounded-xl font-semibold text-lg hover:shadow-xl hover:shadow-[#741E20]/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 active:scale-95 flex items-center justify-center group relative overflow-hidden'
                 >
-                  LOGIN
+                  <div className='absolute inset-0 bg-gradient-to-r from-[#9D4C51] to-[#741E20] opacity-0 group-hover:opacity-100 transition-opacity duration-300'></div>
+                  
+                  <div className='relative z-10 flex items-center'>
+                    {isLoading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-3"></div>
+                        <span>Authenticating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <User className='w-6 h-6 mr-3' />
+                        <span>Sign In to Continue</span>
+                        <ArrowRight className='w-5 h-5 ml-3 group-hover:translate-x-1 transition-transform duration-200' />
+                      </>
+                    )}
+                  </div>
                 </button>
+              </form>
 
-                {/* Error message */}
-                {error && <p className="text-red-500 mt-4">{error}</p>}
-
-                {/* Back to selection */}
-                <div className='mt-6 text-center'>
-                  <Link to="/login-choice" className="text-[#343231] underline hover:text-[#9D4C51] duration-200">
-                    Back to login options
+              {/* Additional Links */}
+              <div className='mt-8 space-y-4'>
+                {/* Back to login options */}
+                <div className='text-center'>
+                  <Link 
+                    to="/login-choice"
+                    className="inline-flex items-center text-white hover:text-[#741E20] font-medium transition-all duration-200 group"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-2 transform group-hover:-translate-x-1 transition-transform duration-200" />
+                    Back to access options
                   </Link>
                 </div>
 
+                {/* Divider */}
+                <div className='flex items-center justify-center py-2'>
+                  <div className='flex-grow h-px bg-slate-300'></div>
+                  <div className='mx-4 text-slate-500 text-sm'>or</div>
+                  <div className='flex-grow h-px bg-slate-300'></div>
+                </div>
+
                 {/* Link to register */}
-                <div className='mt-6'>
-                  <p className='tracking-wider text-[#343231]'>
-                    Don't have an account yet?
-                    <Link to="/register" className="text-[#343231] ml-2 underline hover:text-[#9D4C51] duration-200">
-                      Create One Now!
+                <div className='text-center'>
+                  <p className='text-white'>
+                    Don't have an account yet?{' '}
+                    <Link 
+                      to="/register"
+                      className="font-semibold text-white transition-colors duration-200 underline"
+                    >
+                      Create One Now
                     </Link>
                   </p>
                 </div>
-              </form>
-            )}
-          </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Right side */}
-      <div className='flex-1 flex justify-center items-center'>
-        <img src="./heart3.jpeg" alt="loginHeart" className='w-[95%] h-[95%] object-cover rounded-2xl opacity-95' />
-      </div>
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.6s ease-out;
+        }
+      `}</style>
     </div>
   );
 };

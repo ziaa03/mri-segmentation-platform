@@ -68,3 +68,28 @@ canvas {
   max-height: 100%;
   image-rendering: pixelated; /* Prevents blurring of medical images */
 }
+
+
+
+/* Add to your global CSS */
+.page-transition-enter {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.page-transition-enter-active {
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 300ms, transform 300ms;
+}
+
+.page-transition-exit {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.page-transition-exit-active {
+  opacity: 0;
+  transform: translateX(-20px);
+  transition: opacity 300ms, transform 300ms;
+}
