@@ -85,7 +85,7 @@ const LoginPage = () => {
           <div className='text-center mb-8'>
             {/* Logo */}
             <div className='mb-8 mt-4 flex justify-center'>
-              <img src="./heart-logo.png" alt="VisHeart Logo" className='w-42 h-28' />
+              <img src="./heart-logo.png" alt="VisHeart Logo" className='w-42 h-28' style={{filter: 'drop-shadow(0 0 0 white) drop-shadow(0 0 2px white) drop-shadow(0 0 70px white)'}} />
             </div>
 
             {!welcome && (
@@ -106,9 +106,9 @@ const LoginPage = () => {
               <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-6 mx-auto">
                 <CheckCircle className="w-10 h-10 text-green-600" />
               </div>
-              <h1 className="text-3xl font-bold text-[#741E20] mb-4">{welcomeMessage}</h1>
-              <p className="text-lg text-slate-600 mb-6">Authentication successful</p>
-              <div className="flex items-center justify-center text-slate-600">
+              <h1 className="text-3xl font-bold text-[#DEC1C2] mb-4">{welcomeMessage}</h1>
+              <p className="text-lg text-slate-600 mb-6 text-[#DEC1C2]">Authentication successful</p>
+              <div className="flex items-center justify-center text-slate-600 text-[#DEC1C2]">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#741E20] mr-3"></div>
                 Accessing your dashboard...
               </div>
