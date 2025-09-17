@@ -70,7 +70,7 @@ const FileCard = ({ file, isSelected, onSelect, onView, onFavorite, onDelete }) 
         <div className="flex justify-center mt-4 space-x-2 text-gray-400">
           <button className="hover:text-gray-700 p-1" onClick={(e) => { e.stopPropagation(); onView(file); }}>
             {/* <Eye className="h-4 w-4" /> */}
-            <Link to={`/cardiac-analysis?projectId=${file.projectId}`}>
+            <Link to={`/vis-hub?projectId=${file.projectId}`}>
               <Pencil className="h-4 w-4" />
             </Link>
           </button>
@@ -147,10 +147,10 @@ const FileDetailsSidebar = ({ file, onClose, onDelete, onFavorite, onRemoveTag }
           <Download className="h-4 w-4 mr-2" />
           Download
         </button>
-        <button className="w-full py-2 bg-gray-100 text-gray-800 rounded-md flex items-center justify-center hover:bg-gray-200 transition-colors
+        <button className="w-full py-2 bg-gray-100 text-gray-800 rounded-md flex items-center justify-center hover:bg-gray-200
         transition-colors">
           <Link
-            to={`/cardiac-analysis?projectId=${file.projectId}`}
+            to={`/vis-hub?projectId=${file.projectId}`}
             className="w-full py-2 bg-gray-100 text-gray-800 rounded-md flex items-center justify-center          hover:bg-gray-200 transition-colors"
           >
             <Pencil className="h-4 w-4 mr-2" />
@@ -459,13 +459,13 @@ const FileManagementPage = () => {
       )}
       
       {/* Header Section */}
-      <div className="header-sect px-6 lg:px-12">
-        <h1 className="text-3xl font-light text-[#3A4454] mb-6">File Management</h1>
+      <div className="header-sect px-2 lg:px-2">
+        <h1 className="text-3xl font-light text-[#3A4454] mb-6">All Projects</h1>
         <p className="text-sm text-gray-500 mt-1">View, update and delete your files here</p>
       </div>
 
       {/* Search and Actions Bar */}
-      <div className="px-6 lg:px-12 py-6 bg-[#FFFCF6] border-b border-gray-100">
+      <div className="px-2 lg:px-2 py-6 bg-[#FFFCF6] border-b border-gray-100">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="relative w-full md:w-96">
             <input
@@ -515,7 +515,7 @@ const FileManagementPage = () => {
               {/* // )} */}
             {/* </button> */}
             
-            <Link to="/cardiac-analysis"
+            <Link to="/vis-hub"
               className="px-4 py-2 bg-[#5B7B9A] text-white rounded-md flex items-center hover:bg-[#4A6A89] transition-colors"
             >
               <Upload className="w-4 h-4 mr-2" />
@@ -617,7 +617,7 @@ const FileManagementPage = () => {
       </div>
       
       {/* Main Content Area */}
-      <div className="flex flex-1 px-6 lg:px-12 py-8">
+      <div className="flex flex-1 px-2 lg:px-2 py-8">
         <div className="w-full lg:w-3/4 pr-0 lg:pr-8">
           {/* Recent Files Section */}
           <div className="mb-10">
@@ -768,7 +768,7 @@ const FileManagementPage = () => {
                             <button
                               className="text-gray-400 hover:text-gray-700"
                               onClick={(e) => { e.stopPropagation(); }}>
-                              <Link to={`/cardiac-analysis?projectId=${file.projectId}`}>
+                              <Link to={`/vis-hub?projectId=${file.projectId}`}>
                                 <Pencil className="h-4 w-4" />
                               </Link>
                             </button>

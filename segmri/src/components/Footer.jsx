@@ -2,7 +2,7 @@ import React from 'react';
 
 const Footer = () => {
   return (
-    <footer className="py-8 px-8 bg-[#FFFCF6] text-[#343231]">
+    <footer className="py-8 px-8 bg-white text-[#343231]">
       <div className="max-w-6xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
           {/* Logo and branding section */}
@@ -40,8 +40,8 @@ const Footer = () => {
         </div>
         
         {/* Copyright section */}
-        <div className="mt-8 pt-6 border-t border-[#DFD3BF] text-left">
-          <p className="text-sm">© 2025 VisHeart. All rights reserved.</p>
+        <div className="mt-8 pt-6 border-t border-[#DFD3BF] text-center">
+          <p className="text-sm">© 2025 VisHeart. Advancing cardiac care through precision AI technology.</p>
         </div>
       </div>
     </footer>

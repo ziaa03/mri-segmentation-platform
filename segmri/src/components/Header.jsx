@@ -48,12 +48,13 @@ const Header = () => {
   const navLinks = [
     { path: '/landing', label: 'OVERVIEW' },
     { path: '/features', label: 'THE EXPERIENCE' },
-    { path: '/cardiac-analysis', label: 'VISHEART HUB', badge: 'LIVE' },
+    { path: '/vis-hub', label: 'VISHEART HUB', badge: 'DEMO' },
     { path: '/team', label: 'ABOUT US' },
+    { path: '/3d-viewer', label: '3D MODEL VIEWER' }
   ];
 
   return (
-    <header className="sticky top-0 z-50 bg-[#FFFCF6]/95 backdrop-blur-sm border-b border-[#74342B]/10 shadow-sm">
+    <header className="sticky top-0 z-50 bg-white backdrop-blur-sm border-b border-[#74342B]/10 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           
@@ -94,60 +95,11 @@ const Header = () => {
               </div>
             ))}
 
-            {/* Files Links for Admin - No Dropdown */}
-            {isAuthenticated && isAdmin && (
-              <>
-                <Link
-                  to="/files"
-                  className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-[#74342B]/5 ${
-                    isActiveLink('/files')
-                      ? 'text-[#74342B] bg-[#74342B]/5'
-                      : 'text-[#343231] hover:text-[#74342B]'
-                  }`}
-                >
-                  MY FILES
-                  {isActiveLink('/files') && (
-                    <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-6 h-0.5 bg-[#74342B] rounded-full" />
-                  )}
-                </Link>
-                <Link
-                  to="/all-files"
-                  className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-[#74342B]/5 ${
-                    isActiveLink('/all-files')
-                      ? 'text-[#74342B] bg-[#74342B]/5'
-                      : 'text-[#343231] hover:text-[#74342B]'
-                  }`}
-                >
-                  ALL FILES
-                  {isActiveLink('/all-files') && (
-                    <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-6 h-0.5 bg-[#74342B] rounded-full" />
-                  )}
-                </Link>
-              </>
-            )}
-
-            {/* Files Link for Regular Users */}
-            {isAuthenticated && isUser && (
-              <Link
-                to="/files"
-                className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-[#74342B]/5 ${
-                  isActiveLink('/files')
-                    ? 'text-[#74342B] bg-[#74342B]/5'
-                    : 'text-[#343231] hover:text-[#74342B]'
-                }`}
-              >
-                FILES
-                {isActiveLink('/files') && (
-                  <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-6 h-0.5 bg-[#74342B] rounded-full" />
-                )}
-              </Link>
-            )}
-
-            {/* Users Link for Admin */}
+            {/* Users Link for Admin - Only keep essential admin-only features */}
             {isAuthenticated && isAdmin && (
               <Link
                 to="/user-management"
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-[#74342B]/5 ${
+                className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-[#74342B]/5 ${
                   isActiveLink('/user-management')
                     ? 'text-[#74342B] bg-[#74342B]/5'
                     : 'text-[#343231] hover:text-[#74342B]'
@@ -227,44 +179,19 @@ const Header = () => {
                 </Link>
               ))}
 
+              {/* Only show admin-only items */}
+              {isAuthenticated && isAdmin && (
+                <Link
+                  to="/user-management"
+                  className="block px-4 py-3 rounded-lg text-sm font-medium text-[#343231] hover:bg-[#74342B]/5 hover:text-[#74342B] transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  USERS
+                </Link>
+              )}
+
               {isAuthenticated && (
                 <>
-                  {isUser && (
-                    <Link
-                      to="/files"
-                      className="block px-4 py-3 rounded-lg text-sm font-medium text-[#343231] hover:bg-[#74342B]/5 hover:text-[#74342B] transition-colors"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      FILES
-                    </Link>
-                  )}
-
-                  {isAdmin && (
-                    <>
-                      <Link
-                        to="/files"
-                        className="block px-4 py-3 rounded-lg text-sm font-medium text-[#343231] hover:bg-[#74342B]/5 hover:text-[#74342B] transition-colors"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        MY FILES
-                      </Link>
-                      <Link
-                        to="/all-files"
-                        className="block px-4 py-3 rounded-lg text-sm font-medium text-[#343231] hover:bg-[#74342B]/5 hover:text-[#74342B] transition-colors"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        ALL FILES
-                      </Link>
-                      <Link
-                        to="/user-management"
-                        className="block px-4 py-3 rounded-lg text-sm font-medium text-[#343231] hover:bg-[#74342B]/5 hover:text-[#74342B] transition-colors"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        USERS
-                      </Link>
-                    </>
-                  )}
-
                   <hr className="my-2 border-[#74342B]/10" />
                   
                   <Link
