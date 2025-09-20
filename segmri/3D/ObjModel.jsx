@@ -51,7 +51,7 @@ export default function ObjViewer() {
   return (
     <div className="flex flex-col items-center justify-center h-screen w-screen bg-gray-100">
       <div
-        className={`w-3/4 h-2/4 border-2 rounded-2xl flex items-center justify-center mb-4 transition 
+        className={`w-3/4 h-full border-2 rounded-2xl flex items-center justify-center mb-4 transition 
           ${dragging ? "border-blue-500 bg-blue-50" : "border-dashed border-gray-400"}`}
         onDragOver={(e) => {
           e.preventDefault();
