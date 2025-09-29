@@ -25,7 +25,7 @@ const imageslider = [
     {
       text: "MRI Image Upload",
       image: "./image_upload.jpg",
-      description: "HIPAA-compliant cloud storage and processing"
+      description: "Secure cloud storage and processing"
     },
     {
       text: "Real-time Result Viewing",
@@ -86,7 +86,7 @@ const FeaturesPage = () => {
       id: 2,
       title: "Medical Image Management",
       shortDesc: "Upload, manage and export imaging data",
-      longDesc: "Securely upload and organize medical imaging files with full support for DICOM and NIfTI formats. Provides file deletion, metadata handling, cascade cleanup, and export in multiple standardized formats including PNG, RLE, and DICOM-RT.",
+      longDesc: "Securely upload and organize medical imaging files with full support for NIfTI formats. Provides file deletion, metadata handling, cascade cleanup, and export in multiple standardized formats.",
       icon: (
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -140,7 +140,7 @@ const FeaturesPage = () => {
         "Export results in multiple formats",
         "AWS S3 integration for scalable storage"
       ],
-      metrics: { storage: "S3-backed", formats: "DICOM/NIfTI", export: "Multi-format" },
+      metrics: { storage: "S3-backed", formats: "NIfTI", export: "Multi-format" },
       demoImage: "./image_upload.jpg"
     },
     {
@@ -208,7 +208,7 @@ const FeaturesPage = () => {
     { label: "Processing Speed", value: "< 60 seconds per scan", icon: "⚡" },
     { label: "AI Models", value: "YOLO + MedSAM (TensorRT optimized)", icon: "🎯" },
     { label: "Session Management", value: "Redis-backed authentication", icon: "🔒" },
-    { label: "Data Handling", value: "DICOM, NIfTI with S3 storage", icon: "📁" },
+    { label: "Data Handling", value: "NIfTI with S3 storage", icon: "📁" },
     { label: "Deployment", value: "Dockerized on AWS (EC2, ALB, ASG)", icon: "☁️" },
     { label: "API Access", value: "Documented RESTful APIs", icon: "🔌" }
   ];
@@ -732,14 +732,6 @@ const FeaturesPage = () => {
             viewport={{ once: true }}
             transition={{ delay: 0.5, duration: 0.8 }}
           >
-            <button className="group px-12 py-5 bg-gradient-to-r from-[#5B7B9A] to-[#3A4454] text-white rounded-2xl hover:shadow-2xl transition-all duration-500 font-bold text-lg transform hover:scale-105">
-              <span className="flex items-center justify-center">
-                Start Free Trial
-                <svg className="w-6 h-6 ml-3 transform group-hover:translate-x-2 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                </svg>
-              </span>
-            </button>
           </motion.div>
 
           <motion.div 

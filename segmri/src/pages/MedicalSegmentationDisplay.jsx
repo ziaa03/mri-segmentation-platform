@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   Heart, Eye, EyeOff, ZoomIn, ZoomOut, RotateCcw, Download, Edit, Trash2, 
-  Plus, Target, Brain, Activity, Grid, Maximize2, Info, Settings, AlertCircle, Monitor
+  Plus, Target, Brain, Activity, Grid, Maximize2, Info, Settings, AlertCircle, Monitor,
+  ChevronLeft, ChevronRight, Play, Pause, Clock, Layers  // ADD Layers here
 } from 'lucide-react';
 
 import debounce from "lodash.debounce";
@@ -70,7 +71,12 @@ const MedicalSegmentationDisplay = ({
   projectId, 
   onSaveManualAnnotations, 
   setSegmentationData,
-  api // Pass api instance as prop
+  maxTimeIndex,        
+  maxLayerIndex,  
+  api,
+  manualTimeIndex,
+  manualLayerIndex,
+  onEditModeToggle
 }) => {
   // Canvas refs
   const canvasRef = useRef(null);
@@ -480,9 +486,9 @@ const MedicalSegmentationDisplay = ({
 
     let manualDataForCurrentSlice = null;
     if (activeManualSegmentation && activeManualSegmentation.frames) {
-      const frameInData = activeManualSegmentation.frames.find(f => f.frameindex === currentTimeIndex);
+      const frameInData = activeManualSegmentation.frames.find(f => f.frameindex === manualTimeIndex); // ← Changed
       if (frameInData && frameInData.slices) {
-        const sliceInData = frameInData.slices.find(s => s.sliceindex === currentLayerIndex);
+        const sliceInData = frameInData.slices.find(s => s.sliceindex === manualLayerIndex); // ← Changed
         if (sliceInData && sliceInData.segmentationmasks) {
           manualDataForCurrentSlice = sliceInData.segmentationmasks;
         }
@@ -575,22 +581,22 @@ const MedicalSegmentationDisplay = ({
     ctx.globalCompositeOperation = 'source-over';
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }, [
-    drawingHistory,
-    currentBoundingBox,
-    canvasDimensions,
-    visibleMasks,
-    maskOpacity,
-    imageTransform,
-    currentTimeIndex,
-    currentLayerIndex,
-    selectedClass,
-    brushSize,
-    sliceData,
-    activeManualSegmentation,
-    zoomLevel,
-    panOffset,
-    getCurrentSliceData
-  ]);
+  drawingHistory,
+  currentBoundingBox,
+  canvasDimensions,
+  visibleMasks,
+  maskOpacity,
+  imageTransform,
+  manualTimeIndex, // ← Changed
+  manualLayerIndex, // ← Changed
+  selectedClass,
+  brushSize,
+  sliceData,
+  activeManualSegmentation,
+  zoomLevel,
+  panOffset,
+  getCurrentSliceData
+]);
 
   const scheduleRender = useCallback(() => {
     if (rafRef.current) {
@@ -638,135 +644,179 @@ const MedicalSegmentationDisplay = ({
 
   // FIXED: Mouse down handler with immediate redraw
   const handleSecondCanvasMouseDown = useCallback(
-    (e) => {
-      if (!isEditMode) return;
+  (e) => {
+    if (!isEditMode) return;
 
-      const canvas = secondOverlayCanvasRef.current;
-      if (!canvas) return;
+    const canvas = secondOverlayCanvasRef.current;
+    if (!canvas) return;
 
-      const coords = getCanvasCoordinates(e, canvas);
+    // Check if this should be a pan operation (same logic as main canvas)
+    const shouldPan = e.button === 1 || // Middle mouse button
+                     e.ctrlKey ||      // Ctrl key
+                     e.metaKey ||      // Cmd key (Mac)
+                     selectedTool === 'pan'; // Pan tool selected
 
-      if (selectedTool === "brush" || selectedTool === "eraser") {
-        setDrawingHistory((prev) => [
-          ...prev,
-          {
-            type: selectedTool,
-            class: selectedClass,
-            lineWidth: brushSize,
-            points: [coords]
-          },
-        ]);
-        setIsDrawing(true);
-        
-        // Force immediate redraw - call function directly
-        redrawSecondOverlayCanvas();
-      } else if (selectedTool === "boundingbox") {
-        setCurrentBoundingBox({
-          startX: coords.x,
-          startY: coords.y,
-          currentX: coords.x,
-          currentY: coords.y,
+    if (shouldPan) {
+      setIsDragging(true);
+      setLastMousePos({ x: e.clientX, y: e.clientY });
+      return; // Don't do anything else
+    }
+
+    // Only do drawing operations if not panning
+    const coords = getCanvasCoordinates(e, canvas);
+
+    if (selectedTool === "brush" || selectedTool === "eraser") {
+      setDrawingHistory((prev) => [
+        ...prev,
+        {
+          type: selectedTool,
           class: selectedClass,
-        });
-        setIsDrawing(true);
-        
-        // Force immediate redraw - call function directly
-        redrawSecondOverlayCanvas();
-      }
-    },
-    [isEditMode, selectedTool, selectedClass, getCanvasCoordinates, brushSize, redrawSecondOverlayCanvas]
-  );
+          lineWidth: brushSize,
+          points: [coords]
+        },
+      ]);
+      setIsDrawing(true);
+      setTimeout(() => redrawSecondOverlayCanvas(), 0);
+    } else if (selectedTool === "boundingbox") {
+      setCurrentBoundingBox({
+        startX: coords.x,
+        startY: coords.y,
+        currentX: coords.x,
+        currentY: coords.y,
+        class: selectedClass,
+      });
+      setIsDrawing(true);
+      setTimeout(() => redrawSecondOverlayCanvas(), 0);
+    }
+
+    setUnsavedEdit(true);
+  },
+  [isEditMode, selectedTool, selectedClass, getCanvasCoordinates, brushSize, redrawSecondOverlayCanvas]
+);
 
   // FIXED: Mouse move handler with immediate canvas updates
   const handleSecondCanvasMouseMove = useCallback(
-    (e) => {
-      if (!isDrawing || !isEditMode) return;
+  (e) => {
+    if (!isEditMode) return;
 
-      const canvas = secondOverlayCanvasRef.current;
-      if (!canvas) return;
+    const canvas = secondOverlayCanvasRef.current;
+    if (!canvas) return;
 
-      const coords = getCanvasCoordinates(e, canvas);
+    // Handle panning FIRST (same logic as main canvas)
+    if (isDragging) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
 
-      if (selectedTool === "brush" || selectedTool === "eraser") {
-        setDrawingHistory((prevHistory) => {
-          const newHistory = [...prevHistory];
-          if (newHistory.length > 0) {
-            const lastAction = newHistory[newHistory.length - 1];
-            if (
-              (lastAction.type === "brush" || lastAction.type === "eraser") &&
-              lastAction.points
-            ) {
-              lastAction.points = [...lastAction.points, coords];
-            }
+      const deltaXClient = e.clientX - lastMousePos.x;
+      const deltaYClient = e.clientY - lastMousePos.y;
+
+      const deltaCanvasX = deltaXClient * scaleX;
+      const deltaCanvasY = deltaYClient * scaleY;
+
+      // This is the key fix - update the shared panOffset state
+      setPanOffset(prev => ({ 
+        x: prev.x + deltaCanvasX, 
+        y: prev.y + deltaCanvasY 
+      }));
+      setLastMousePos({ x: e.clientX, y: e.clientY });
+      return; // Don't do drawing while panning
+    }
+
+    // Only handle drawing if not panning
+    if (!isDrawing) return;
+
+    const coords = getCanvasCoordinates(e, canvas);
+
+    if (selectedTool === "brush" || selectedTool === "eraser") {
+      setDrawingHistory((prevHistory) => {
+        const newHistory = [...prevHistory];
+        if (newHistory.length > 0) {
+          const lastAction = newHistory[newHistory.length - 1];
+          if (
+            (lastAction.type === "brush" || lastAction.type === "eraser") &&
+            lastAction.points
+          ) {
+            lastAction.points = [...lastAction.points, coords];
           }
-          
-          // Force immediate redraw after state update
-          setTimeout(() => redrawSecondOverlayCanvas(), 0);
-          return newHistory;
-        });
-      } else if (selectedTool === "boundingbox" && currentBoundingBox) {
-        setCurrentBoundingBox((prev) => ({
-          ...prev,
-          currentX: coords.x,
-          currentY: coords.y,
-        }));
+        }
         
-        // Force immediate redraw for bounding box
-        redrawSecondOverlayCanvas();
-      }
-    },
-    [
-      isDrawing,
-      isEditMode,
-      selectedTool,
-      currentBoundingBox,
-      getCanvasCoordinates,
-      redrawSecondOverlayCanvas,
-    ]
-  );
+        setTimeout(() => redrawSecondOverlayCanvas(), 0);
+        return newHistory;
+      });
+    } else if (selectedTool === "boundingbox" && currentBoundingBox) {
+      setCurrentBoundingBox((prev) => ({
+        ...prev,
+        currentX: coords.x,
+        currentY: coords.y,
+      }));
+      
+      setTimeout(() => redrawSecondOverlayCanvas(), 0);
+    }
+  },
+  [
+    isEditMode,
+    isDragging,
+    isDrawing,
+    selectedTool,
+    currentBoundingBox,
+    getCanvasCoordinates,
+    redrawSecondOverlayCanvas,
+    lastMousePos
+  ]
+);
 
   // FIXED: Mouse up handler with immediate completion redraw
   const handleSecondCanvasMouseUp = useCallback(() => {
-    if (!isDrawing || !isEditMode) return;
-    
-    setIsDrawing(false);
+  if (!isEditMode) return;
+  
+  // End panning
+  if (isDragging) {
+    setIsDragging(false);
+    return;
+  }
 
-    if (selectedTool === "boundingbox" && currentBoundingBox) {
-      const { startX, startY, currentX, currentY, class: boxClass } = currentBoundingBox;
-      const rectX = Math.min(startX, currentX);
-      const rectY = Math.min(startY, currentY);
-      const rectWidth = Math.abs(startX - currentX);
-      const rectHeight = Math.abs(startY - currentY);
+  // End drawing
+  if (!isDrawing) return;
+  setIsDrawing(false);
 
-      if (rectWidth > 5 && rectHeight > 5) {
-        setDrawingHistory((prev) => {
-          const newHistory = [
-            ...prev,
-            {
-              type: "boundingbox",
-              class: boxClass,
-              rect: { x: rectX, y: rectY, width: rectWidth, height: rectHeight },
-            },
-          ];
-          
-          // Force redraw after state update
-          setTimeout(() => redrawSecondOverlayCanvas(), 0);
-          return newHistory;
-        });
-      }
-      
-      setCurrentBoundingBox(null);
+  if (selectedTool === "boundingbox" && currentBoundingBox) {
+    const { startX, startY, currentX, currentY, class: boxClass } = currentBoundingBox;
+    const rectX = Math.min(startX, currentX);
+    const rectY = Math.min(startY, currentY);
+    const rectWidth = Math.abs(startX - currentX);
+    const rectHeight = Math.abs(startY - currentY);
+
+    if (rectWidth > 5 && rectHeight > 5) {
+      setDrawingHistory((prev) => {
+        const newHistory = [
+          ...prev,
+          {
+            type: "boundingbox",
+            class: boxClass,
+            rect: { x: rectX, y: rectY, width: rectWidth, height: rectHeight },
+          },
+        ];
+        
+        // Force redraw after state update
+        setTimeout(() => redrawSecondOverlayCanvas(), 0);
+        return newHistory;
+      });
     }
+    
+    setCurrentBoundingBox(null);
+  }
 
-    // Final redraw to show completed stroke/box
-    redrawSecondOverlayCanvas();
-  }, [
-    isDrawing,
-    isEditMode,
-    selectedTool,
-    currentBoundingBox,
-    redrawSecondOverlayCanvas,
-  ]);
+  // Final redraw to show completed stroke/box
+  setTimeout(() => redrawSecondOverlayCanvas(), 0);
+}, [
+  isEditMode,
+  isDragging,
+  isDrawing,
+  selectedTool,
+  currentBoundingBox,
+  redrawSecondOverlayCanvas,
+]);
 
   const handleMouseUp = () => {
     setIsDragging(false);
@@ -949,55 +999,61 @@ const MedicalSegmentationDisplay = ({
 
   // Initialize activeManualSegmentation when entering edit mode
   useEffect(() => {
-    if (isEditMode) {
-      if (segmentationData && (!activeManualSegmentation || activeManualSegmentation.isMedSAMOutput === true)) {
-        console.log("Edit mode: Initializing activeManualSegmentation from AI data.");
+  if (isEditMode) {
+    if (segmentationData && (!activeManualSegmentation || activeManualSegmentation.isMedSAMOutput === true)) {
+      console.log("Edit mode: Initializing activeManualSegmentation from AI data.");
 
-        const transformedFrames = [];
-        if (segmentationData.masks && Array.isArray(segmentationData.masks)) {
-          segmentationData.masks.forEach((frameSlicesArray, frameIdx) => {
-            if (frameSlicesArray && Array.isArray(frameSlicesArray)) {
-              const slicesForCurrentFrame = [];
-              frameSlicesArray.forEach((sliceObject, sliceIdx) => {
-                if (sliceObject && sliceObject.segmentationMasks && Array.isArray(sliceObject.segmentationMasks)) {
-                  slicesForCurrentFrame.push({
-                    sliceindex: sliceIdx,
-                    segmentationmasks: JSON.parse(JSON.stringify(sliceObject.segmentationMasks))
-                  });
-                }
-              });
-              if (slicesForCurrentFrame.length > 0) {
-                transformedFrames.push({
-                  frameindex: frameIdx,
-                  frameinferred: false, 
-                  slices: slicesForCurrentFrame
+      const transformedFrames = [];
+      if (segmentationData.masks && Array.isArray(segmentationData.masks)) {
+        segmentationData.masks.forEach((frameSlicesArray, frameIdx) => {
+          if (frameSlicesArray && Array.isArray(frameSlicesArray)) {
+            const slicesForCurrentFrame = [];
+            frameSlicesArray.forEach((sliceObject, sliceIdx) => {
+              if (sliceObject && sliceObject.segmentationMasks && Array.isArray(sliceObject.segmentationMasks)) {
+                slicesForCurrentFrame.push({
+                  sliceindex: sliceIdx,
+                  // CRITICAL: Deep clone to preserve exact RLE data
+                  segmentationmasks: sliceObject.segmentationMasks.map(mask => ({
+                    class: mask.class,
+                    segmentationmaskcontents: mask.segmentationmaskcontents || mask.rle,
+                    // Preserve any other properties
+                    ...mask
+                  }))
                 });
               }
+            });
+            if (slicesForCurrentFrame.length > 0) {
+              transformedFrames.push({
+                frameindex: frameIdx,
+                frameinferred: false, 
+                slices: slicesForCurrentFrame
+              });
             }
-          });
-        }
-
-        setActiveManualSegmentation({
-          name: `Manual Edit - ${segmentationData.name || `Project ${projectId}`}`,
-          description: segmentationData.description || "User-edited segmentation",
-          isMedSAMOutput: false,
-          isEditable: true,
-          isSaved: false,
-          frames: transformedFrames,
-        });
-      } else if (!segmentationData && !activeManualSegmentation) {
-        console.log("Edit mode: No AI data, initializing empty activeManualSegmentation.");
-        setActiveManualSegmentation({
-            name: `Manual Edit - Project ${projectId}`,
-            description: "User-edited segmentation",
-            isMedSAMOutput: false,
-            isEditable: true,
-            isSaved: false,
-            frames: []
+          }
         });
       }
+
+      setActiveManualSegmentation({
+        name: `Manual Edit - ${segmentationData.name || `Project ${projectId}`}`,
+        description: segmentationData.description || "User-edited segmentation",
+        isMedSAMOutput: false,
+        isEditable: true,
+        isSaved: false,
+        frames: transformedFrames,
+      });
+    } else if (!segmentationData && !activeManualSegmentation) {
+      console.log("Edit mode: No AI data, initializing empty activeManualSegmentation.");
+      setActiveManualSegmentation({
+        name: `Manual Edit - Project ${projectId}`,
+        description: "User-edited segmentation",
+        isMedSAMOutput: false,
+        isEditable: true,
+        isSaved: false,
+        frames: []
+      });
     }
-  }, [isEditMode, segmentationData, projectId, activeManualSegmentation]);
+  }
+}, [isEditMode, segmentationData, projectId, activeManualSegmentation]);
 
   // FIXED: Apply brush strokes with immediate visual update
   const handleApplyBrushStrokes = useCallback(() => {
@@ -1127,14 +1183,22 @@ const MedicalSegmentationDisplay = ({
   }, [canvasDimensions, currentTimeIndex, currentLayerIndex]);
 
   const undoLastAction = useCallback(() => {
-    if (drawingHistory.length > 0) {
-      const newHistory = [...drawingHistory];
-      newHistory.pop();
-      setDrawingHistory(newHistory);
-    }
-  }, [drawingHistory]);
+  if (drawingHistory.length > 0) {
+    setDrawingHistory(prev => {
+      const newHistory = prev.slice(0, -1); // Remove last action
+      console.log(`Undo: Removed action. History length: ${prev.length} -> ${newHistory.length}`);
+      return newHistory;
+    });
+    
+    // Force immediate redraw after undo
+    setTimeout(() => {
+      redrawSecondOverlayCanvas();
+    }, 0);
+    
+    setUnsavedEdit(true);
+  }
+}, [drawingHistory.length, redrawSecondOverlayCanvas]);
 
-  // FIXED: Clear canvas with immediate redraw
   // FIXED: Clear canvas with proper state clearing
 const clearSecondCanvas = useCallback(() => {
   const canvas = secondCanvasRef.current;
@@ -1202,34 +1266,48 @@ const clearSecondCanvas = useCallback(() => {
 
   // Main render effect
   useEffect(() => {
+  if (isEditMode) {
+    // Force immediate render for AI canvas in edit mode
+    renderMainCanvas();
+  } else {
     debouncedRender();
+  }
 
-    if (isEditMode) {
-      const bgCanvas = secondCanvasRef.current;
-      if (bgCanvas && canvasDimensions.width > 0 && canvasDimensions.height > 0) {
-        if (bgCanvas.width !== canvasDimensions.width || bgCanvas.height !== canvasDimensions.height) {
-          bgCanvas.width = canvasDimensions.width;
-          bgCanvas.height = canvasDimensions.height;
-        }
-        const bgCtx = bgCanvas.getContext('2d');
-        renderImageToCanvas(
-          bgCtx,
-          currentImage?.url,
-          canvasDimensions.width,
-          canvasDimensions.height
-        );
+  if (isEditMode) {
+    const bgCanvas = secondCanvasRef.current;
+    if (bgCanvas && canvasDimensions.width > 0 && canvasDimensions.height > 0) {
+      if (bgCanvas.width !== canvasDimensions.width || bgCanvas.height !== canvasDimensions.height) {
+        bgCanvas.width = canvasDimensions.width;
+        bgCanvas.height = canvasDimensions.height;
       }
-
-      debouncedManualRedraw();
+      const bgCtx = bgCanvas.getContext('2d');
+      
+      const manualImage = findClosestImage(extractedImages, manualTimeIndex, manualLayerIndex);
+      
+      renderImageToCanvas(
+        bgCtx,
+        manualImage?.url,
+        canvasDimensions.width,
+        canvasDimensions.height
+      );
     }
-  }, [
-    debouncedRender,
-    isEditMode,
-    canvasDimensions,
-    debouncedManualRedraw,
-    renderImageToCanvas,
-    currentImage
-  ]);
+
+    debouncedManualRedraw();
+  }
+}, [
+  debouncedRender,
+  renderMainCanvas, // ADD THIS
+  isEditMode,
+  canvasDimensions,
+  debouncedManualRedraw,
+  renderImageToCanvas,
+  currentImage,
+  currentTimeIndex,
+  currentLayerIndex,
+  manualTimeIndex,
+  manualLayerIndex,
+  extractedImages
+]);
 
   // CORRECTED: useEffect that properly triggers redraws
 useEffect(() => {
@@ -1292,6 +1370,10 @@ useEffect(() => {
   const handleEditModeToggle = () => {
     if (!isEditMode) setUnsavedEdit(true);
     setIsEditMode(!isEditMode);
+    // Call the parent's edit mode toggle handler
+    if (onEditModeToggle) {
+      onEditModeToggle(!isEditMode);
+    }
   };
 
   // Warn user on page unload if unsaved edits
@@ -1307,7 +1389,7 @@ useEffect(() => {
   }, [unsavedEdit]);
 
   return (
-    <div className="bg-white shadow-lg border border-gray-200 rounded-lg overflow-hidden">
+    <div className="bg-white shadow-lg border border-gray-200 overflow-hidden">
 
       {/* Professional Header */}
       <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-6 py-3 border-b border-gray-700">
@@ -1340,16 +1422,10 @@ useEffect(() => {
         </div>
       </div>
 
-      {unsavedEdit && (
-        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4">
-          <strong>Warning:</strong> You have unsaved manual annotations. Please save your work before leaving or changes will be lost.
-        </div>
-      )}
-
       <div className="flex overflow-hidden" style={{ height: 'calc(100vh - 400px)', minHeight: '600px' }}>
         {/* Canvas Area */}
         <div className="flex-1 relative flex bg-gray-50">
-          <div className="flex flex-1 rounded-lg overflow-hidden shadow-inner">
+          <div className="flex flex-1 overflow-hidden shadow-inner">
             {/* Primary Canvas - AI ONLY (read-only) */}
             <div className={`${isEditMode ? 'flex-1 border-r border-gray-300' : 'w-full'} relative bg-gradient-to-br from-gray-900 via-slate-800 to-gray-900`}>
               <div className="absolute top-4 left-4 z-10 bg-black/70 backdrop-blur-sm text-white px-3 py-2 border border-white/10">
@@ -1396,12 +1472,6 @@ useEffect(() => {
                 ref={overlayCanvasRef}
                 className="absolute inset-0 w-full h-full pointer-events-none"
               />
-
-              {/* Patient Info Overlay */}
-              <div className="absolute bottom-6 left-6 bg-black/70 backdrop-blur-sm text-green-400 px-3 py-2 border border-white/10">
-                <div className="text-sm font-medium">Patient: DEMO-001</div>
-                <div className="text-xs text-green-300">Study: Cardiac MRI • Series: 4D Flow</div>
-              </div>
             </div>
 
             {/* Secondary Canvas for Edit Mode - MANUAL ANNOTATIONS */}
@@ -1410,11 +1480,20 @@ useEffect(() => {
                 <div className="absolute top-4 left-4 z-10 bg-black/70 backdrop-blur-sm text-white px-3 py-2 border border-white/10">
                   Manual Annotations (Editable)
                 </div>
+
                 <div className="absolute top-4 right-4 z-10 flex space-x-2">
                   <button
-                    onClick={undoLastAction}
-                    className="bg-orange-600 hover:bg-orange-700 backdrop-blur-sm text-white p-2 transition-colors duration-200"
-                    title="Undo"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      undoLastAction();
+                    }}
+                    disabled={drawingHistory.length === 0}
+                    className={`p-2 transition-colors duration-200 ${
+                      drawingHistory.length === 0 
+                        ? 'bg-gray-500 text-gray-300 cursor-not-allowed' 
+                        : 'bg-orange-600 hover:bg-orange-700 text-white'
+                    }`}
+                    title={`Undo${drawingHistory.length > 0 ? ` (${drawingHistory.length} actions)` : ' (No actions)'}`}
                   >
                     <RotateCcw className="w-4 h-4" />
                   </button>
@@ -1436,52 +1515,29 @@ useEffect(() => {
 
                   <canvas
                     ref={secondOverlayCanvasRef}
-                    className="absolute inset-0 w-full h-full cursor-crosshair"
+                    className="absolute inset-0 w-full h-full"
                     onMouseDown={handleSecondCanvasMouseDown}
                     onMouseMove={handleSecondCanvasMouseMove}
                     onMouseUp={handleSecondCanvasMouseUp}
-                    onMouseLeave={handleSecondCanvasMouseUp}
+                    onMouseLeave={() => {
+                      setIsDrawing(false);
+                      setIsDragging(false);
+                    }}
                     style={{ 
-                      cursor: selectedTool === 'boundingbox' ? 'crosshair' : 'default',
+                      cursor: isDragging ? 'grabbing' : 
+                            (selectedTool === 'boundingbox' ? 'crosshair' : 'grab'),
                       touchAction: 'none'
                     }}
+                    title="Drag to pan • Ctrl/Cmd+drag to pan • Click to annotate"
                   />
                 </div>
               </div>
             )}
           </div>
-
-          {/* Enhanced Overlay Controls */}
-          <div className="absolute top-4 left-4 flex space-x-2 bg-black/80 backdrop-blur-sm rounded-lg p-2">
-            <div className="flex space-x-2">
-              <button
-                onClick={() => handleZoom(-0.2)}
-                className="p-2 bg-gray-800 text-white hover:bg-gray-700 transition-all duration-200 border border-gray-600 hover:border-gray-500"
-              >
-                <ZoomOut className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => handleZoom(0.2)}
-                className="p-2 bg-gray-800 text-white hover:bg-gray-700 transition-all duration-200 border border-gray-600 hover:border-gray-500"
-              >
-                <ZoomIn className="w-4 h-4" />
-              </button>
-              <button
-                onClick={resetView}
-                className="p-2 bg-gray-800 text-white hover:bg-gray-700 transition-all duration-200 border border-gray-600 hover:border-gray-500"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-            </div>
-            
-            <div className="bg-gray-800 text-white text-sm px-3 py-2 border border-gray-600">
-              Zoom: {Math.round(zoomLevel * 100)}%
-            </div>
-          </div>
         </div>
 
         {/* Enhanced Control Panel */}
-        <div className={`${isEditMode ? 'w-80' : 'w-80'} border-l border-gray-300 bg-white flex-shrink-0`}>
+        <div className={`${isEditMode ? 'w-84' : 'w-80'} border-l border-gray-300 bg-white flex-shrink-0`}>
           <div className="h-full flex flex-col">
             {/* Panel Header */}
             <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3 border-b border-gray-700">
@@ -1739,53 +1795,6 @@ useEffect(() => {
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Compact Status Footer */}
-      <div className="bg-gradient-to-r from-gray-800 to-gray-900 border-t border-gray-700 px-6 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-8">
-            <div className="flex items-center space-x-3">
-              <div className={`w-3 h-3 rounded-full shadow-sm ${
-                processingComplete ? 'bg-green-500 animate-pulse' : 
-                isProcessing ? 'bg-orange-500 animate-pulse' : 'bg-gray-400'
-              }`} />
-              <span className="text-white font-medium">
-                {processingComplete ? 'Analysis Complete' : 
-                 isProcessing ? 'AI Processing Active' : 'System Ready'}
-              </span>
-            </div>
-            
-            {processingComplete && (
-              <div className="flex items-center space-x-6">
-                <div className="text-gray-300">
-                  <span className="font-medium">Project:</span> {projectId}
-                </div>
-                <div className="text-gray-300">
-                  <span className="font-medium">Segments:</span> {segmentationData?.segments?.length || 0}
-                </div>
-                <div className="text-gray-300">
-                  <span className="font-medium">Quality:</span> Clinical Grade
-                </div>
-              </div>
-            )}
-
-            {uploadingMasks && (
-              <div className="text-orange-400 animate-pulse font-medium">
-                Cloud synchronization in progress...
-              </div>
-            )}
-          </div>
-          
-          <div className="text-right">
-            <div className="text-white font-semibold">
-              VisHeart Professional Platform v2.1
-            </div>
-            <div className="text-gray-300 text-sm">
-              Last updated: {new Date().toLocaleString()}
             </div>
           </div>
         </div>

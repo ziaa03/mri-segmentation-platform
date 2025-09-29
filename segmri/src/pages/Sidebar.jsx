@@ -71,7 +71,7 @@ const Sidebar = ({ processingComplete = false }) => {
     if (lowerName.includes('ct')) return 'CT';
     if (lowerName.includes('echo')) return 'Echo';
     if (lowerName.includes('cardiac')) return 'MRI';
-    return 'DICOM';
+    return 'NIFTI';
   };
 
   const navigationItems = [
@@ -280,7 +280,7 @@ const Sidebar = ({ processingComplete = false }) => {
                             </span>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="text-xs text-gray-600">{project.patient}</span>
+                            {/* <span className="text-xs text-gray-600">{project.patient}</span> */}
                             <div className="flex items-center gap-1">
                               <span className={`inline-block px-2 py-1 text-xs rounded-full border font-medium ${getStatusColor(project.status)}`}>
                                 {project.status}

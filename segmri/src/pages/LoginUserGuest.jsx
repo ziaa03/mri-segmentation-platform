@@ -182,26 +182,6 @@ const LoginUserGuest = () => {
               </div>
             </div>
           </div>
-
-          {/* Footer
-          <div className='mt-8 pt-6 border-t border-slate-200'>
-            <div className='flex items-center justify-center gap-6 text-xs text-white font-bold'>
-              <div className='flex items-center'>
-                <Shield className='w-3 h-3 mr-1 text-white' />
-                <span>Enterprise Security</span>
-              </div>
-              <div className='w-1 h-1 bg-slate-400 rounded-full'></div>
-              <div className='flex items-center'>
-                <Heart className='w-3 h-3 mr-1 text-white' />
-                <span>HIPAA Compliant</span>
-              </div>
-              <div className='w-1 h-1 bg-slate-400 rounded-full'></div>
-              <div className='flex items-center'>
-                <Stethoscope className='w-3 h-3 mr-1 text-white' />
-                <span>FDA Cleared</span>
-              </div>
-            </div>
-          </div> */}
         </div>
       </div>
     </div>

@@ -10,7 +10,6 @@ const FileCard = ({ file, isSelected, onSelect, onView, onFavorite, onDelete }) 
   const renderFileIcon = () => {
     switch (file.filetype) {
       case 'folder': return <Folder className="w-10 h-10 text-blue-500" />;
-      case 'dicom': return <FileText className="w-10 h-10 text-green-500" />;
       default: return <FileText className="w-10 h-10 text-blue-500" />;
     }
   };
@@ -98,7 +97,6 @@ const FileDetailsSidebar = ({ file, onClose, onDelete, onFavorite, onRemoveTag }
   const renderFileIcon = () => {
     switch (file.filetype) {
       case 'folder': return <Folder className="w-12 h-12 text-blue-500" />;
-      case 'dicom': return <FileText className="w-12 h-12 text-green-500" />;
       default: return <FileText className="w-12 h-12 text-blue-500" />;
     }
   };
@@ -222,7 +220,7 @@ const AdminFileManagementPage = () => {
   const fileInputRef = useRef(null);
   
   // const availableTags = ['important', 'critical', 'research', 'archived', 'follow-up'];
-  const categories = ['all', 'scan', 'dicom', 'ct', 'mri'];
+  const categories = ['all', 'nifti'];
   
   // File operations
   const toggleFileSelection = (fileId) => {
@@ -352,18 +350,17 @@ const AdminFileManagementPage = () => {
   
   const getFileType = (filename) => {
     const ext = filename.split('.').pop().toLowerCase();
-    if (['dcm', 'dicom'].includes(ext)) return 'dicom';
     if (['nii', 'nifti'].includes(ext)) return 'nifti';
     if (['doc', 'docx', 'pdf', 'txt'].includes(ext)) return 'document';
     return 'file';
   };
   
-  const getFileCategory = (filename) => {
-    if (filename.toLowerCase().includes('scan')) return 'scan';
-    if (filename.toLowerCase().includes('ct')) return 'ct';
-    if (filename.toLowerCase().includes('mri')) return 'mri';
-    return 'dicom';
-  };
+  // const getFileCategory = (filename) => {
+  //   if (filename.toLowerCase().includes('scan')) return 'scan';
+  //   if (filename.toLowerCase().includes('ct')) return 'ct';
+  //   if (filename.toLowerCase().includes('mri')) return 'mri';
+  //   return 'dicom';
+  // };
   
   const formatFileSize = (bytes) => {
     if (bytes < 1024) return bytes + ' B';

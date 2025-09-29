@@ -60,7 +60,7 @@ const Header = () => {
           
           {/* Logo */}
           <div className="flex items-center">
-            <Link to="/" className="group">
+            <Link to="/landing" className="group">
               <h1 className="text-2xl font-bold tracking-tight transition-all duration-200 group-hover:scale-105">
                 <span className="text-[#74342B] bg-gradient-to-r from-[#74342B] to-[#8B4D42] bg-clip-text text-transparent">
                   Vis

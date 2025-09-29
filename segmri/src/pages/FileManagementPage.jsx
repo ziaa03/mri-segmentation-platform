@@ -10,7 +10,6 @@ const FileCard = ({ file, isSelected, onSelect, onView, onFavorite, onDelete }) 
   const renderFileIcon = () => {
     switch (file.filetype) {
       case 'folder': return <Folder className="w-10 h-10 text-blue-500" />;
-      case 'dicom': return <FileText className="w-10 h-10 text-green-500" />;
       default: return <FileText className="w-10 h-10 text-blue-500" />;
     }
   };
@@ -99,7 +98,6 @@ const FileDetailsSidebar = ({ file, onClose, onDelete, onFavorite, onRemoveTag }
   const renderFileIcon = () => {
     switch (file.filetype) {
       case 'folder': return <Folder className="w-12 h-12 text-blue-500" />;
-      case 'dicom': return <FileText className="w-12 h-12 text-green-500" />;
       default: return <FileText className="w-12 h-12 text-blue-500" />;
     }
   };
@@ -203,34 +201,33 @@ const FileManagementPage = () => {
   const [files, setFiles] = useState([]);
   
   // api for fetch own projects
-  useEffect(() => {
-    const fetchFiles = async () => {
-      try {
-        const response = await api.get('/project/get-projects-list');
-        const projects = response.data.projects || [];
+useEffect(() => {
+  const fetchFiles = async () => {
+    try {
+      const response = await api.get('/project/get-projects-list');
+      const projects = response.data.projects || [];
 
-        const formattedProjects = projects.map(p => ({
-          projectId: p.projectId,
-          name: p.name,
-          filesize: p.filesize,
-          createdAt: p.createdAt?.slice(0, 10),
-          updatedAt: p.updatedAt?.slice(0, 10),
-        }));
+      const formattedProjects = projects.map(p => ({
+        projectId: p.projectId,
+        name: p.name,
+        filesize: formatFileSize(p.filesize), // ← Format the size here
+        createdAt: p.createdAt?.slice(0, 10),
+        updatedAt: p.updatedAt?.slice(0, 10),
+      }));
 
-        setFiles(formattedProjects);
-      } catch (error) {
-        console.error("Failed to fetch projects:", error);
-      }
-    };
+      setFiles(formattedProjects);
+    } catch (error) {
+      console.error("Failed to fetch projects:", error);
+    }
+  };
 
-    fetchFiles();
-  }, []);
-  
+  fetchFiles();
+}, []);
   
   const fileInputRef = useRef(null);
   
   // const availableTags = ['important', 'critical', 'research', 'archived', 'follow-up'];
-  const categories = ['all', 'scan', 'dicom', 'ct', 'mri'];
+  const categories = ['all', 'nifti'];
   
   // File operations
   const toggleFileSelection = (fileId) => {
@@ -324,18 +321,17 @@ const FileManagementPage = () => {
   };
 
   const processFiles = (files) => {
-    return files.map(file => ({
-      id: Math.random().toString(36).substr(2, 9),
-      name: file.name,
-      type: getFileType(file.name),
-      category: getFileCategory(file.name),
-      size: typeof file.filesize === 'number' ? formatFileSize(file.filesize) : '0 B',
-      date: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
-      modified: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
-      // tags: [],
-      favorite: false
-    }));
-  };
+  return files.map(file => ({
+    id: Math.random().toString(36).substr(2, 9),
+    name: file.name,
+    type: getFileType(file.name),
+    category: getFileCategory(file.name),
+    size: formatFileSize(file.filesize), // Remove the typeof check
+    date: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
+    modified: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
+    favorite: false
+  }));
+};
 
   
   const handleFileUpload = (e) => {
@@ -372,7 +368,6 @@ const FileManagementPage = () => {
   
   const getFileType = (filename) => {
     const ext = filename.split('.').pop().toLowerCase();
-    if (['dcm', 'dicom'].includes(ext)) return 'dicom';
     if (['nii', 'nifti'].includes(ext)) return 'nifti';
     if (['doc', 'docx', 'pdf', 'txt'].includes(ext)) return 'document';
     return 'file';
@@ -382,15 +377,21 @@ const FileManagementPage = () => {
     if (filename.toLowerCase().includes('scan')) return 'scan';
     if (filename.toLowerCase().includes('ct')) return 'ct';
     if (filename.toLowerCase().includes('mri')) return 'mri';
-    return 'dicom';
+    return 'nifti';
   };
   
   const formatFileSize = (bytes) => {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
-    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
-  };
+  // Convert to number if it's a string
+  const size = typeof bytes === 'string' ? parseInt(bytes, 10) : bytes;
+  
+  // Handle invalid numbers
+  if (isNaN(size) || size < 0) return '0 B';
+  
+  if (size < 1024) return size + ' B';
+  if (size < 1024 * 1024) return (size / 1024).toFixed(1) + ' KB';
+  if (size < 1024 * 1024 * 1024) return (size / (1024 * 1024)).toFixed(1) + ' MB';
+  return (size / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+};
   
   // Filter files based on search and filters
   const filteredFiles = files.filter(file => {

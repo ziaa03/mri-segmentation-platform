@@ -271,10 +271,6 @@ const MedicalFileUpload = ({ onFilesSelected, uploadStatus, uploadProgress, erro
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2 text-gray-600">
-              <Shield className="w-4 h-4" />
-              <span>HIPAA Compliant</span>
-            </div>
-            <div className="flex items-center space-x-2 text-gray-600">
               <Lock className="w-4 h-4" />
               <span>End-to-End Encrypted</span>
             </div>

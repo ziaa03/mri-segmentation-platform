@@ -70,7 +70,7 @@ const Dashboard = () => {
     if (lowerName.includes('ct')) return 'CT';
     if (lowerName.includes('echo')) return 'Echo';
     if (lowerName.includes('cardiac')) return 'MRI';
-    return 'DICOM';
+    return 'NIFTI';
   };
 
   const formatFileSize = (bytes) => {

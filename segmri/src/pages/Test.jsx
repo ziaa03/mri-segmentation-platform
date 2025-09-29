@@ -313,6 +313,13 @@ const AdvancedMedicalUI = () => {
   const [availableFrames, setAvailableFrames] = useState([]);
   const [availableSlices, setAvailableSlices] = useState([]);
 
+  // States for manual controls
+  const [manualTimeIndex, setManualTimeIndex] = useState(0);
+  const [manualLayerIndex, setManualLayerIndex] = useState(0);
+  const [isManualPlaying, setIsManualPlaying] = useState(false);
+  const [manualPlaybackSpeed, setManualPlaybackSpeed] = useState(1);
+  const [isEditMode, setIsEditMode] = useState(false);
+
   // 2. DECLARE processSegmentationData BEFORE any function that uses it
   const processSegmentationData = useCallback((data) => {
     console.log('=== PROCESSING SEGMENTATION DATA ===');
@@ -619,6 +626,19 @@ const AdvancedMedicalUI = () => {
     setCurrentLayerIndex(parseInt(e.target.value));
   };
 
+  // Handlers for manual controls
+  const handleManualTimeChange = (e) => {
+    setManualTimeIndex(parseInt(e.target.value));
+  };
+
+  const handleManualLayerChange = (e) => {
+    setManualLayerIndex(parseInt(e.target.value));
+  };
+
+  const handleEditModeToggle = (editMode) => {
+    setIsEditMode(editMode);
+  };
+
   const handleSave = async () => {
     if (!projectId) {
       setErrorMessage('No active project to save.');
@@ -752,11 +772,11 @@ const AdvancedMedicalUI = () => {
 return (
     <div className="min-h-screen bg-gradient-to-br from-[#F8F2E6] via-white to-[#F9EDD4]">
       {/* Main Content Area - Removed sidebar and flex layout */}
-      <div className="max-w-8xl mx-auto p-8">
+      <div className="max-w-8xl mx-auto">
         {!processingComplete ? (
           <div className="space-y-8">
             {/* Enhanced Upload Section */}
-            <div className="max-w-4xl mx-auto">
+            <div className="max-w-4xl mx-auto p-8">
               <MedicalFileUpload
                 onFilesSelected={handleFilesSelected}
                 uploadStatus={uploadStatus}
@@ -833,23 +853,6 @@ return (
         ) : (
           /* Main Professional Analysis Interface - without sidebar */
           <div className="space-y-6">
-            {/* Control Panel */}
-            <MedicalControlPanel
-              currentTimeIndex={currentTimeIndex}
-              maxTimeIndex={maxTimeIndex}
-              currentLayerIndex={currentLayerIndex}
-              maxLayerIndex={maxLayerIndex}
-              onTimeChange={handleTimeChange}
-              onLayerChange={handleLayerChange}
-              onSave={handleSave}
-              onExport={handleExport}
-              projectId={projectId}
-              processingComplete={processingComplete}
-              handleUploadCurrentMasks={handleUploadCurrentMasks}
-              handleUploadAllMasks={handleUploadAllMasks}
-              uploadingMasks={uploadingMasks}
-              segmentationData={segmentationData}
-            />
 
             {/* Main Display */}
             <MedicalSegmentationDisplay
@@ -866,7 +869,42 @@ return (
               extractedImages={extractedImages}
               isLoadingImages={isLoadingImages}
               imageError={imageError}
+              maxTimeIndex={maxTimeIndex}         
+              maxLayerIndex={maxLayerIndex}
               api={api}
+
+              // PROPS for manual controls
+              manualTimeIndex={manualTimeIndex}
+              manualLayerIndex={manualLayerIndex}
+              onEditModeToggle={handleEditModeToggle}
+            />
+
+            {/* Control Panel */}
+            <MedicalControlPanel
+              currentTimeIndex={currentTimeIndex}
+              maxTimeIndex={maxTimeIndex}
+              currentLayerIndex={currentLayerIndex}
+              maxLayerIndex={maxLayerIndex}
+              onTimeChange={handleTimeChange}
+              onLayerChange={handleLayerChange}
+              onSave={handleSave}
+              onExport={handleExport}
+              projectId={projectId}
+              processingComplete={processingComplete}
+              handleUploadCurrentMasks={handleUploadCurrentMasks}
+              handleUploadAllMasks={handleUploadAllMasks}
+              uploadingMasks={uploadingMasks}
+              segmentationData={segmentationData}
+              // PROPS for manual controls
+              isEditMode={isEditMode}
+              manualTimeIndex={manualTimeIndex}
+              manualLayerIndex={manualLayerIndex}
+              onManualTimeChange={handleManualTimeChange}
+              onManualLayerChange={handleManualLayerChange}
+              isManualPlaying={isManualPlaying}
+              setIsManualPlaying={setIsManualPlaying}
+              manualPlaybackSpeed={manualPlaybackSpeed}
+              setManualPlaybackSpeed={setManualPlaybackSpeed}
             />
           </div>
         )}
