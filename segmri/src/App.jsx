@@ -19,6 +19,8 @@ import AdvancedMedicalUI from './pages/Test';
 import Dashboard from './pages/Dashboard';
 import { useLocation } from 'react-router-dom';
 import ObjViewer from '../3D/ObjModel';
+import AwsSideBar from './components/AwsSideBar';
+import CpuUtilizationPage from './pages/CpuUtilizationPage';
 
 // Component to determine if sidebar should be shown
 const AppLayout = () => {
@@ -28,12 +30,18 @@ const AppLayout = () => {
   const sidebarRoutes = ['/dashboard', '/files', '/vis-hub'];
   const showSidebar = sidebarRoutes.some(route => location.pathname.startsWith(route));
 
+  // Define routes where sidebar should be visible
+  const AwsSidebarRoutes = ['/aws-cpu'];
+  const showAwsSidebar = AwsSidebarRoutes.some(route => location.pathname.startsWith(route));
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
       <div className="flex flex-grow">
         {showSidebar && <Sidebar />}
-        <main className={`flex-grow ${showSidebar ? '' : ''}`}>
+        {showAwsSidebar && <AwsSideBar />}
+        
+        <main className={`flex-grow ${showSidebar ? '' : ''} ${showAwsSidebar ? '' : ''}`}>
           <Routes>
             {/* Public routes */}
             <Route index element={<Navigate to="/login-choice" />} />
@@ -67,6 +75,9 @@ const AppLayout = () => {
             <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
               <Route path="/user-management" element={<UserManagement />} />
               <Route path="/all-files" element={<AdminFileManagementPage />} />
+
+            {/* AWS Integrated Dashboard Route */}
+              <Route path="/aws-cpu" element={<CpuUtilizationPage />} />
             </Route>
             
             {/* Fallback route */}

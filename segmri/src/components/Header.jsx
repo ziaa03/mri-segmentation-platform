@@ -111,6 +111,23 @@ const Header = () => {
                 )}
               </Link>
             )}
+
+            {isAuthenticated && isAdmin && (
+              <Link
+                to="/aws-cpu"
+                className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-[#74342B]/5 ${
+                  isActiveLink('/aws-cpu')
+                    ? 'text-[#74342B] bg-[#74342B]/5'
+                    : 'text-[#343231] hover:text-[#74342B]'
+                }`}
+              >
+                AWS
+                {isActiveLink('/aws-cpu') && (
+                  <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-6 h-0.5 bg-[#74342B] rounded-full" />
+                )}
+              </Link>
+            )}
+
           </nav>
 
           {/* User Menu / Login - Simplified */}
