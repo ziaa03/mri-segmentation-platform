@@ -21,6 +21,7 @@ import { useLocation } from 'react-router-dom';
 import ObjViewer from '../3D/ObjModel';
 import AwsSideBar from './components/AwsSideBar';
 import CpuUtilizationPage from './pages/CpuUtilizationPage';
+import S3AnalyticsPage from './pages/S3AnalyticsPage';
 
 // Component to determine if sidebar should be shown
 const AppLayout = () => {
@@ -31,7 +32,7 @@ const AppLayout = () => {
   const showSidebar = sidebarRoutes.some(route => location.pathname.startsWith(route));
 
   // Define routes where sidebar should be visible
-  const AwsSidebarRoutes = ['/aws-cpu'];
+  const AwsSidebarRoutes = ['/aws-cpu', '/aws-s3'];
   const showAwsSidebar = AwsSidebarRoutes.some(route => location.pathname.startsWith(route));
 
   return (
@@ -78,6 +79,7 @@ const AppLayout = () => {
 
             {/* AWS Integrated Dashboard Route */}
               <Route path="/aws-cpu" element={<CpuUtilizationPage />} />
+              <Route path="/aws-s3" element={<S3AnalyticsPage />} />
             </Route>
             
             {/* Fallback route */}
