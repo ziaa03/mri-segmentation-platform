@@ -10,6 +10,7 @@ const Header = () => {
   const [showFilesDropdown, setShowFilesDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileAdminOpen, setMobileAdminOpen] = useState(false);
   const filesDropdownRef = useRef(null);
   const userDropdownRef = useRef(null);
 
@@ -95,42 +96,63 @@ const Header = () => {
               </div>
             ))}
 
-            {/* Users Link for Admin - Only keep essential admin-only features */}
+            {/* Admin Panel Dropdown */}
             {isAuthenticated && isAdmin && (
-              <Link
-                to="/user-management"
-                className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-[#74342B]/5 ${
-                  isActiveLink('/user-management')
-                    ? 'text-[#74342B] bg-[#74342B]/5'
-                    : 'text-[#343231] hover:text-[#74342B]'
-                }`}
-              >
-                USERS
-                {isActiveLink('/user-management') && (
-                  <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-6 h-0.5 bg-[#74342B] rounded-full" />
-                )}
-              </Link>
-            )}
+              <div className="relative" ref={filesDropdownRef}>
+                <button
+                  onClick={toggleFilesDropdown}
+                  className={`relative px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-1 transition-all duration-200 hover:bg-[#74342B]/5 ${
+                    ['/user-management', '/aws-cpu', '/gpu-config'].includes(location.pathname)
+                      ? 'text-[#74342B] bg-[#74342B]/5'
+                      : 'text-[#343231] hover:text-[#74342B]'
+                  }`}
+                >
+                  <span>ADMIN PANEL</span>
+                  <ChevronDown className="h-4 w-4" />
+                </button>
 
-            {isAuthenticated && isAdmin && (
-              <Link
-                to="/aws-cpu"
-                className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:bg-[#74342B]/5 ${
-                  isActiveLink('/aws-cpu')
-                    ? 'text-[#74342B] bg-[#74342B]/5'
-                    : 'text-[#343231] hover:text-[#74342B]'
-                }`}
-              >
-                AWS
-                {isActiveLink('/aws-cpu') && (
-                  <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-6 h-0.5 bg-[#74342B] rounded-full" />
+                {showFilesDropdown && (
+                  <div className="absolute right-0 mt-2 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                    <Link
+                      to="/user-management"
+                      className={`block px-4 py-2 text-sm rounded-t-lg ${
+                        isActiveLink('/user-management')
+                          ? 'bg-[#74342B]/10 text-[#74342B]'
+                          : 'text-[#343231] hover:bg-[#74342B]/5 hover:text-[#74342B]'
+                      }`}
+                      onClick={() => setShowFilesDropdown(false)}
+                    >
+                      USERS
+                    </Link>
+                    <Link
+                      to="/aws-cpu"
+                      className={`block px-4 py-2 text-sm ${
+                        isActiveLink('/aws-cpu')
+                          ? 'bg-[#74342B]/10 text-[#74342B]'
+                          : 'text-[#343231] hover:bg-[#74342B]/5 hover:text-[#74342B]'
+                      }`}
+                      onClick={() => setShowFilesDropdown(false)}
+                    >
+                      AWS
+                    </Link>
+                    <Link
+                      to="/gpu-config"
+                      className={`block px-4 py-2 text-sm rounded-b-lg ${
+                        isActiveLink('/gpu-config')
+                          ? 'bg-[#74342B]/10 text-[#74342B]'
+                          : 'text-[#343231] hover:bg-[#74342B]/5 hover:text-[#74342B]'
+                      }`}
+                      onClick={() => setShowFilesDropdown(false)}
+                    >
+                      GPU
+                    </Link>
+                  </div>
                 )}
-              </Link>
+              </div>
             )}
-
           </nav>
 
-          {/* User Menu / Login - Simplified */}
+          {/* User Menu / Login */}
           <div className="hidden lg:flex items-center space-x-4">
             {isAuthenticated ? (
               <>
@@ -196,15 +218,42 @@ const Header = () => {
                 </Link>
               ))}
 
-              {/* Only show admin-only items */}
+              {/* Admin Panel Dropdown in Mobile */}
               {isAuthenticated && isAdmin && (
-                <Link
-                  to="/user-management"
-                  className="block px-4 py-3 rounded-lg text-sm font-medium text-[#343231] hover:bg-[#74342B]/5 hover:text-[#74342B] transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  USERS
-                </Link>
+                <div>
+                  <button
+                    onClick={() => setMobileAdminOpen(!mobileAdminOpen)}
+                    className="flex items-center justify-between w-full px-4 py-3 rounded-lg text-sm font-medium text-[#343231] hover:bg-[#74342B]/5 hover:text-[#74342B] transition-colors"
+                  >
+                    Admin Panel
+                    <ChevronDown className={`h-4 w-4 transform transition-transform ${mobileAdminOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {mobileAdminOpen && (
+                    <div className="ml-4 mt-1 space-y-1">
+                      <Link
+                        to="/user-management"
+                        className="block px-4 py-2 text-sm rounded-lg text-[#343231] hover:bg-[#74342B]/5 hover:text-[#74342B]"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        USERS
+                      </Link>
+                      <Link
+                        to="/aws-cpu"
+                        className="block px-4 py-2 text-sm rounded-lg text-[#343231] hover:bg-[#74342B]/5 hover:text-[#74342B]"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        AWS
+                      </Link>
+                      <Link
+                        to="/gpu-config"
+                        className="block px-4 py-2 text-sm rounded-lg text-[#343231] hover:bg-[#74342B]/5 hover:text-[#74342B]"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        GPU
+                      </Link>
+                    </div>
+                  )}
+                </div>
               )}
 
               {isAuthenticated && (

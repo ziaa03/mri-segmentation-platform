@@ -23,6 +23,7 @@ import AwsSideBar from './components/AwsSideBar';
 import CpuUtilizationPage from './pages/CpuUtilizationPage';
 import S3AnalyticsPage from './pages/S3AnalyticsPage';
 import Testing from './pages/Testing';
+import GpuConfigPage from './pages/GpuConfigPage';
 
 // Component to determine if sidebar should be shown
 const AppLayout = () => {
@@ -78,10 +79,14 @@ const AppLayout = () => {
               <Route path="/user-management" element={<UserManagement />} />
               <Route path="/all-files" element={<AdminFileManagementPage />} />
 
-            {/* AWS Integrated Dashboard Route */}
-              <Route path="/aws-cpu" element={<CpuUtilizationPage />} />
-              <Route path="/aws-s3" element={<S3AnalyticsPage />} />
-              <Route path="/aws-testing" element={<Testing />} />
+            {/* AWS Integrated Dashboard Routes */}
+            <Route path="/aws-cpu" element={<CpuUtilizationPage />} />
+            <Route path="/aws-s3" element={<S3AnalyticsPage />} />
+            <Route path="/aws-testing" element={<Testing />} />
+
+            {/* GPU Configuration Route */}
+            <Route path="/gpu-config" element={<GpuConfigPage />} />
+
             </Route>
             
             {/* Fallback route */}
