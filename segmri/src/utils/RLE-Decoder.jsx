@@ -66,7 +66,7 @@ export const decodeRLE = (rleString, height, width) => {
   }
 };
 
-export const renderMaskOnCanvas = (canvas, binaryMask, width, height, color, opacity = 0.6) => {
+export const renderMaskOnCanvas = (canvas, binaryMask, width, height, color, opacity = 0.6, imageTransform = null) => {
   console.log('=== MASK RENDERING START ===');
   console.log('Canvas:', canvas);
   console.log('Mask size:', binaryMask.length);
@@ -85,59 +85,51 @@ export const renderMaskOnCanvas = (canvas, binaryMask, width, height, color, opa
     return;
   }
 
-  // Ensure canvas dimensions are set
-  if (canvas.width !== width || canvas.height !== height) {
-    console.log('Setting canvas dimensions:', { width, height });
-    canvas.width = width;
-    canvas.height = height;
-  }
-
   try {
-    const imageData = ctx.createImageData(width, height);
+    // Create a temporary canvas for this mask
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = width;
+    tempCanvas.height = height;
+    const tempCtx = tempCanvas.getContext('2d');
+
+    const imageData = tempCtx.createImageData(width, height);
     const data = imageData.data;
 
     // Parse color
     const hexColor = color.replace('#', '');
     const r = parseInt(hexColor.substr(0, 2), 16) || 255;
-    const g = parseInt(hexColor.substr(2, 2), 16) || 0;
-    const b = parseInt(hexColor.substr(4, 2), 16) || 0;
+    const g = parseInt(hexColor.substr(2, 2), 16) || 255;
+    const b = parseInt(hexColor.substr(4, 2), 16) || 255;
     const alpha = Math.floor(255 * opacity);
 
     console.log('Color values:', { r, g, b, alpha });
 
     let pixelCount = 0;
-    let firstPixelPos = -1;
-    let lastPixelPos = -1;
 
     // Fill the image data
     for (let i = 0; i < binaryMask.length && i < width * height; i++) {
       if (binaryMask[i] === 1) {
         const pixelIndex = i * 4;
         if (pixelIndex + 3 < data.length) {
-          data[pixelIndex] = r;         // Red
-          data[pixelIndex + 1] = g;     // Green
-          data[pixelIndex + 2] = b;     // Blue
-          data[pixelIndex + 3] = alpha; // Alpha
+          data[pixelIndex] = r;
+          data[pixelIndex + 1] = g;
+          data[pixelIndex + 2] = b;
+          data[pixelIndex + 3] = alpha;
           pixelCount++;
-
-          if (firstPixelPos === -1) firstPixelPos = i;
-          lastPixelPos = i;
         }
       }
     }
 
-    console.log('Mask rendering stats:', {
-      pixelCount,
-      firstPixelPos,
-      lastPixelPos,
-      firstPixelCoords: firstPixelPos >= 0 ? {
-        x: firstPixelPos % width,
-        y: Math.floor(firstPixelPos / width)
-      } : null
-    });
+    console.log('Pixels rendered:', pixelCount);
 
     if (pixelCount > 0) {
-      ctx.putImageData(imageData, 0, 0);
+      // Put the mask on the temp canvas
+      tempCtx.putImageData(imageData, 0, 0);
+      
+      // Now composite it onto the main canvas using source-over
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.drawImage(tempCanvas, 0, 0);
+      
       console.log('✅ Mask rendered successfully');
     } else {
       console.warn('⚠️ No pixels were rendered (pixelCount = 0)');

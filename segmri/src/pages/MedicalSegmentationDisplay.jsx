@@ -46,11 +46,12 @@ const fetchPresignedUrl = async (projectId, api) => {
 // Utility functions
 const getClassColor = (className) => {
   const colors = {
-    'MYO': '#1F2937',    // Dark gray for Myocardium
-    'LVC': '#374151',    // Dark blue-gray for Left Ventricle Cavity
-    'RV': '#DC2626'      // Dark red for Right Ventricle
+    'MYO': '#4ECDC4',
+    'LVC': '#ff69b4',
+    'RV': '#DC2626'
   };
-  return colors[className] || '#6B21A8';
+  // Convert to uppercase to match
+  return colors[className.toUpperCase()] || '#6B21A8';
 };
 
 const getStructureName = (className) => {
@@ -59,7 +60,8 @@ const getStructureName = (className) => {
     'LVC': 'Left Ventricle Cavity',
     'RV': 'Right Ventricle'
   };
-  return names[className] || className;
+  // Convert to uppercase to match
+  return names[className.toUpperCase()] || className;
 };
 
 const MedicalSegmentationDisplay = ({ 
@@ -92,8 +94,8 @@ const MedicalSegmentationDisplay = ({
   const [maskOpacity, setMaskOpacity] = useState(0.8); // Increased opacity for better visibility
   const [zoomLevel, setZoomLevel] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
+  // const [isDragging, setIsDragging] = useState(false);
+  // const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
   const [showStats, setShowStats] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
   const [imageTransform, setImageTransform] = useState(null);
@@ -401,7 +403,7 @@ const MedicalSegmentationDisplay = ({
 
       sliceData.segmentationMasks?.forEach((maskData) => {
         const maskId = `${maskData.class}_${currentTimeIndex}_${currentLayerIndex}`;
-        const isVisible = visibleMasks[maskId] !== false;
+        const isVisible = visibleMasks[maskId] ?? true;
         if (!isVisible) return;
 
         try {
@@ -505,7 +507,7 @@ const MedicalSegmentationDisplay = ({
     if (baseMasksToRender.length > 0) {
       baseMasksToRender.forEach((maskData) => {
         const maskId = `${maskData.class}_${currentTimeIndex}_${currentLayerIndex}`;
-        const isVisible = visibleMasks[maskId] !== false;
+        const isVisible = visibleMasks[maskId] ?? true;
 
         if (isVisible) {
           try {
@@ -651,16 +653,16 @@ const MedicalSegmentationDisplay = ({
     if (!canvas) return;
 
     // Check if this should be a pan operation (same logic as main canvas)
-    const shouldPan = e.button === 1 || // Middle mouse button
-                     e.ctrlKey ||      // Ctrl key
-                     e.metaKey ||      // Cmd key (Mac)
-                     selectedTool === 'pan'; // Pan tool selected
+    // const shouldPan = e.button === 1 || // Middle mouse button
+    //                  e.ctrlKey ||      // Ctrl key
+    //                  e.metaKey ||      // Cmd key (Mac)
+    //                  selectedTool === 'pan'; // Pan tool selected
 
-    if (shouldPan) {
-      setIsDragging(true);
-      setLastMousePos({ x: e.clientX, y: e.clientY });
-      return; // Don't do anything else
-    }
+    // if (shouldPan) {
+    //   setIsDragging(true);
+    //   setLastMousePos({ x: e.clientX, y: e.clientY });
+    //   return; // Don't do anything else
+    // }
 
     // Only do drawing operations if not panning
     const coords = getCanvasCoordinates(e, canvas);
@@ -703,25 +705,25 @@ const MedicalSegmentationDisplay = ({
     if (!canvas) return;
 
     // Handle panning FIRST (same logic as main canvas)
-    if (isDragging) {
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
+    // if (isDragging) {
+    //   const rect = canvas.getBoundingClientRect();
+    //   const scaleX = canvas.width / rect.width;
+    //   const scaleY = canvas.height / rect.height;
 
-      const deltaXClient = e.clientX - lastMousePos.x;
-      const deltaYClient = e.clientY - lastMousePos.y;
+    //   const deltaXClient = e.clientX - lastMousePos.x;
+    //   const deltaYClient = e.clientY - lastMousePos.y;
 
-      const deltaCanvasX = deltaXClient * scaleX;
-      const deltaCanvasY = deltaYClient * scaleY;
+    //   const deltaCanvasX = deltaXClient * scaleX;
+    //   const deltaCanvasY = deltaYClient * scaleY;
 
-      // This is the key fix - update the shared panOffset state
-      setPanOffset(prev => ({ 
-        x: prev.x + deltaCanvasX, 
-        y: prev.y + deltaCanvasY 
-      }));
-      setLastMousePos({ x: e.clientX, y: e.clientY });
-      return; // Don't do drawing while panning
-    }
+    //   // This is the key fix - update the shared panOffset state
+    //   setPanOffset(prev => ({ 
+    //     x: prev.x + deltaCanvasX, 
+    //     y: prev.y + deltaCanvasY 
+    //   }));
+    //   setLastMousePos({ x: e.clientX, y: e.clientY });
+    //   return; // Don't do drawing while panning
+    // }
 
     // Only handle drawing if not panning
     if (!isDrawing) return;
@@ -756,13 +758,13 @@ const MedicalSegmentationDisplay = ({
   },
   [
     isEditMode,
-    isDragging,
+    // isDragging,
     isDrawing,
     selectedTool,
     currentBoundingBox,
     getCanvasCoordinates,
     redrawSecondOverlayCanvas,
-    lastMousePos
+    // lastMousePos
   ]
 );
 
@@ -770,11 +772,11 @@ const MedicalSegmentationDisplay = ({
   const handleSecondCanvasMouseUp = useCallback(() => {
   if (!isEditMode) return;
   
-  // End panning
-  if (isDragging) {
-    setIsDragging(false);
-    return;
-  }
+  // // End panning
+  // if (isDragging) {
+  //   setIsDragging(false);
+  //   return;
+  // }
 
   // End drawing
   if (!isDrawing) return;
@@ -811,41 +813,41 @@ const MedicalSegmentationDisplay = ({
   setTimeout(() => redrawSecondOverlayCanvas(), 0);
 }, [
   isEditMode,
-  isDragging,
+  // isDragging,
   isDrawing,
   selectedTool,
   currentBoundingBox,
   redrawSecondOverlayCanvas,
 ]);
 
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
+  // const handleMouseUp = () => {
+  //   setIsDragging(false);
+  // };
 
-  // Mouse event handlers for main canvas (pan functionality)
-  const handleMouseDown = (e) => { 
-    setIsDragging(true); 
-    setLastMousePos({ x: e.clientX, y: e.clientY }); 
-  };
+  // // Mouse event handlers for main canvas (pan functionality)
+  // const handleMouseDown = (e) => { 
+  //   setIsDragging(true); 
+  //   setLastMousePos({ x: e.clientX, y: e.clientY }); 
+  // };
   
-  const handleMouseMove = (e) => {
-    if (!isDragging) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  // const handleMouseMove = (e) => {
+  //   if (!isDragging) return;
+  //   const canvas = canvasRef.current;
+  //   if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
+  //   const rect = canvas.getBoundingClientRect();
+  //   const scaleX = canvas.width / rect.width;
+  //   const scaleY = canvas.height / rect.height;
 
-    const deltaXClient = e.clientX - lastMousePos.x;
-    const deltaYClient = e.clientY - lastMousePos.y;
+  //   const deltaXClient = e.clientX - lastMousePos.x;
+  //   const deltaYClient = e.clientY - lastMousePos.y;
 
-    const deltaCanvasX = deltaXClient * scaleX;
-    const deltaCanvasY = deltaYClient * scaleY;
+  //   const deltaCanvasX = deltaXClient * scaleX;
+  //   const deltaCanvasY = deltaYClient * scaleY;
 
-    setPanOffset(prev => ({ x: prev.x + deltaCanvasX, y: prev.y + deltaCanvasY }));
-    setLastMousePos({ x: e.clientX, y: e.clientY });
-  };
+  //   setPanOffset(prev => ({ x: prev.x + deltaCanvasX, y: prev.y + deltaCanvasY }));
+  //   setLastMousePos({ x: e.clientX, y: e.clientY });
+  // };
 
   // Essential function for manual segmentation API calls
   const handleStartManualSegmentation = useCallback(async () => {
@@ -1129,8 +1131,11 @@ const MedicalSegmentationDisplay = ({
 
   // Event handlers
   const toggleMaskVisibility = (maskId) => {
-    setVisibleMasks(prev => ({ ...prev, [maskId]: !prev[maskId] }));
-  };
+  setVisibleMasks(prev => {
+    const currentValue = prev[maskId] ?? true; // If undefined, assume visible
+    return { ...prev, [maskId]: !currentValue };
+  });
+};
 
   const handleMaskClick = (maskData) => {
     if (onMaskSelected) {
@@ -1138,14 +1143,14 @@ const MedicalSegmentationDisplay = ({
     }
   };
 
-  const handleZoom = (delta) => { 
-    setZoomLevel(prev => Math.max(0.5, Math.min(3, prev + delta))); 
-  };
+  // const handleZoom = (delta) => { 
+  //   setZoomLevel(prev => Math.max(0.5, Math.min(3, prev + delta))); 
+  // };
 
-  const resetView = () => { 
-    setZoomLevel(1); 
-    setPanOffset({ x: 0, y: 0 }); 
-  };
+  // const resetView = () => { 
+  //   setZoomLevel(1); 
+  //   setPanOffset({ x: 0, y: 0 }); 
+  // };
 
   const downloadMask = useCallback((maskData) => {
     try {
@@ -1353,18 +1358,26 @@ useEffect(() => {
   }, [debouncedManualRedraw]);
 
   // Initialize visible masks
-  useEffect(() => {
-    if (sliceData?.segmentationMasks) {
-      const newVisibleMasks = {};
+useEffect(() => {
+  if (sliceData?.segmentationMasks && sliceData.segmentationMasks.length > 0) {
+    setVisibleMasks(prev => {
+      const updated = { ...prev };
+      let hasChanges = false;
+      
       sliceData.segmentationMasks.forEach(mask => {
         const maskId = `${mask.class}_${currentTimeIndex}_${currentLayerIndex}`;
-        if (!(maskId in visibleMasks)) newVisibleMasks[maskId] = true;
+        // Only initialize if truly undefined
+        if (updated[maskId] === undefined) {
+          updated[maskId] = true;
+          hasChanges = true;
+          console.log(`Initializing ${maskId} to visible`);
+        }
       });
-      if (Object.keys(newVisibleMasks).length > 0) {
-        setVisibleMasks(prev => ({ ...prev, ...newVisibleMasks }));
-      }
-    }
-  }, [currentTimeIndex, currentLayerIndex, sliceData, visibleMasks]);
+      
+      return hasChanges ? updated : prev;
+    });
+  }
+}, [currentTimeIndex, currentLayerIndex, sliceData]); // Removed visibleMasks from deps
 
   // When entering edit mode, set unsavedEdit to true
   const handleEditModeToggle = () => {
@@ -1458,7 +1471,7 @@ useEffect(() => {
               <div className="absolute bottom-6 left-6 w-6 h-6 border-l-2 border-b-2 border-green-400/60"></div>
               <div className="absolute bottom-6 right-6 w-6 h-6 border-r-2 border-b-2 border-green-400/60"></div>
 
-              <canvas
+              {/* <canvas
                 ref={canvasRef}
                 className="absolute inset-0 w-full h-full"
                 onMouseDown={handleMouseDown}
@@ -1466,6 +1479,12 @@ useEffect(() => {
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
                 style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+              /> */}
+
+              <canvas
+                ref={canvasRef}
+                className="absolute inset-0 w-full h-full"
+                style={{ cursor: 'default' }}
               />
 
               <canvas
@@ -1521,14 +1540,19 @@ useEffect(() => {
                     onMouseUp={handleSecondCanvasMouseUp}
                     onMouseLeave={() => {
                       setIsDrawing(false);
-                      setIsDragging(false);
+                      // setIsDragging(false);
                     }}
+                    // style={{ 
+                    //   cursor: isDragging ? 'grabbing' : 
+                    //         (selectedTool === 'boundingbox' ? 'crosshair' : 'grab'),
+                    //   touchAction: 'none'
+                    // }}
+                    // title="Drag to pan • Ctrl/Cmd+drag to pan • Click to annotate"
                     style={{ 
-                      cursor: isDragging ? 'grabbing' : 
-                            (selectedTool === 'boundingbox' ? 'crosshair' : 'grab'),
+                      cursor: selectedTool === 'boundingbox' ? 'crosshair' : 'default',
                       touchAction: 'none'
                     }}
-                    title="Drag to pan • Ctrl/Cmd+drag to pan • Click to annotate"
+                    title="Click to annotate"
                   />
                 </div>
               </div>
@@ -1693,8 +1717,10 @@ useEffect(() => {
                 ) : (
                   maskStats.map((mask, index) => {
                     const maskId = `${mask.class}_${currentTimeIndex}_${currentLayerIndex}`;
-                    const isVisible = visibleMasks[maskId] !== false;
+                    const isVisible = visibleMasks[maskId] ?? true;
                     const isSelected = selectedMask && selectedMask.class === mask.class;
+
+                    console.log('Mask visibility state:', { maskId, value: visibleMasks[maskId], computed: visibleMasks[maskId] ?? true });
                     
                     return (
                       <div
