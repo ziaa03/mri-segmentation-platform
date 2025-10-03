@@ -1,597 +1,585 @@
-import { useState } from 'react';
+import React, { useEffect, useState } from "react";
+import api from "../api/AxiosInstance";
 
 const GpuConfigPage = () => {
-  // Mock data for initial state
-  const [config, setConfig] = useState({
-    host: 'gpu.visheart.com',
-    port: 8000,
-    isHTTPS: true,
-    description: 'Primary GPU Server',
-    serverIdForGpuServer: 'gpu-server-001',
-    gpuServerIdentity: 'visheart-gpu-01',
-    hasJwtSecret: true,
-    jwtRefreshIntervalMs: 3300000,
-    jwtLifetimeSeconds: 3600,
-    updatedAt: new Date().toISOString(),
-    updatedBy: 'admin-user',
-    createdAt: new Date().toISOString()
-  });
+  const [gpuStatus, setGpuStatus] = useState(null);
+  const [systemStatus, setSystemStatus] = useState(null);
+  const [gpuConfig, setGpuConfig] = useState(null);
+  const [editConfig, setEditConfig] = useState(false);
+  const [formData, setFormData] = useState({});
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState("overview");
 
-  const [editableConfig, setEditableConfig] = useState({ ...config });
-  const [gpuStatus, setGpuStatus] = useState({
-    connectionStatus: 'online',
-    gpuInfo: {
-      name: 'NVIDIA GeForce RTX 4090',
-      cudaVersion: '12.2'
-    },
-    memory: {
-      used: 8192,
-      total: 24576
-    },
-    utilization: 75
-  });
-
-  const [systemStatus, setSystemStatus] = useState({
-    cpuUsage: 45,
-    ramUsage: {
-      used: 8589934592, // 8 GB
-      total: 17179869184 // 16 GB
-    },
-    diskUsage: {
-      used: 536870912000, // 500 GB
-      total: 1073741824000 // 1 TB
-    },
-    systemInfo: {
-      platform: 'Linux',
-      release: '5.15.0-91-generic',
-      uptime: 86400 * 7 // 7 days in seconds
+  // API Calls (unchanged)
+  const fetchGpuStatus = async () => {
+    try {
+      const res = await api.get("/status/gpu-status");
+      setGpuStatus(res.data.details);
+    } catch (err) {
+      setError("Failed to fetch GPU status");
     }
-  });
-
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [testResult, setTestResult] = useState(null);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
-
-  const handleInputChange = (field, value) => {
-    setEditableConfig(prev => ({
-      ...prev,
-      [field]: value
-    }));
   };
 
-  const handleSaveConfig = () => {
-    setSaving(true);
-    // Simulate API call delay
-    setTimeout(() => {
-      setConfig(editableConfig);
-      setSaving(false);
-      alert('Configuration updated successfully!');
-    }, 1000);
-  };
-
-  const testConnection = () => {
-    setLoading(true);
-    // Simulate API call delay
-    setTimeout(() => {
-      setTestResult({
-        success: true,
-        message: 'Connection successful',
-        details: { status: 'ok', responseTime: '150ms' }
-      });
-      setLoading(false);
-    }, 1500);
-  };
-
-  const reloadConfig = () => {
-    setEditableConfig({ ...config });
-    alert('Configuration reloaded successfully!');
-  };
-
-  const forceJwtRegeneration = () => {
-    if (!window.confirm('Are you sure you want to regenerate JWT tokens? This may affect existing sessions.')) {
-      return;
+  const fetchSystemStatus = async () => {
+    try {
+      const res = await api.get("/status/gpu-system-status");
+      setSystemStatus(res.data.details);
+    } catch (err) {
+      setError("Failed to fetch System status");
     }
-    alert('JWT tokens regenerated successfully!');
   };
 
-  const refreshStatus = () => {
-    setLastUpdated(new Date());
-    alert('Status refreshed!');
+  const fetchGpuConfig = async () => {
+    try {
+      const res = await api.get("/admintools/gpu-config");
+      if (res.data.success) {
+        setGpuConfig(res.data.gpuHost);
+        setFormData(res.data.gpuHost);
+      } else {
+        setError("No GPU configuration found");
+      }
+    } catch (err) {
+      setError("Failed to fetch GPU configuration");
+    }
   };
 
-  const formatDuration = (ms) => {
-    if (ms < 60000) return `${Math.round(ms / 1000)} seconds`;
-    if (ms < 3600000) return `${Math.round(ms / 60000)} minutes`;
-    return `${Math.round(ms / 3600000)} hours`;
+  const updateGpuConfig = async () => {
+    try {
+      const res = await api.patch("/admintools/gpu-config", formData);
+      if (res.data.success) {
+        setGpuConfig(res.data.gpuHost);
+        setMessage("Configuration updated successfully!");
+        setEditConfig(false);
+      } else {
+        setError(res.data.message || "Failed to update configuration");
+      }
+    } catch (err) {
+      setError("Error updating configuration");
+    }
   };
 
-  const formatBytes = (bytes) => {
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-    if (bytes === 0) return '0 Bytes';
-    const i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
-    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+  const reloadGpuConfig = async () => {
+    try {
+      const res = await api.post("/admintools/gpu-config/reload");
+      if (res.data.success) {
+        fetchGpuConfig();
+        setMessage("GPU configuration reloaded successfully!");
+      } else {
+        setError(res.data.message || "Failed to reload configuration");
+      }
+    } catch (err) {
+      setError("Error reloading configuration");
+    }
   };
+
+  const forceJwtRegeneration = async () => {
+    try {
+      const res = await api.post("/admintools/gpu-config/force-jwt-regeneration");
+      if (res.data.success) {
+        setMessage("JWT regenerated successfully!");
+      } else {
+        setError(res.data.message || "Failed to regenerate JWT");
+      }
+    } catch (err) {
+      setError("Error regenerating JWT");
+    }
+  };
+
+  useEffect(() => {
+    fetchGpuStatus();
+    fetchSystemStatus();
+    fetchGpuConfig();
+
+    const interval = setInterval(() => {
+      fetchGpuStatus();
+      fetchSystemStatus();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // UI Components
+  const StatusBadge = ({ status }) => {
+    const getStatusColor = (status) => {
+      switch (status?.toLowerCase()) {
+        case "ok":
+          return "bg-green-500 text-white";
+        case "busy":
+          return "bg-yellow-500 text-white";
+        case "degraded":
+          return "bg-orange-500 text-white";
+        case "error":
+          return "bg-red-500 text-white";
+        default:
+          return "bg-gray-500 text-white";
+      }
+    };
+    return (
+      <span
+        className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(status)}`}
+      >
+        {status || "Unknown"}
+      </span>
+    );
+  };
+
+  const MetricCard = ({ title, value, subtitle, icon, color = "blue" }) => (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-600">{title}</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
+          {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
+        </div>
+        <div className={`p-3 rounded-lg bg-${color}-50`}>
+          <span className={`text-${color}-500 text-xl`}>{icon}</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  const ProgressCard = ({ title, percentage, used, total, unit, color = "blue" }) => {
+    const colorClasses = {
+      blue: "bg-blue-500",
+      purple: "bg-purple-500",
+      orange: "bg-orange-500",
+      green: "bg-green-500",
+      red: "bg-red-500"
+    };
+
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-semibold text-gray-800">{title}</h3>
+          <span className="text-sm font-medium text-gray-600">{percentage}%</span>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+          <div
+            className={`h-3 rounded-full ${colorClasses[color]}`}
+            style={{ width: `${Math.min(percentage, 100)}%` }}
+          ></div>
+        </div>
+        <div className="flex justify-between text-sm text-gray-600">
+          <span>{used}{unit}</span>
+          <span>{total}{unit}</span>
+        </div>
+      </div>
+    );
+  };
+
+  if (error) {
+    return (
+      <div className="flex justify-center items-center h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="bg-white rounded-2xl shadow-xl p-8 text-center max-w-md border border-red-100">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-2xl">⚠️</span>
+          </div>
+          <div className="text-red-600 text-lg font-semibold mb-2">
+            Connection Error
+          </div>
+          <p className="text-red-500">{error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">GPU Server Configuration</h1>
-          <p className="mt-2 text-sm text-gray-600">
-            Manage your GPU server settings and monitor real-time status
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                GPU Monitoring Dashboard
+              </h1>
+              <p className="text-gray-600">
+                Real-time performance monitoring and configuration management
+              </p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-sm text-gray-600">Live</span>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Column - Configuration */}
-          <div className="space-y-8">
-            {/* Configuration Overview */}
-            <div className="bg-white shadow rounded-lg">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-medium text-gray-900">Configuration Overview</h2>
-              </div>
-              <div className="p-6 space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Server Details</h3>
-                  <dl className="mt-2 grid grid-cols-1 gap-2">
-                    <div className="flex justify-between">
-                      <dt className="text-sm text-gray-600">Host Address</dt>
-                      <dd className="text-sm text-gray-900">{config.host}</dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt className="text-sm text-gray-600">Port</dt>
-                      <dd className="text-sm text-gray-900">{config.port}</dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt className="text-sm text-gray-600">Protocol</dt>
-                      <dd className="text-sm text-gray-900">{config.isHTTPS ? 'HTTPS' : 'HTTP'}</dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt className="text-sm text-gray-600">Full Address</dt>
-                      <dd className="text-sm text-gray-900">
-                        {`${config.isHTTPS ? 'https' : 'http'}://${config.host}:${config.port}`}
-                      </dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt className="text-sm text-gray-600">Description</dt>
-                      <dd className="text-sm text-gray-900">{config.description || 'No description'}</dd>
-                    </div>
-                  </dl>
-                </div>
+        {/* Messages */}
+        {message && (
+          <div className="mb-6 bg-green-50 border border-green-200 text-green-700 p-4 rounded-xl flex items-center">
+            <span className="text-lg mr-2">✅</span>
+            {message}
+          </div>
+        )}
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-center">
+            <span className="text-lg mr-2">❌</span>
+            {error}
+          </div>
+        )}
 
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Authentication</h3>
-                  <dl className="mt-2 grid grid-cols-1 gap-2">
-                    <div className="flex justify-between">
-                      <dt className="text-sm text-gray-600">Server ID</dt>
-                      <dd className="text-sm text-gray-900">{config.serverIdForGpuServer}</dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt className="text-sm text-gray-600">GPU Server Identity</dt>
-                      <dd className="text-sm text-gray-900">{config.gpuServerIdentity}</dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt className="text-sm text-gray-600">JWT Secret</dt>
-                      <dd className="text-sm text-gray-900">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          config.hasJwtSecret ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {config.hasJwtSecret ? 'Configured' : 'Not Configured'}
-                        </span>
-                      </dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt className="text-sm text-gray-600">JWT Refresh</dt>
-                      <dd className="text-sm text-gray-900">{formatDuration(config.jwtRefreshIntervalMs)}</dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt className="text-sm text-gray-600">JWT Lifetime</dt>
-                      <dd className="text-sm text-gray-900">{formatDuration(config.jwtLifetimeSeconds * 1000)}</dd>
-                    </div>
-                  </dl>
-                </div>
+        {/* Navigation Tabs */}
+        <div className="mb-6">
+          <div className="flex space-x-1 bg-white rounded-xl p-1 shadow-sm inline-flex">
+            {["overview", "configuration", "system"].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-6 py-2 rounded-lg font-medium transition-all ${
+                  activeTab === tab
+                    ? "bg-blue-500 text-white shadow-sm"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
 
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Metadata</h3>
-                  <dl className="mt-2 grid grid-cols-1 gap-2">
-                    <div className="flex justify-between">
-                      <dt className="text-sm text-gray-600">Last Updated</dt>
-                      <dd className="text-sm text-gray-900">
-                        {new Date(config.updatedAt).toLocaleString()}
-                      </dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt className="text-sm text-gray-600">Updated By</dt>
-                      <dd className="text-sm text-gray-900">{config.updatedBy || 'Unknown'}</dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt className="text-sm text-gray-600">Created</dt>
-                      <dd className="text-sm text-gray-900">
-                        {new Date(config.createdAt).toLocaleString()}
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
-              </div>
+        {/* Overview Tab */}
+        {activeTab === "overview" && (
+          <div className="space-y-6">
+            {/* Quick Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <MetricCard
+                title="GPU Utilization"
+                value={`${gpuStatus?.gpu?.gpu_utilization_percent || 0}%`}
+                subtitle="Current load"
+                icon="🚀"
+                color="purple"
+              />
+              <MetricCard
+                title="GPU Memory"
+                value={`${gpuStatus?.gpu?.memory_used_mb || 0}MB`}
+                subtitle={`of ${gpuStatus?.gpu?.memory_total_mb || 0}MB`}
+                icon="💾"
+                color="blue"
+              />
+              <MetricCard
+                title="CPU Usage"
+                value={`${systemStatus?.cpu?.usage_percent || 0}%`}
+                subtitle={`${systemStatus?.cpu?.core_count || 0} cores`}
+                icon="⚡"
+                color="orange"
+              />
+              <MetricCard
+                title="System Uptime"
+                value={`${systemStatus?.system?.uptime_days || 0}d`}
+                subtitle="Since last boot"
+                icon="🕒"
+                color="green"
+              />
             </div>
 
-            {/* Editable Configuration Form */}
-            <div className="bg-white shadow rounded-lg">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-medium text-gray-900">Edit Configuration</h2>
+            {/* Progress Bars */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <ProgressCard
+                title="GPU Memory Usage"
+                percentage={Math.round(
+                  ((gpuStatus?.gpu?.memory_used_mb || 0) / 
+                   (gpuStatus?.gpu?.memory_total_mb || 1)) * 100
+                )}
+                used={gpuStatus?.gpu?.memory_used_mb}
+                total={gpuStatus?.gpu?.memory_total_mb}
+                unit="MB"
+                color="purple"
+              />
+              <ProgressCard
+                title="System Memory"
+                percentage={systemStatus?.memory?.usage_percent || 0}
+                used={systemStatus?.memory?.used_gb}
+                total={systemStatus?.memory?.total_gb}
+                unit="GB"
+                color="blue"
+              />
+              <ProgressCard
+                title="Disk Usage"
+                percentage={systemStatus?.disk?.usage_percent || 0}
+                used={systemStatus?.disk?.used_gb}
+                total={systemStatus?.disk?.total_gb}
+                unit="GB"
+                color="orange"
+              />
+              <ProgressCard
+                title="GPU Utilization"
+                percentage={gpuStatus?.gpu?.gpu_utilization_percent || 0}
+                used={gpuStatus?.gpu?.gpu_utilization_percent}
+                total={100}
+                unit="%"
+                color="green"
+              />
+            </div>
+
+            {/* Detailed Status Cards */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* GPU Details */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-gray-900">GPU Details</h2>
+                  <StatusBadge status={gpuStatus?.gpu?.status} />
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">Name:</span>
+                    <p className="font-medium">{gpuStatus?.gpu?.gpu_name || "N/A"}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">CUDA Version:</span>
+                    <p className="font-medium">{gpuStatus?.gpu?.cuda_version || "N/A"}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Architecture:</span>
+                    <p className="font-medium">{gpuStatus?.gpu?.architecture || "N/A"}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Driver Version:</span>
+                    <p className="font-medium">{gpuStatus?.gpu?.driver_version || "N/A"}</p>
+                  </div>
+                </div>
               </div>
-              <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Server Connection
-                  </label>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm text-gray-600">Host</label>
-                      <input
-                        type="text"
-                        value={editableConfig.host || ''}
-                        onChange={(e) => handleInputChange('host', e.target.value)}
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-600">Port</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="65535"
-                        value={editableConfig.port || ''}
-                        onChange={(e) => handleInputChange('port', parseInt(e.target.value))}
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={editableConfig.isHTTPS || false}
-                        onChange={(e) => handleInputChange('isHTTPS', e.target.checked)}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                      />
-                      <label className="ml-2 block text-sm text-gray-600">Use HTTPS</label>
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-600">Description</label>
-                      <textarea
-                        value={editableConfig.description || ''}
-                        onChange={(e) => handleInputChange('description', e.target.value)}
-                        rows={3}
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
+
+              {/* System Details */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">System Details</h2>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">Platform:</span>
+                    <p className="font-medium">{systemStatus?.system?.platform || "N/A"}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Release:</span>
+                    <p className="font-medium">{systemStatus?.system?.release || "N/A"}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Boot Time:</span>
+                    <p className="font-medium">{systemStatus?.system?.boot_time || "N/A"}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Last Updated:</span>
+                    <p className="font-medium">{systemStatus?.timestamp || "N/A"}</p>
                   </div>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Authentication Settings
-                  </label>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm text-gray-600">Server ID</label>
-                      <input
-                        type="text"
-                        value={editableConfig.serverIdForGpuServer || ''}
-                        onChange={(e) => handleInputChange('serverIdForGpuServer', e.target.value)}
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-600">GPU Server Identity</label>
-                      <input
-                        type="text"
-                        value={editableConfig.gpuServerIdentity || ''}
-                        onChange={(e) => handleInputChange('gpuServerIdentity', e.target.value)}
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-600">JWT Secret</label>
-                      <input
-                        type="password"
-                        value={editableConfig.jwtSecret || ''}
-                        onChange={(e) => handleInputChange('jwtSecret', e.target.value)}
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Leave empty to keep current secret"
-                      />
-                      <p className="mt-1 text-xs text-yellow-600">
-                        Warning: Changing JWT secret will invalidate existing tokens
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm text-gray-600">JWT Refresh (ms)</label>
-                        <input
-                          type="number"
-                          value={editableConfig.jwtRefreshIntervalMs || ''}
-                          onChange={(e) => handleInputChange('jwtRefreshIntervalMs', parseInt(e.target.value))}
-                          className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm text-gray-600">JWT Lifetime (s)</label>
-                        <input
-                          type="number"
-                          value={editableConfig.jwtLifetimeSeconds || ''}
-                          onChange={(e) => handleInputChange('jwtLifetimeSeconds', parseInt(e.target.value))}
-                          className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleSaveConfig}
-                  disabled={saving}
-                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-                >
-                  {saving ? 'Saving...' : 'Save Configuration'}
-                </button>
               </div>
             </div>
           </div>
+        )}
 
-          {/* Right Column - Status & Actions */}
-          <div className="space-y-8">
-            {/* Real-Time Status Dashboard */}
-            <div className="bg-white shadow rounded-lg">
-              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                <h2 className="text-lg font-medium text-gray-900">Real-Time Status</h2>
-                <button
-                  onClick={refreshStatus}
-                  className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 py-1 px-3 rounded-md"
-                >
-                  Refresh
-                </button>
-              </div>
-              <div className="p-6 space-y-6">
-                {/* GPU Status */}
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 mb-3">GPU Status</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">Status</span>
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        gpuStatus.connectionStatus === 'online' 
-                          ? 'bg-green-100 text-green-800'
-                          : gpuStatus.connectionStatus === 'degraded'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {gpuStatus.connectionStatus?.toUpperCase() || 'UNKNOWN'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">GPU Model</span>
-                      <span className="text-sm text-gray-900">{gpuStatus.gpuInfo?.name || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">CUDA Version</span>
-                      <span className="text-sm text-gray-900">{gpuStatus.gpuInfo?.cudaVersion || 'N/A'}</span>
-                    </div>
-                    
-                    {/* Memory Usage */}
-                    {gpuStatus.memory && (
-                      <div>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-gray-600">Memory Usage</span>
-                          <span className="text-gray-900">
-                            {formatBytes(gpuStatus.memory.used)} / {formatBytes(gpuStatus.memory.total)}
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-blue-600 h-2 rounded-full"
-                            style={{ 
-                              width: `${(gpuStatus.memory.used / gpuStatus.memory.total) * 100}%` 
-                            }}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* GPU Utilization */}
-                    {gpuStatus.utilization !== undefined && (
-                      <div>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-gray-600">GPU Utilization</span>
-                          <span className="text-gray-900">{gpuStatus.utilization}%</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className={`h-2 rounded-full ${
-                              gpuStatus.utilization > 90 ? 'bg-red-600' : 'bg-green-600'
-                            }`}
-                            style={{ width: `${gpuStatus.utilization}%` }}
-                          ></div>
-                        </div>
-                        {gpuStatus.utilization > 90 && (
-                          <span className="inline-flex items-center mt-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                            Busy
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
+        {/* Configuration Tab */}
+        {activeTab === "configuration" && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">GPU Server Configuration</h2>
+                <div className="flex space-x-3">
+                  {!editConfig && (
+                    <button
+                      onClick={() => setEditConfig(true)}
+                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center"
+                    >
+                      <span className="mr-2">✏️</span>
+                      Edit Configuration
+                    </button>
+                  )}
+                  <button
+                    onClick={reloadGpuConfig}
+                    className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors flex items-center"
+                  >
+                    <span className="mr-2">🔄</span>
+                    Reload
+                  </button>
+                  <button
+                    onClick={forceJwtRegeneration}
+                    className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex items-center"
+                  >
+                    <span className="mr-2">🔑</span>
+                    Regenerate JWT
+                  </button>
                 </div>
+              </div>
 
-                {/* System Status */}
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 mb-3">System Status</h3>
+              {gpuConfig ? (
+                editConfig ? (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {[
+                        "host",
+                        "port",
+                        "description",
+                        "serverIdForGpuServer",
+                        "gpuServerIdentity",
+                        "jwtRefreshInterval",
+                        "jwtLifetimeSeconds",
+                      ].map((field) => (
+                        <div key={field} className="space-y-2">
+                          <label className="block text-sm font-medium text-gray-700 capitalize">
+                            {field.replace(/([A-Z])/g, " $1")}
+                          </label>
+                          <input
+                            type={typeof formData[field] === "number" ? "number" : "text"}
+                            className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            value={formData[field] || ""}
+                            onChange={(e) =>
+                              setFormData({ ...formData, [field]: e.target.value })
+                            }
+                          />
+                        </div>
+                      ))}
+                      
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="checkbox"
+                          id="isHTTPS"
+                          checked={formData.isHTTPS || false}
+                          onChange={(e) =>
+                            setFormData({ ...formData, isHTTPS: e.target.checked })
+                          }
+                          className="w-4 h-4 text-blue-500 rounded focus:ring-blue-500"
+                        />
+                        <label htmlFor="isHTTPS" className="text-sm font-medium text-gray-700">
+                          Enable HTTPS
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="flex space-x-3 pt-4 border-t border-gray-200">
+                      <button
+                        onClick={updateGpuConfig}
+                        className="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center"
+                      >
+                        <span className="mr-2">💾</span>
+                        Save Changes
+                      </button>
+                      <button
+                        onClick={() => {
+                          setFormData(gpuConfig);
+                          setEditConfig(false);
+                        }}
+                        className="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {Object.entries({
+                      host: "Host",
+                      port: "Port",
+                      description: "Description",
+                      serverIdForGpuServer: "Server ID",
+                      gpuServerIdentity: "Identity",
+                      jwtRefreshInterval: "JWT Refresh Interval",
+                      jwtLifetimeSeconds: "JWT Lifetime",
+                      isHTTPS: "HTTPS Enabled"
+                    }).map(([key, label]) => (
+                      <div key={key} className="bg-gray-50 rounded-lg p-4">
+                        <div className="text-sm text-gray-600 mb-1">{label}</div>
+                        <div className="font-medium text-gray-900">
+                          {key === 'isHTTPS' 
+                            ? gpuConfig[key] ? 'Yes' : 'No'
+                            : gpuConfig[key] || 'N/A'
+                          }
+                          {key === 'jwtRefreshInterval' && ' ms'}
+                          {key === 'jwtLifetimeSeconds' && ' s'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No GPU configuration available
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* System Tab */}
+        {activeTab === "system" && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* GPU Status Card */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">GPU Status</h2>
+                {gpuStatus ? (
                   <div className="space-y-4">
-                    {/* CPU Usage */}
-                    {systemStatus.cpuUsage !== undefined && (
-                      <div>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-gray-600">CPU Usage</span>
-                          <span className="text-gray-900">{systemStatus.cpuUsage}%</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-purple-600 h-2 rounded-full"
-                            style={{ width: `${systemStatus.cpuUsage}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* RAM Usage */}
-                    {systemStatus.ramUsage && (
-                      <div>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-gray-600">RAM Usage</span>
-                          <span className="text-gray-900">
-                            {formatBytes(systemStatus.ramUsage.used)} / {formatBytes(systemStatus.ramUsage.total)}
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-green-600 h-2 rounded-full"
-                            style={{ 
-                              width: `${(systemStatus.ramUsage.used / systemStatus.ramUsage.total) * 100}%` 
-                            }}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Disk Usage */}
-                    {systemStatus.diskUsage && (
-                      <div>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-gray-600">Disk Usage</span>
-                          <span className="text-gray-900">
-                            {formatBytes(systemStatus.diskUsage.used)} / {formatBytes(systemStatus.diskUsage.total)}
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-yellow-600 h-2 rounded-full"
-                            style={{ 
-                              width: `${(systemStatus.diskUsage.used / systemStatus.diskUsage.total) * 100}%` 
-                            }}
-                          ></div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* System Info */}
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Status</span>
+                      <StatusBadge status={gpuStatus.gpu?.status} />
+                    </div>
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
-                        <span className="text-gray-600">Platform</span>
-                        <div className="text-gray-900">{systemStatus.systemInfo?.platform || 'N/A'}</div>
+                        <span className="text-gray-600">Name:</span>
+                        <p className="font-medium">{gpuStatus.gpu?.gpu_name}</p>
                       </div>
                       <div>
-                        <span className="text-gray-600">Uptime</span>
-                        <div className="text-gray-900">
-                          {systemStatus.systemInfo?.uptime ? 
-                            `${Math.round(systemStatus.systemInfo.uptime / 86400)} days` : 'N/A'
-                          }
-                        </div>
+                        <span className="text-gray-600">CUDA Version:</span>
+                        <p className="font-medium">{gpuStatus.gpu?.cuda_version}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Architecture:</span>
+                        <p className="font-medium">{gpuStatus.gpu?.architecture}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Driver:</span>
+                        <p className="font-medium">{gpuStatus.gpu?.driver_version}</p>
                       </div>
                     </div>
                   </div>
-                </div>
-
-                {lastUpdated && (
-                  <div className="text-xs text-gray-500 text-center">
-                    Last updated: {lastUpdated.toLocaleString()}
-                  </div>
+                ) : (
+                  <div className="text-gray-500">No GPU status available</div>
                 )}
               </div>
-            </div>
 
-            {/* Quick Actions */}
-            <div className="bg-white shadow rounded-lg">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-medium text-gray-900">Quick Actions</h2>
-              </div>
-              <div className="p-6 space-y-4">
-                <button
-                  onClick={testConnection}
-                  disabled={loading}
-                  className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50"
-                >
-                  {loading ? 'Testing...' : 'Test Connection'}
-                </button>
-
-                <button
-                  onClick={reloadConfig}
-                  className="w-full bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-                >
-                  Reload Configuration
-                </button>
-
-                <button
-                  onClick={forceJwtRegeneration}
-                  className="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                >
-                  Force JWT Regeneration
-                </button>
-
-                {/* Test Connection Result */}
-                {testResult && (
-                  <div className={`p-3 rounded-md ${
-                    testResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
-                  }`}>
-                    <div className={`text-sm ${
-                      testResult.success ? 'text-green-800' : 'text-red-800'
-                    }`}>
-                      {testResult.message}
-                    </div>
-                    {testResult.details && (
-                      <div className="text-xs mt-1 text-gray-600">
-                        {typeof testResult.details === 'object' 
-                          ? JSON.stringify(testResult.details) 
-                          : testResult.details
-                        }
+              {/* System Status Card */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">System Status</h2>
+                {systemStatus ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-600">Platform:</span>
+                        <p className="font-medium">{systemStatus.system?.platform}</p>
                       </div>
-                    )}
+                      <div>
+                        <span className="text-gray-600">Release:</span>
+                        <p className="font-medium">{systemStatus.system?.release}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Boot Time:</span>
+                        <p className="font-medium">{systemStatus.system?.boot_time}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Uptime:</span>
+                        <p className="font-medium">{systemStatus.system?.uptime_days} days</p>
+                      </div>
+                    </div>
+                    <div className="text-center text-gray-500 text-sm border-t pt-4">
+                      Last updated: {systemStatus.timestamp}
+                    </div>
                   </div>
+                ) : (
+                  <div className="text-gray-500">No system status available</div>
                 )}
               </div>
             </div>
+          </div>
+        )}
 
-            {/* Security Indicators */}
-            <div className="bg-white shadow rounded-lg">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-medium text-gray-900">Security & Validation</h2>
-              </div>
-              <div className="p-6 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">JWT Secret Strength</span>
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                    config.hasJwtSecret
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {config.hasJwtSecret ? 'Strong' : 'Weak/Default'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">SSL/HTTPS</span>
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                    config.isHTTPS ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {config.isHTTPS ? 'Enabled' : 'Recommended'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Configuration Complete</span>
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    Complete
-                  </span>
-                </div>
-              </div>
-            </div>
+        {/* Footer */}
+        <div className="mt-8 text-center">
+          <div className="inline-flex items-center space-x-2 bg-white rounded-full px-4 py-2 shadow-sm">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-sm text-gray-600">Auto-refreshing every 30 seconds</span>
           </div>
         </div>
       </div>
