@@ -18,7 +18,6 @@ import AdminFileManagementPage from './pages/AdminFileManagementPage';
 import AdvancedMedicalUI from './pages/Test';
 import Dashboard from './pages/Dashboard';
 import { useLocation } from 'react-router-dom';
-import ObjViewer from '../3D/ObjModel';
 import AwsSideBar from './components/AwsSideBar';
 import CpuUtilizationPage from './pages/CpuUtilizationPage';
 import S3AnalyticsPage from './pages/S3AnalyticsPage';
@@ -63,8 +62,6 @@ const AppLayout = () => {
             <Route path="/features" element={<FeaturesPage />} />
             <Route path="/team" element={<TeamPage />} />
 
-            {/* 3D Model Viewer Route */}
-            <Route path="/3d-viewer" element={<ObjViewer />} />
             {/* 4D Cardiac Reconstruction Route */}
             <Route path="/reconstruction/:projectId" element={<ReconstructionPage />} />
 
