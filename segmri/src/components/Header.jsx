@@ -49,7 +49,7 @@ const Header = () => {
   const navLinks = [
     { path: '/landing', label: 'OVERVIEW' },
     { path: '/features', label: 'THE EXPERIENCE' },
-    { path: '/vis-hub', label: 'VISHEART HUB', badge: 'DEMO' },
+    { path: '/vis-hub', label: 'VISHEART HUB' },
     { path: '/team', label: 'ABOUT US' },
     { path: '/3d-viewer', label: '3D MODEL VIEWER' }
   ];
