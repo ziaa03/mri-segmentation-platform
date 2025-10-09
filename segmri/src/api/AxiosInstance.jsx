@@ -6,7 +6,7 @@ const api = axios.create({
   baseURL: URL,
   // baseURL: 'https://cos30045.xyz',
   withCredentials: true, 
-  timeout: 30000,
+  timeout: 120000,
 });
 
 export default api;
