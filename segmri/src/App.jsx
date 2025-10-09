@@ -24,6 +24,7 @@ import CpuUtilizationPage from './pages/CpuUtilizationPage';
 import S3AnalyticsPage from './pages/S3AnalyticsPage';
 import Testing from './pages/Testing';
 import GpuConfigPage from './pages/GpuConfigPage';
+import ReconstructionPage from './pages/ReconstructionPage';
 
 // Component to determine if sidebar should be shown
 const AppLayout = () => {
@@ -37,15 +38,25 @@ const AppLayout = () => {
   const AwsSidebarRoutes = ['/aws-cpu', '/aws-s3', '/aws-testing'];
   const showAwsSidebar = AwsSidebarRoutes.some(route => location.pathname.startsWith(route));
 
-  return (
+    return (
     <div className="flex flex-col min-h-screen">
       <Header />
-      <div className="flex flex-grow">
-        {showSidebar && <Sidebar />}
-        {showAwsSidebar && <AwsSideBar />}
-        
-        <main className={`flex-grow ${showSidebar ? '' : ''} ${showAwsSidebar ? '' : ''}`}>
-          <Routes>
+      
+      {/* Horizontal navigation bar instead of sidebar */}
+      {showSidebar && (
+        <div className="bg-white border-b border-gray-200 shadow-sm">
+          <Sidebar />
+        </div>
+      )}
+      {showAwsSidebar && (
+        <div className="bg-white border-b border-gray-200 shadow-sm">
+          <AwsSideBar />
+        </div>
+      )}
+      
+      {/* Main content - no margin needed */}
+      <main className="flex-grow">
+        <Routes>
             {/* Public routes */}
             <Route index element={<Navigate to="/login-choice" />} />
             <Route path="/landing" element={<LandingPage />} />
@@ -54,6 +65,8 @@ const AppLayout = () => {
 
             {/* 3D Model Viewer Route */}
             <Route path="/3d-viewer" element={<ObjViewer />} />
+            {/* 4D Cardiac Reconstruction Route */}
+            <Route path="/reconstruction/:projectId" element={<ReconstructionPage />} />
 
             {/* Medical Upload/Analysis - Changed from cardiac-analysis to vis-hub */}
             <Route path="/vis-hub" element={<AdvancedMedicalUI />} />
@@ -93,7 +106,6 @@ const AppLayout = () => {
             <Route path="*" element={<Navigate to="/login-choice" />} />
           </Routes>
         </main>
-      </div>
       <Footer />
     </div>
   );
