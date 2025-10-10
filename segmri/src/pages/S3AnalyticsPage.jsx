@@ -1,297 +1,337 @@
 import React, { useState, useEffect } from 'react';
+import {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, AreaChart, Area
+} from 'recharts';
 
 const S3AnalyticsPage = () => {
+  const [buckets, setBuckets] = useState([]);
+  const [selectedBucket, setSelectedBucket] = useState('');
+  const [metrics, setMetrics] = useState({
+    bucketSize: '0 GB',
+    objectCount: '0',
+    allRequests: '0',
+    getRequests: '0',
+    putRequests: '0'
+  });
+  const [storageData, setStorageData] = useState([]);
+  const [requestData, setRequestData] = useState([]);
   const [timeRange, setTimeRange] = useState('7d');
-  const [selectedMetric, setSelectedMetric] = useState('storage');
 
-  // Mock S3 data
-  const s3Data = {
-    buckets: [
-      {
-        name: 'production-backups',
-        region: 'us-east-1',
-        totalObjects: 12543,
-        totalSize: '2.4 TB',
-        lastModified: '2024-01-15',
-        storageClass: 'Standard-IA',
-        cost: '$45.23'
-      },
-      {
-        name: 'web-assets',
-        region: 'us-west-2',
-        totalObjects: 8921,
-        totalSize: '156.7 GB',
-        lastModified: '2024-01-20',
-        storageClass: 'Standard',
-        cost: '$12.67'
-      },
-    ],
-    metrics: {
-      storage: [45, 52, 48, 61, 55, 58, 62, 59, 54, 49, 52, 48],
-      requests: [1200, 1450, 1320, 1580, 1420, 1650, 1720, 1680, 1520, 1480, 1420, 1380],
-      transfer: [45, 52, 38, 62, 55, 68, 72, 65, 58, 52, 48, 42]
-    },
-    summary: {
-      totalBuckets: 24,
-      totalStorage: '20.2 TB',
-      totalObjects: '195K',
-      monthlyCost: '$245.89',
-      averageObjectSize: '105.6 KB'
+  // Mock buckets data
+  const mockBuckets = [
+    'production-assets',
+    'development-backups',
+    'user-uploads',
+    'logs-archive',
+    'static-website'
+  ];
+
+  // Mock storage metrics over time
+  const generateStorageData = () => {
+    const data = [];
+    const baseDate = new Date();
+    
+    for (let i = 30; i >= 0; i--) {
+      const date = new Date(baseDate);
+      date.setDate(date.getDate() - i);
+      
+      data.push({
+        date: date.toISOString().split('T')[0],
+        bucketSize: Math.random() * 500 + 100,
+        objectCount: Math.floor(Math.random() * 100000) + 50000
+      });
     }
+    return data;
   };
 
-  const getMetricColor = (metric) => {
-    const colors = {
-      storage: 'bg-blue-500',
-      requests: 'bg-green-500',
-      transfer: 'bg-purple-500'
-    };
-    return colors[metric] || 'bg-blue-500';
+  // Mock request metrics over time
+  const generateRequestData = () => {
+    const data = [];
+    const baseDate = new Date();
+    
+    for (let i = 30; i >= 0; i--) {
+      const date = new Date(baseDate);
+      date.setDate(date.getDate() - i);
+      
+      data.push({
+        date: date.toISOString().split('T')[0],
+        allRequests: Math.floor(Math.random() * 10000) + 5000,
+        getRequests: Math.floor(Math.random() * 8000) + 4000,
+        putRequests: Math.floor(Math.random() * 2000) + 500
+      });
+    }
+    return data;
   };
 
-  const getMetricLabel = (metric) => {
-    const labels = {
-      storage: 'Storage Usage',
-      requests: 'Total Requests',
-      transfer: 'Data Transfer'
-    };
-    return labels[metric] || 'Storage Usage';
+  // Initialize data
+  useEffect(() => {
+    setBuckets(mockBuckets);
+    setSelectedBucket(mockBuckets[0]);
+    setMetrics({
+      bucketSize: '245.7 GB',
+      objectCount: '124,567',
+      allRequests: '89,432',
+      getRequests: '78,945',
+      putRequests: '8,123'
+    });
+    setStorageData(generateStorageData());
+    setRequestData(generateRequestData());
+  }, []);
+
+  // Handle bucket selection
+  const handleBucketChange = (bucket) => {
+    setSelectedBucket(bucket);
+    setMetrics({
+      bucketSize: `${(Math.random() * 500 + 50).toFixed(1)} GB`,
+      objectCount: Math.floor(Math.random() * 200000).toLocaleString(),
+      allRequests: Math.floor(Math.random() * 100000).toLocaleString(),
+      getRequests: Math.floor(Math.random() * 90000).toLocaleString(),
+      putRequests: Math.floor(Math.random() * 15000).toLocaleString()
+    });
   };
 
-  const formatNumber = (num) => {
-    return new Intl.NumberFormat().format(num);
+  // Metric card component
+  const MetricCard = ({ title, value, subtitle, color }) => {
+    return (
+      <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow duration-200">
+        <div className="mb-2">
+          <p className="text-sm font-medium text-gray-600">{title}</p>
+          <p className="text-2xl font-semibold text-gray-900 mt-1">{value}</p>
+          {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
+        </div>
+        <div className={`h-1 w-12 rounded-full ${color}`}></div>
+      </div>
+    );
+  };
+
+  // Custom tooltip for charts
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-3 rounded-lg shadow-lg border border-gray-200">
+          <p className="font-medium text-gray-900 mb-1">{label}</p>
+          {payload.map((entry, index) => (
+            <p key={index} className="text-sm" style={{ color: entry.color }}>
+              {entry.name}: <span className="font-medium">{entry.value.toLocaleString()}</span>
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="space-y-6">
+    <div className="min-h-screen bg-white py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">S3 Analytics</h1>
-            <p className="text-gray-600">Monitor and analyze Amazon S3 storage and performance metrics</p>
-          </div>
-          <div className="flex space-x-4">
-            <select
-              value={selectedMetric}
-              onChange={(e) => setSelectedMetric(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-            >
-              <option value="storage">Storage Metrics</option>
-              <option value="requests">Request Analytics</option>
-              <option value="transfer">Data Transfer</option>
-            </select>
-            <select
-              value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-            >
-              <option value="24h">Last 24 Hours</option>
-              <option value="7d">Last 7 Days</option>
-              <option value="30d">Last 30 Days</option>
-            </select>
-          </div>
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-gray-900">S3 Analytics Dashboard</h1>
+          <p className="text-gray-600 mt-1">Monitor your S3 bucket performance and usage metrics</p>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Buckets</p>
-                <p className="text-2xl font-bold text-gray-800">{s3Data.summary.totalBuckets}</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Storage</p>
-                <p className="text-2xl font-bold text-gray-800">{s3Data.summary.totalStorage}</p>
-              </div>
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Objects</p>
-                <p className="text-2xl font-bold text-gray-800">{s3Data.summary.totalObjects}</p>
-              </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Monthly Cost</p>
-                <p className="text-2xl font-bold text-orange-500">{s3Data.summary.monthlyCost}</p>
-              </div>
-              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Metrics Chart */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-semibold text-gray-800">{getMetricLabel(selectedMetric)}</h2>
-            <div className="text-sm text-gray-500">
-              Last {timeRange === '24h' ? '24 hours' : timeRange === '7d' ? '7 days' : '30 days'}
-            </div>
-          </div>
-          <div className="h-64 flex items-end space-x-2">
-            {s3Data.metrics[selectedMetric].map((value, index) => (
-              <div key={index} className="flex-1 flex flex-col items-center">
-                <div
-                  className={`w-full rounded-t ${getMetricColor(selectedMetric)} transition-all duration-300`}
-                  style={{ 
-                    height: selectedMetric === 'storage' ? `${value}%` : 
-                           selectedMetric === 'requests' ? `${(value / 2000) * 100}%` : 
-                           `${value}%` 
-                  }}
-                ></div>
-                <div className="text-xs text-gray-500 mt-2">{index}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Buckets Table */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-gray-800">S3 Buckets</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead>
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Bucket Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Region
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Objects
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Size
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Storage Class
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Cost
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Last Modified
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {s3Data.buckets.map((bucket) => (
-                  <tr key={bucket.name} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{bucket.name}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {bucket.region}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatNumber(bucket.totalObjects)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {bucket.totalSize}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        bucket.storageClass === 'Standard' ? 'bg-green-100 text-green-800' :
-                        bucket.storageClass === 'Standard-IA' ? 'bg-blue-100 text-blue-800' :
-                        bucket.storageClass === 'Intelligent-Tiering' ? 'bg-purple-100 text-purple-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {bucket.storageClass}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-orange-600">
-                      {bucket.cost}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {bucket.lastModified}
-                    </td>
-                  </tr>
+        {/* Bucket Selector and Controls */}
+        <div className="bg-white border border-gray-200 rounded-lg p-6 mb-8">
+          <div className="flex flex-col lg:flex-row items-center justify-between space-y-4 lg:space-y-0">
+            <div className="flex-1 w-full lg:w-auto">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                S3 Bucket
+              </label>
+              <select
+                value={selectedBucket}
+                onChange={(e) => handleBucketChange(e.target.value)}
+                className="w-full lg:w-64 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
+              >
+                {buckets.map((bucket) => (
+                  <option key={bucket} value={bucket}>
+                    {bucket}
+                  </option>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Performance Metrics */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Request Statistics */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Request Statistics</h3>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">GET Requests</span>
-                <span className="text-sm font-medium text-gray-900">1,245,678</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">PUT Requests</span>
-                <span className="text-sm font-medium text-gray-900">234,567</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">DELETE Requests</span>
-                <span className="text-sm font-medium text-gray-900">12,345</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Success Rate</span>
-                <span className="text-sm font-medium text-green-600">99.8%</span>
+              </select>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <label className="text-sm font-medium text-gray-700">Time Range:</label>
+              <div className="flex space-x-1">
+                {['1d', '7d', '30d', '90d'].map((range) => (
+                  <button
+                    key={range}
+                    onClick={() => setTimeRange(range)}
+                    className={`px-3 py-1 rounded text-sm font-medium transition-colors duration-200 ${
+                      timeRange === range
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {range}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Cost Analysis */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Cost Analysis</h3>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Storage Cost</span>
-                <span className="text-sm font-medium text-gray-900">$156.78</span>
+        {/* Key Metrics Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+          <MetricCard
+            title="Bucket Size"
+            value={metrics.bucketSize}
+            subtitle="Total storage"
+            color="bg-blue-500"
+          />
+          <MetricCard
+            title="Object Count"
+            value={metrics.objectCount}
+            subtitle="Total objects"
+            color="bg-green-500"
+          />
+          <MetricCard
+            title="All Requests"
+            value={metrics.allRequests}
+            subtitle="Total requests"
+            color="bg-purple-500"
+          />
+          <MetricCard
+            title="GET Requests"
+            value={metrics.getRequests}
+            subtitle="Read operations"
+            color="bg-cyan-500"
+          />
+          <MetricCard
+            title="PUT Requests"
+            value={metrics.putRequests}
+            subtitle="Write operations"
+            color="bg-orange-500"
+          />
+        </div>
+
+        {/* Charts Section */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
+          {/* Storage Metrics Chart */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900">Storage Metrics</h3>
+              <div className="flex items-center space-x-4 text-sm text-gray-600">
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  <span>Bucket Size (GB)</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span>Object Count</span>
+                </div>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Request Cost</span>
-                <span className="text-sm font-medium text-gray-900">$45.23</span>
+            </div>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={storageData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(value) => {
+                    const date = new Date(value);
+                    return `${date.getMonth() + 1}/${date.getDate()}`;
+                  }}
+                />
+                <YAxis yAxisId="left" tick={{ fontSize: 12 }} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
+                <Tooltip content={<CustomTooltip />} />
+                <Area
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="bucketSize"
+                  name="Bucket Size (GB)"
+                  stroke="#3b82f6"
+                  fill="#3b82f6"
+                  fillOpacity={0.1}
+                  strokeWidth={2}
+                />
+                <Area
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="objectCount"
+                  name="Object Count"
+                  stroke="#10b981"
+                  fill="#10b981"
+                  fillOpacity={0.1}
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Request Metrics Chart */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900">Request Metrics</h3>
+              <div className="flex items-center space-x-4 text-sm text-gray-600">
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                  <span>All Requests</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-cyan-500 rounded-full"></div>
+                  <span>GET Requests</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                  <span>PUT Requests</span>
+                </div>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Data Transfer</span>
-                <span className="text-sm font-medium text-gray-900">$43.88</span>
-              </div>
-              <div className="flex justify-between items-center border-t pt-2">
-                <span className="text-sm font-medium text-gray-700">Total</span>
-                <span className="text-sm font-bold text-orange-600">$245.89</span>
-              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={requestData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(value) => {
+                    const date = new Date(value);
+                    return `${date.getMonth() + 1}/${date.getDate()}`;
+                  }}
+                />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip content={<CustomTooltip />} />
+                <Line
+                  type="monotone"
+                  dataKey="allRequests"
+                  name="All Requests"
+                  stroke="#8b5cf6"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="getRequests"
+                  name="GET Requests"
+                  stroke="#06b6d4"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="putRequests"
+                  name="PUT Requests"
+                  stroke="#f97316"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Current Bucket Info */}
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Current Bucket</h3>
+              <p className="text-gray-600 mt-1">{selectedBucket}</p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-sm text-gray-600">Active</span>
             </div>
           </div>
         </div>
