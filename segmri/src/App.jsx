@@ -24,6 +24,8 @@ import S3AnalyticsPage from './pages/S3AnalyticsPage';
 import Testing from './pages/Testing';
 import GpuConfigPage from './pages/GpuConfigPage';
 import ReconstructionPage from './pages/ReconstructionPage';
+import CpuDebugPage from './pages/CpuDebugPage';
+import ECRMetricsPage from './pages/ECRMetricsPage';
 
 // Component to determine if sidebar should be shown
 const AppLayout = () => {
@@ -34,7 +36,7 @@ const AppLayout = () => {
   const showSidebar = sidebarRoutes.some(route => location.pathname.startsWith(route));
 
   // Define routes where sidebar should be visible
-  const AwsSidebarRoutes = ['/aws-cpu', '/aws-s3', '/aws-testing'];
+  const AwsSidebarRoutes = ['/aws-cpu', '/aws-s3', '/aws-testing', '/cpu-testing', '/aws-ecr'];
   const showAwsSidebar = AwsSidebarRoutes.some(route => location.pathname.startsWith(route));
 
     return (
@@ -47,14 +49,17 @@ const AppLayout = () => {
           <Sidebar />
         </div>
       )}
-      {showAwsSidebar && (
-        <div className="bg-white border-b border-gray-200 shadow-sm">
-          <AwsSideBar />
-        </div>
-      )}
+      
+      {/* {showAwsSidebar && ( */}
+        {/* // <div className="bg-white border-b border-gray-200 shadow-sm"> */}
+          {/* <AwsSideBar /> */}
+        {/* </div> */}
+      {/* // )} */}
+      <div className="flex flex-grow">
+      {showAwsSidebar && <AwsSideBar />}
       
       {/* Main content - no margin needed */}
-      <main className="flex-grow">
+      <main className={`flex-grow ${showAwsSidebar ? '' : ''}`}>
         <Routes>
             {/* Public routes */}
             <Route index element={<Navigate to="/login-choice" />} />
@@ -92,7 +97,12 @@ const AppLayout = () => {
             {/* AWS Integrated Dashboard Routes */}
             <Route path="/aws-cpu" element={<CpuUtilizationPage />} />
             <Route path="/aws-s3" element={<S3AnalyticsPage />} />
+            <Route path="/aws-ecr" element={<ECRMetricsPage />} />
             <Route path="/aws-testing" element={<Testing />} />
+
+            {/* cpu debug page */}
+            <Route path="/cpu-testing" element={<CpuDebugPage />} />
+
 
             {/* GPU Configuration Route */}
             <Route path="/gpu-config" element={<GpuConfigPage />} />
@@ -103,6 +113,7 @@ const AppLayout = () => {
             <Route path="*" element={<Navigate to="/login-choice" />} />
           </Routes>
         </main>
+        </div>
       <Footer />
     </div>
   );
