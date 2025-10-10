@@ -107,8 +107,8 @@ const LoginPage = () => {
                 <CheckCircle className="w-10 h-10 text-green-600" />
               </div>
               <h1 className="text-3xl font-bold text-[#DEC1C2] mb-4">{welcomeMessage}</h1>
-              <p className="text-lg text-slate-600 mb-6 text-[#DEC1C2]">Authentication successful</p>
-              <div className="flex items-center justify-center text-slate-600 text-[#DEC1C2]">
+              <p className="text-lg mb-6 text-white">Authentication successful</p>
+              <div className="flex items-center justify-center text-white">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#741E20] mr-3"></div>
                 Accessing your dashboard...
               </div>

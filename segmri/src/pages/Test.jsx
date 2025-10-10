@@ -28,7 +28,7 @@ import { useLocation } from 'react-router-dom';
 // Import your redesigned components (removed Sidebar import)
 import MedicalFileUpload from './MedicalFileUpload';
 import MedicalControlPanel from './MedicalControlPanel';
-import MedicalSegmentationDisplay from './MedicalSegmentationDisplay';
+import MedicalSegmentationDisplay from '../components/MedicalSegmentationDisplay';
 
 // ====== KEEP ALL ORIGINAL API FUNCTIONS ======
 const fetchPresignedUrl = async (projectId) => {
@@ -905,6 +905,7 @@ return (
               setIsManualPlaying={setIsManualPlaying}
               manualPlaybackSpeed={manualPlaybackSpeed}
               setManualPlaybackSpeed={setManualPlaybackSpeed}
+              api={api}
             />
           </div>
         )}
