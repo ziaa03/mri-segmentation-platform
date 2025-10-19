@@ -60,7 +60,7 @@ const LoginUserGuest = () => {
           <div className='text-center mb-8'>
             {/* Logo */}
             <div className='mt-8 mb-8 flex justify-center'>
-              <img src="./heart-logo.png" alt="VisHeart Logo" className='w-42 h-28' />
+              <img src="./heart-logo.png" alt="VisHeart Logo" className='w-42 h-28' style={{filter: 'drop-shadow(0 0 0 white) drop-shadow(0 0 2px white) drop-shadow(0 0 70px white)'}} />
             </div>
             <h2 className='text-2xl text-white mb-2'>
               Advanced Cardiac Care Platform
