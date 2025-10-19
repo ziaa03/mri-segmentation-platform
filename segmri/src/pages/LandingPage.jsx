@@ -383,14 +383,14 @@ const LandingPage = () => {
               </div>
             </div>
 
-            <button className="group px-8 py-4 bg-slate-800 text-white rounded-xl font-medium hover:bg-slate-700 transition-all duration-300 shadow-lg hover:shadow-xl">
+            <Link to="/features" className="group px-8 py-4 bg-slate-800 text-white rounded-xl font-medium hover:bg-slate-700 transition-all duration-300 shadow-lg hover:shadow-xl">
               <span className="flex items-center justify-center">
                 Discover More Features
                 <svg className="ml-3 w-5 h-5 transform transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
               </span>
-            </button>
+            </Link>
           </div>
         </div>
       </div>
@@ -413,18 +413,18 @@ const LandingPage = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-6 justify-center mb-16">
-            <button className="group px-12 py-4 bg-amber-600 text-white rounded-xl text-lg font-semibold hover:bg-amber-700 transition-all duration-300 shadow-xl hover:scale-105">
+            <Link to="/register" className="group px-12 py-4 bg-amber-600 text-white rounded-xl text-lg font-semibold hover:bg-amber-700 transition-all duration-300 shadow-xl hover:scale-105">
               <span className="flex items-center justify-center">
                 Create an account
                 <svg className="ml-3 w-5 h-5 transform transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
               </span>
-            </button>
+            </Link>
             
-            <button className="px-12 py-4 border border-slate-400 text-slate-300 rounded-xl text-lg font-semibold hover:bg-slate-700 hover:border-slate-300 transition-all duration-300 hover:scale-105">
-              Learn more
-            </button>
+            {/* <button className="px-12 py-4 border border-slate-400 text-slate-300 rounded-xl text-lg font-semibold hover:bg-slate-700 hover:border-slate-300 transition-all duration-300 hover:scale-105"> */}
+              {/* Learn more */}
+            {/* </button> */}
           </div>
         </div>
       </div>
