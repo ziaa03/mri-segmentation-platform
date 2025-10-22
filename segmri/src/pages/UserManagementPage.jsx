@@ -495,7 +495,7 @@ const UserManagement = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Main Content */}
           <div className="lg:col-span-3">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 min-w-0">
               {/* Toolbar */}
               <div className="p-5 border-b border-gray-100">
                 <div className="flex flex-wrap items-center justify-between gap-4">
