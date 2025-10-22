@@ -193,7 +193,7 @@ const LandingPage = () => {
               <div className="flex flex-col sm:flex-row gap-6 justify-center">
                 <button 
                   onClick={() => scrollToSection('features')}
-                  className="group px-10 py-4 bg-white/90 text-slate-800 rounded-lg text-lg font-medium hover:bg-white transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl backdrop-blur-sm"
+                  className="group px-10 py-4 border border-white/50 text-white rounded-lg text-lg font-medium hover:border-white hover:bg-white/10 transition-all duration-300 hover:scale-105 backdrop-blur-sm"
                 >
                   <span className="flex items-center justify-center">
                     Explore Technology
@@ -201,13 +201,6 @@ const LandingPage = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                     </svg>
                   </span>
-                </button>
-                
-                <button 
-                  onClick={() => scrollToSection('demo')}
-                  className="px-10 py-4 border border-white/50 text-white rounded-lg text-lg font-medium hover:border-white hover:bg-white/10 transition-all duration-300 hover:scale-105 backdrop-blur-sm"
-                >
-                  View Demo
                 </button>
               </div>
             </div>
