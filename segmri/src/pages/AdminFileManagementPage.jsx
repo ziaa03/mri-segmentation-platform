@@ -436,13 +436,13 @@ const AdminFileManagementPage = () => {
       )}
       
       {/* Header Section */}
-      <div className="header-sect px-6 lg:px-12">
-        <h1 className="text-3xl font-light text-[#3A4454] mb-6">All Files Management</h1>
+      <div className="header-sect lg:px-2">
+        <h1 className="text-3xl font-light text-[#3A4454] mb-6">Patient Files Management</h1>
         <p className="text-sm text-gray-500 mt-1">View, update and delete your files here</p>
       </div>
 
       {/* Search and Actions Bar */}
-      <div className="px-6 lg:px-12 py-6 bg-[#FFFCF6] border-b border-gray-100">
+      <div className="lg:px-2 py-6 bg-[#FFFCF6] border-b border-gray-100">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="relative w-full md:w-96">
             <input
@@ -594,7 +594,7 @@ const AdminFileManagementPage = () => {
       </div>
       
       {/* Main Content Area */}
-      <div className="flex flex-1 px-6 lg:px-12 py-8">
+      <div className="flex flex-1 lg:px-2 py-8">
         <div className="w-full lg:w-3/4 pr-0 lg:pr-8">
           {/* Recent Files Section */}
           <div className="mb-10">
