@@ -444,7 +444,7 @@ const FeaturesPage = () => {
                         {feature.icon}
                       </div>
                     </div>
-                    <h3 className="text-xl font-bold mb-3 group-hover:text-[#5B7B9A]">
+                    <h3 className="text-xl font-bold mb-3 group-hover:text-black">
                       {feature.title}
                     </h3>
                     <p className={`text-sm leading-relaxed ${
@@ -598,112 +598,6 @@ const FeaturesPage = () => {
               </motion.div>
             ))}
           </div>
-
-          {/* Performance Metrics Dashboard */}
-          <motion.div 
-            className="mt-16 bg-white rounded-3xl p-8 shadow-2xl border border-gray-100"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={isVisible.specs ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.95 }}
-            transition={{ delay: 0.8, duration: 0.8 }}
-          >
-            <h3 className="text-3xl font-light text-[#3A4454] mb-8 text-center">
-              Real-Time Performance Dashboard
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="text-center">
-                <div className="relative w-24 h-24 mx-auto mb-4">
-                  <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 36 36">
-                    <path
-                      d="M18 2.0845
-                        a 15.9155 15.9155 0 0 1 0 31.831
-                        a 15.9155 15.9155 0 0 1 0 -31.831"
-                      fill="none"
-                      stroke="#E5E7EB"
-                      strokeWidth="2"
-                    />
-                    <motion.path
-                      d="M18 2.0845
-                        a 15.9155 15.9155 0 0 1 0 31.831
-                        a 15.9155 15.9155 0 0 1 0 -31.831"
-                      fill="none"
-                      stroke="#FDBA74"
-                      strokeWidth="2"
-                      strokeDasharray="90, 100"
-                      initial={{ strokeDasharray: "0, 100" }}
-                      animate={isVisible.specs ? { strokeDasharray: "90, 100" } : { strokeDasharray: "0, 100" }}
-                      transition={{ delay: 1.2, duration: 1.5 }}
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xl font-bold text-[#3A4454]">90%</span>
-                  </div>
-                </div>
-                <p className="text-[#5B7B9A] font-semibold">Accuracy Rate</p>
-              </div>
-
-              <div className="text-center">
-                <div className="relative w-24 h-24 mx-auto mb-4">
-                  <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 36 36">
-                    <path
-                      d="M18 2.0845
-                        a 15.9155 15.9155 0 0 1 0 31.831
-                        a 15.9155 15.9155 0 0 1 0 -31.831"
-                      fill="none"
-                      stroke="#E5E7EB"
-                      strokeWidth="2"
-                    />
-                    <motion.path
-                      d="M18 2.0845
-                        a 15.9155 15.9155 0 0 1 0 31.831
-                        a 15.9155 15.9155 0 0 1 0 -31.831"
-                      fill="none"
-                      stroke="#5B7B9A"
-                      strokeWidth="2"
-                      strokeDasharray="75, 100"
-                      initial={{ strokeDasharray: "0, 100" }}
-                      animate={isVisible.specs ? { strokeDasharray: "75, 100" } : { strokeDasharray: "0, 100" }}
-                      transition={{ delay: 1.4, duration: 1.5 }}
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xl font-bold text-[#3A4454]">55s</span>
-                  </div>
-                </div>
-                <p className="text-[#5B7B9A] font-semibold">Avg Processing</p>
-              </div>
-
-              <div className="text-center">
-                <div className="relative w-24 h-24 mx-auto mb-4">
-                  <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 36 36">
-                    <path
-                      d="M18 2.0845
-                        a 15.9155 15.9155 0 0 1 0 31.831
-                        a 15.9155 15.9155 0 0 1 0 -31.831"
-                      fill="none"
-                      stroke="#E5E7EB"
-                      strokeWidth="2"
-                    />
-                    <motion.path
-                      d="M18 2.0845
-                        a 15.9155 15.9155 0 0 1 0 31.831
-                        a 15.9155 15.9155 0 0 1 0 -31.831"
-                      fill="none"
-                      stroke="#3A4454"
-                      strokeWidth="2"
-                      strokeDasharray="99, 100"
-                      initial={{ strokeDasharray: "0, 100" }}
-                      animate={isVisible.specs ? { strokeDasharray: "99, 100" } : { strokeDasharray: "0, 100" }}
-                      transition={{ delay: 1.6, duration: 1.5 }}
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-lg font-bold text-[#3A4454]">99.9%</span>
-                  </div>
-                </div>
-                <p className="text-[#5B7B9A] font-semibold">Uptime</p>
-              </div>
-            </div>
-          </motion.div>
         </div>
       </div>
 
