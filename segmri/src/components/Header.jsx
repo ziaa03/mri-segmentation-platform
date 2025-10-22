@@ -1,31 +1,54 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { ChevronDown, Menu, X, User, LogOut, Settings } from 'lucide-react';
+import { 
+  ChevronDown, Menu, X, User, LogOut, Settings,
+  Upload, Home, Folder, BarChart3, FileText, Archive, Share2
+} from 'lucide-react';
+import api from '../api/AxiosInstance';
 
 const Header = () => {
   const { currentUser, userRole, logout, isAuthenticated, isAdmin, isUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [showFilesDropdown, setShowFilesDropdown] = useState(false);
-  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [showVisHubDropdown, setShowVisHubDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileAdminOpen, setMobileAdminOpen] = useState(false);
+  const [mobileVisHubOpen, setMobileVisHubOpen] = useState(false);
+  const [activeProjectsCount, setActiveProjectsCount] = useState(0);
   const filesDropdownRef = useRef(null);
-  const userDropdownRef = useRef(null);
+  const visHubDropdownRef = useRef(null);
+
+  // Fetch active projects count
+  useEffect(() => {
+    const fetchProjectsCount = async () => {
+      try {
+        const response = await api.get('/project/get-projects-list');
+        const projects = response.data.projects || [];
+        setActiveProjectsCount(projects.length);
+      } catch (error) {
+        console.error("Failed to fetch projects:", error);
+        setActiveProjectsCount(0);
+      }
+    };
+
+    if (isAuthenticated) {
+      fetchProjectsCount();
+    }
+  }, [isAuthenticated]);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
-    setShowUserDropdown(false);
   };
 
   const toggleFilesDropdown = () => {
     setShowFilesDropdown(prev => !prev);
   };
 
-  const toggleUserDropdown = () => {
-    setShowUserDropdown(prev => !prev);
+  const toggleVisHubDropdown = () => {
+    setShowVisHubDropdown(prev => !prev);
   };
 
   // Close dropdowns when clicking outside
@@ -34,8 +57,8 @@ const Header = () => {
       if (filesDropdownRef.current && !filesDropdownRef.current.contains(event.target)) {
         setShowFilesDropdown(false);
       }
-      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target)) {
-        setShowUserDropdown(false);
+      if (visHubDropdownRef.current && !visHubDropdownRef.current.contains(event.target)) {
+        setShowVisHubDropdown(false);
       }
     };
 
@@ -49,10 +72,40 @@ const Header = () => {
   const navLinks = [
     { path: '/landing', label: 'OVERVIEW' },
     { path: '/features', label: 'THE EXPERIENCE' },
-    { path: '/vis-hub', label: 'VISHEART HUB' },
     { path: '/team', label: 'ABOUT US' },
-    { path: '/3d-viewer', label: '3D MODEL VIEWER' }
   ];
+
+  // VisHeart Hub navigation items (from Sidebar)
+  const visHubItems = [
+    { 
+      id: 'upload', 
+      label: 'New Upload', 
+      icon: Upload, 
+      route: '/vis-hub'
+    },
+    { 
+      id: 'dashboard', 
+      label: 'Dashboard', 
+      icon: Home, 
+      route: '/dashboard'
+    },
+    { 
+      id: 'projects', 
+      label: 'Active Projects', 
+      icon: Folder, 
+      route: '/files',
+      badge: activeProjectsCount
+    },
+    ...(isAdmin ? [{ 
+      id: 'archive', 
+      label: 'Patient Archive', 
+      icon: Archive, 
+      route: '/admin-files'
+    }] : []),
+  ];
+
+  const visHubPaths = visHubItems.map(item => item.route);
+  const isVisHubActive = visHubPaths.includes(location.pathname);
 
   return (
     <header className="sticky top-0 z-50 bg-white backdrop-blur-sm border-b border-[#74342B]/10 shadow-sm">
@@ -84,17 +137,67 @@ const Header = () => {
                   }`}
                 >
                   {link.label}
-                  {link.badge && (
-                    <span className="absolute -top-1 -right-1 px-1.5 py-0.5 text-xs font-bold bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-full animate-pulse">
-                      {link.badge}
-                    </span>
-                  )}
                   {isActiveLink(link.path) && (
                     <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-6 h-0.5 bg-[#74342B] rounded-full" />
                   )}
                 </Link>
               </div>
             ))}
+
+            {/* VisHeart Hub Dropdown */}
+            <div className="relative" ref={visHubDropdownRef}>
+              <button
+                onClick={toggleVisHubDropdown}
+                className={`relative px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-1 transition-all duration-200 hover:bg-[#74342B]/5 ${
+                  isVisHubActive
+                    ? 'text-[#74342B] bg-[#74342B]/5'
+                    : 'text-[#343231] hover:text-[#74342B]'
+                }`}
+              >
+                <span>VISHEART HUB</span>
+                <ChevronDown className="h-4 w-4" />
+                {isVisHubActive && (
+                  <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-6 h-0.5 bg-[#74342B] rounded-full" />
+                )}
+              </button>
+
+              {showVisHubDropdown && (
+                <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
+                  {visHubItems.map((item, index) => {
+                    const IconComponent = item.icon;
+                    const isLast = index === visHubItems.length - 1;
+                    const isFirst = index === 0;
+                    
+                    return (
+                      <Link
+                        key={item.id}
+                        to={item.route}
+                        className={`flex items-center justify-between px-4 py-2.5 text-sm ${
+                          isActiveLink(item.route)
+                            ? 'bg-[#74342B]/10 text-[#74342B] font-medium'
+                            : 'text-[#343231] hover:bg-[#74342B]/5 hover:text-[#74342B]'
+                        } ${isFirst ? 'rounded-t-lg' : ''} ${isLast ? 'rounded-b-lg' : ''}`}
+                        onClick={() => setShowVisHubDropdown(false)}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <IconComponent className="h-4 w-4" />
+                          <span>{item.label}</span>
+                        </div>
+                        {item.badge && item.badge > 0 && (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            isActiveLink(item.route)
+                              ? 'bg-[#74342B] text-white'
+                              : 'bg-[#74342B]/10 text-[#74342B]'
+                          }`}>
+                            {item.badge}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             {/* Admin Panel Dropdown */}
             {isAuthenticated && isAdmin && (
@@ -210,13 +313,56 @@ const Header = () => {
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <span>{link.label}</span>
-                  {link.badge && (
-                    <span className="px-2 py-1 text-xs font-bold bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-full">
-                      {link.badge}
-                    </span>
-                  )}
                 </Link>
               ))}
+
+              {/* VisHeart Hub Dropdown in Mobile */}
+              <div>
+                <button
+                  onClick={() => setMobileVisHubOpen(!mobileVisHubOpen)}
+                  className={`flex items-center justify-between w-full px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                    isVisHubActive
+                      ? 'text-[#74342B] bg-[#74342B]/5'
+                      : 'text-[#343231] hover:bg-[#74342B]/5 hover:text-[#74342B]'
+                  }`}
+                >
+                  VISHEART HUB
+                  <ChevronDown className={`h-4 w-4 transform transition-transform ${mobileVisHubOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {mobileVisHubOpen && (
+                  <div className="ml-4 mt-1 space-y-1">
+                    {visHubItems.map((item) => {
+                      const IconComponent = item.icon;
+                      return (
+                        <Link
+                          key={item.id}
+                          to={item.route}
+                          className={`flex items-center justify-between px-4 py-2 text-sm rounded-lg transition-colors ${
+                            isActiveLink(item.route)
+                              ? 'text-[#74342B] bg-[#74342B]/10 font-medium'
+                              : 'text-[#343231] hover:bg-[#74342B]/5 hover:text-[#74342B]'
+                          }`}
+                          onClick={() => setMobileMenuOpen(false)}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <IconComponent className="h-4 w-4" />
+                            <span>{item.label}</span>
+                          </div>
+                          {item.badge && item.badge > 0 && (
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                              isActiveLink(item.route)
+                                ? 'bg-[#74342B] text-white'
+                                : 'bg-[#74342B]/10 text-[#74342B]'
+                            }`}>
+                              {item.badge}
+                            </span>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
               {/* Admin Panel Dropdown in Mobile */}
               {isAuthenticated && isAdmin && (
@@ -225,7 +371,7 @@ const Header = () => {
                     onClick={() => setMobileAdminOpen(!mobileAdminOpen)}
                     className="flex items-center justify-between w-full px-4 py-3 rounded-lg text-sm font-medium text-[#343231] hover:bg-[#74342B]/5 hover:text-[#74342B] transition-colors"
                   >
-                    Admin Panel
+                    ADMIN PANEL
                     <ChevronDown className={`h-4 w-4 transform transition-transform ${mobileAdminOpen ? 'rotate-180' : ''}`} />
                   </button>
                   {mobileAdminOpen && (
