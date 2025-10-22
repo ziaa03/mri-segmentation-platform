@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Header from './components/Header';
 import Footer from './components/Footer';
-import Sidebar from './pages/Sidebar';
+// import Sidebar from './pages/Sidebar';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -44,11 +44,11 @@ const AppLayout = () => {
       <Header />
       
       {/* Horizontal navigation bar instead of sidebar */}
-      {showSidebar && (
+      {/* {showSidebar && (
         <div className="bg-white border-b border-gray-200 shadow-sm">
           <Sidebar />
         </div>
-      )}
+      )} */}
       
       {/* {showAwsSidebar && ( */}
         {/* // <div className="bg-white border-b border-gray-200 shadow-sm"> */}
@@ -92,7 +92,7 @@ const AppLayout = () => {
             {/* Admin only routes */}
             <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
               <Route path="/user-management" element={<UserManagement />} />
-              <Route path="/all-files" element={<AdminFileManagementPage />} />
+              <Route path="/admin-files" element={<AdminFileManagementPage />} />
 
             {/* AWS Integrated Dashboard Routes */}
             <Route path="/aws-cpu" element={<CpuUtilizationPage />} />
