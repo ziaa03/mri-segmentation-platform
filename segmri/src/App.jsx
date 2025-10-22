@@ -26,6 +26,7 @@ import GpuConfigPage from './pages/GpuConfigPage';
 import ReconstructionPage from './pages/ReconstructionPage';
 import CpuDebugPage from './pages/CpuDebugPage';
 import ECRMetricsPage from './pages/ECRMetricsPage';
+import ScrollToTop from './utils/SmoothScroll';
 
 // Component to determine if sidebar should be shown
 const AppLayout = () => {
@@ -42,19 +43,6 @@ const AppLayout = () => {
     return (
     <div className="flex flex-col min-h-screen">
       <Header />
-      
-      {/* Horizontal navigation bar instead of sidebar */}
-      {/* {showSidebar && (
-        <div className="bg-white border-b border-gray-200 shadow-sm">
-          <Sidebar />
-        </div>
-      )} */}
-      
-      {/* {showAwsSidebar && ( */}
-        {/* // <div className="bg-white border-b border-gray-200 shadow-sm"> */}
-          {/* <AwsSideBar /> */}
-        {/* </div> */}
-      {/* // )} */}
       <div className="flex flex-grow">
       {showAwsSidebar && <AwsSideBar />}
       
@@ -123,6 +111,7 @@ function App() {
   return (
     <AuthProvider>
       <Router>
+        <ScrollToTop />
         <Routes>
           {/* Public routes - No Header/Footer/Sidebar */}
           <Route path="/login" element={<LoginPage />} />
