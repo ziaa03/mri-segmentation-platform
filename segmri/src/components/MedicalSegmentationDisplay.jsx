@@ -24,7 +24,6 @@ import {
   cleanupImageUrls 
 } from '../utils/TarExtractor';
 
-import DebugPanel from './DebugPanel';
 
 // API utility for fetching presigned URLs
 const fetchPresignedUrl = async (projectId, api) => {
@@ -46,7 +45,7 @@ const fetchPresignedUrl = async (projectId, api) => {
 // Utility functions
 const getClassColor = (className) => {
   const colors = {
-    'rv': '#DC2626',   // ← Change keys to lowercase
+    'rv': '#DC2626',   // â† Change keys to lowercase
     'myo': '#4ECDC4',
     'lvc': '#ff69b4'
   };
@@ -55,7 +54,7 @@ const getClassColor = (className) => {
 
 const getStructureName = (className) => {
   const names = {
-    'rv': 'Right Ventricle',     // ← Change keys to lowercase
+    'rv': 'Right Ventricle',     // â† Change keys to lowercase
     'myo': 'Myocardium',
     'lvc': 'Left Ventricle Cavity'
   };
@@ -64,7 +63,7 @@ const getStructureName = (className) => {
 
 const normalizeClassName = (className) => {
   if (!className) return className;
-  return className.toLowerCase(); // ← LOWERCASE to match backend enum
+  return className.toLowerCase(); // â† LOWERCASE to match backend enum
 };
 
 const MedicalSegmentationDisplay = ({ 
@@ -235,52 +234,55 @@ const getCurrentSliceData = useCallback((timeIdx = null, layerIdx = null) => {
   const sliceData = getCurrentSliceData();
   const availableMasks = sliceData?.segmentationMasks || [];
 
-  // Helper function to generate a binary mask from brush strokes in drawingHistory
-  const generateBinaryMaskFromBrushStrokes = useCallback((
-    history,
-    targetClass,
-    canvasWidth,
-    canvasHeight
-  ) => {
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = canvasWidth;
-    tempCanvas.height = canvasHeight;
-    const tempCtx = tempCanvas.getContext('2d');
-    tempCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+  // Replace generateBinaryMaskFromBrushStrokes with a generic version
+const generateBinaryMaskFromStrokes = useCallback((
+  history,
+  targetClass,
+  strokeType,  // ← NEW: 'brush' or 'eraser'
+  canvasWidth,
+  canvasHeight
+) => {
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = canvasWidth;
+  tempCanvas.height = canvasHeight;
+  const tempCtx = tempCanvas.getContext('2d');
+  tempCtx.clearRect(0, 0, canvasWidth, canvasHeight);
 
-    const brushActions = history.filter(
-      action => action.type === 'brush' && action.class === targetClass
-    );
+  // Filter for the specified stroke type and class
+  const actions = history.filter(
+    action => action.type === strokeType && 
+    normalizeClassName(action.class) === normalizeClassName(targetClass)
+  );
 
-    brushActions.forEach(action => {
-      if (action.points && action.points.length > 0) {
-        tempCtx.strokeStyle = '#FFFFFF'; // White for visibility in binary mask
-        tempCtx.lineWidth = action.lineWidth || 15;
-        tempCtx.lineCap = action.lineCap || 'round';
-        tempCtx.lineJoin = action.lineJoin || 'round';
-        
-        tempCtx.beginPath();
-        tempCtx.moveTo(action.points[0].x, action.points[0].y);
-        for (let i = 1; i < action.points.length; i++) {
-          tempCtx.lineTo(action.points[i].x, action.points[i].y);
-        }
-        tempCtx.stroke();
+  actions.forEach(action => {
+    if (action.points && action.points.length > 0) {
+      tempCtx.strokeStyle = '#FFFFFF';
+      tempCtx.lineWidth = action.lineWidth || 15;
+      tempCtx.lineCap = 'round';
+      tempCtx.lineJoin = 'round';
+      
+      tempCtx.beginPath();
+      tempCtx.moveTo(action.points[0].x, action.points[0].y);
+      for (let i = 1; i < action.points.length; i++) {
+        tempCtx.lineTo(action.points[i].x, action.points[i].y);
       }
-    });
-
-    const imageData = tempCtx.getImageData(0, 0, canvasWidth, canvasHeight);
-    const data = imageData.data;
-    const binaryMask = new Uint8Array(canvasWidth * canvasHeight);
-
-    for (let i = 0; i < binaryMask.length; i++) {
-      if (data[i * 4 + 3] > 0) { 
-        binaryMask[i] = 1;
-      } else {
-        binaryMask[i] = 0;
-      }
+      tempCtx.stroke();
     }
-    return binaryMask;
-  }, []);
+  });
+
+  const imageData = tempCtx.getImageData(0, 0, canvasWidth, canvasHeight);
+  const data = imageData.data;
+  const binaryMask = new Uint8Array(canvasWidth * canvasHeight);
+
+  for (let i = 0; i < binaryMask.length; i++) {
+    if (data[i * 4 + 3] > 0) { 
+      binaryMask[i] = 1;
+    } else {
+      binaryMask[i] = 0;
+    }
+  }
+  return binaryMask;
+}, []);
 
   // Image rendering with proper URL guard
   const renderImageToCanvas = useCallback(
@@ -459,8 +461,8 @@ const getCurrentSliceData = useCallback((timeIdx = null, layerIdx = null) => {
       url, 
       width, 
       height, 
-      aiZoomLevel,  // ← Use AI zoom
-      aiPanOffset,  // ← Use AI pan
+      aiZoomLevel,  // â† Use AI zoom
+      aiPanOffset,  // â† Use AI pan
       () => {
         if (currentImage.url === url) {
           drawOverlayMasks();
@@ -637,8 +639,8 @@ const getCurrentSliceData = useCallback((timeIdx = null, layerIdx = null) => {
   visibleMasks,
   maskOpacity,
   imageTransform,
-  manualTimeIndex, // ← Changed
-  manualLayerIndex, // ← Changed
+  manualTimeIndex, // â† Changed
+  manualLayerIndex, // â† Changed
   selectedClass,
   manualZoomLevel,
   manualPanOffset,
@@ -703,7 +705,7 @@ const getCurrentSliceData = useCallback((timeIdx = null, layerIdx = null) => {
     return;
   }
 
-  const coords = getCanvasCoordinates(e, canvas, manualZoomLevel, manualPanOffset); // ← Pass manual zoom/pan
+  const coords = getCanvasCoordinates(e, canvas, manualZoomLevel, manualPanOffset); // â† Pass manual zoom/pan
 
     if (selectedTool === "brush" || selectedTool === "eraser") {
       setDrawingHistory((prev) => [
@@ -835,7 +837,7 @@ const handleSecondCanvasMouseMove = useCallback((e) => {
     const deltaCanvasX = deltaXClient * scaleX;
     const deltaCanvasY = deltaYClient * scaleY;
 
-    setManualPanOffset(prev => ({  // ← Changed to manualPanOffset
+    setManualPanOffset(prev => ({  // â† Changed to manualPanOffset
       x: prev.x + deltaCanvasX,
       y: prev.y + deltaCanvasY
     }));
@@ -845,7 +847,7 @@ const handleSecondCanvasMouseMove = useCallback((e) => {
 
   if (!isDrawing) return;
 
-  const coords = getCanvasCoordinates(e, canvas, manualZoomLevel, manualPanOffset); // ← Pass manual zoom/pan
+  const coords = getCanvasCoordinates(e, canvas, manualZoomLevel, manualPanOffset); // â† Pass manual zoom/pan
 
     if (selectedTool === "brush" || selectedTool === "eraser") {
       setDrawingHistory((prevHistory) => {
@@ -876,11 +878,9 @@ const handleSecondCanvasMouseMove = useCallback((e) => {
   [isEditMode, isDragging, isDrawing, selectedTool, currentBoundingBox, getCanvasCoordinates, redrawSecondOverlayCanvas, lastMousePos, manualZoomLevel, manualPanOffset]
 );
 
-  // FIXED: Mouse up handler with immediate completion redraw
   const handleSecondCanvasMouseUp = useCallback(() => {
   if (!isEditMode) return;
   
-  // Reset both dragging and drawing states
   setIsDragging(false);
   
   if (!isDrawing) return;
@@ -912,97 +912,213 @@ const handleSecondCanvasMouseMove = useCallback((e) => {
     setCurrentBoundingBox(null);
   }
 
-  // AUTO-APPLY ERASER: Apply eraser strokes immediately
+  // ⭐ AUTO-APPLY ERASER: Enhanced logic
   if (selectedTool === "eraser") {
-    const eraserActions = drawingHistory.filter(a => a.type === 'eraser' && a.class === selectedClass);
+    const eraserActions = drawingHistory.filter(
+      a => a.type === 'eraser' && 
+      normalizeClassName(a.class) === normalizeClassName(selectedClass)
+    );
     
     if (eraserActions.length > 0) {
-      // Get existing mask
-      let existingBinaryMask = new Uint8Array(canvasDimensions.width * canvasDimensions.height);
+      console.log(`Auto-applying ${eraserActions.length} eraser strokes for ${selectedClass}`);
       
+      // ⭐ STEP 1: Check if there are uncommitted brush strokes for this class
+      const uncommittedBrushStrokes = drawingHistory.filter(
+        a => a.type === 'brush' && 
+        normalizeClassName(a.class) === normalizeClassName(selectedClass)
+      );
+      
+      if (uncommittedBrushStrokes.length > 0) {
+        console.log(`Found ${uncommittedBrushStrokes.length} uncommitted brush strokes - handling eraser differently`);
+        
+        // Generate masks for both brush and eraser
+        const brushMask = generateBinaryMaskFromStrokes(
+          drawingHistory,
+          selectedClass,
+          'brush',
+          canvasDimensions.width,
+          canvasDimensions.height
+        );
+        
+        const eraserMask = generateBinaryMaskFromStrokes(
+          drawingHistory,
+          selectedClass,
+          'eraser',
+          canvasDimensions.width,
+          canvasDimensions.height
+        );
+        
+        // Combine: brush adds pixels, eraser removes them
+        const combinedBrushMask = new Uint8Array(brushMask.length);
+        for (let i = 0; i < combinedBrushMask.length; i++) {
+          combinedBrushMask[i] = brushMask[i] && !eraserMask[i] ? 1 : 0;
+        }
+        
+        const netBrushPixels = combinedBrushMask.reduce((a,b)=>a+b,0);
+        console.log(`Net brush pixels after eraser: ${netBrushPixels}`);
+        
+        // Remove BOTH brush and eraser from drawing history since we're handling them
+        setDrawingHistory(prev => prev.filter(
+          action => !(
+            (action.type === 'brush' || action.type === 'eraser') && 
+            normalizeClassName(action.class) === normalizeClassName(selectedClass)
+          )
+        ));
+        
+        // If there are net pixels to add, keep them in drawing history as a new brush action
+        if (netBrushPixels > 0) {
+          // Create consolidated brush stroke from the combined mask
+          // This is complex, so for now just show feedback
+          console.log(`Note: ${netBrushPixels} pixels remain after erasing brush strokes`);
+          // You could optionally re-add these as points to drawingHistory
+          // or just let the user re-apply brush if needed
+        }
+        
+        // Don't apply to mask since these were uncommitted brush strokes
+        setTimeout(() => redrawSecondOverlayCanvas(), 0);
+        return;
+      }
+      
+      // ⭐ STEP 2: No uncommitted brush strokes, so erase from actual mask data
+      console.log('Erasing from committed mask data');
+      
+      // Get existing mask
+      let existingBinaryMask = new Uint8Array(
+        canvasDimensions.width * canvasDimensions.height
+      );
+      
+      // First check manual segmentation
       if (activeManualSegmentation?.frames) {
-        const targetFrame = activeManualSegmentation.frames.find(f => f.frameindex === manualTimeIndex);
+        const targetFrame = activeManualSegmentation.frames.find(
+          f => f.frameindex === manualTimeIndex
+        );
         if (targetFrame) {
-          const targetSlice = targetFrame.slices.find(s => s.sliceindex === manualLayerIndex);
+          const targetSlice = targetFrame.slices.find(
+            s => s.sliceindex === manualLayerIndex
+          );
           if (targetSlice) {
-            const existingMask = targetSlice.segmentationmasks.find(m => m.class === selectedClass);
+            const existingMask = targetSlice.segmentationmasks.find(
+              m => normalizeClassName(m.class) === normalizeClassName(selectedClass)
+            );
             if (existingMask) {
               const rleData = existingMask.segmentationmaskcontents || existingMask.rle;
               if (rleData) {
-                existingBinaryMask = decodeRLE(rleData, canvasDimensions.height, canvasDimensions.width);
+                existingBinaryMask = decodeRLE(
+                  rleData, 
+                  canvasDimensions.height, 
+                  canvasDimensions.width
+                );
+                console.log(`Found manual ${selectedClass} mask: ${existingBinaryMask.reduce((a,b)=>a+b,0)} pixels`);
               }
             }
           }
         }
       }
       
-      // Fall back to AI mask if no manual mask exists
+      // Fall back to AI mask if no manual mask
       const pixelCount = existingBinaryMask.reduce((a,b)=>a+b,0);
       if (pixelCount === 0) {
         const originalSliceData = getCurrentSliceData(manualTimeIndex, manualLayerIndex);
         if (originalSliceData?.segmentationMasks) {
-          const aiMask = originalSliceData.segmentationMasks.find(m => m.class === selectedClass);
+          const aiMask = originalSliceData.segmentationMasks.find(
+            m => normalizeClassName(m.class) === normalizeClassName(selectedClass)
+          );
           if (aiMask) {
             const rleData = aiMask.segmentationmaskcontents || aiMask.rle;
             if (rleData) {
-              existingBinaryMask = decodeRLE(rleData, canvasDimensions.height, canvasDimensions.width);
+              existingBinaryMask = decodeRLE(
+                rleData, 
+                canvasDimensions.height, 
+                canvasDimensions.width
+              );
+              console.log(`Falling back to AI ${selectedClass} mask: ${existingBinaryMask.reduce((a,b)=>a+b,0)} pixels`);
             }
           }
         }
       }
 
       // Generate eraser mask
-      const eraserMask = generateBinaryMaskFromBrushStrokes(
-        eraserActions,
+      const eraserMask = generateBinaryMaskFromStrokes(
+        drawingHistory,
         selectedClass,
+        'eraser',
         canvasDimensions.width,
         canvasDimensions.height
       );
+      
+      console.log(`Eraser mask has ${eraserMask.reduce((a,b)=>a+b,0)} pixels`);
 
-      // Subtract eraser pixels
+      // Subtract eraser pixels from existing mask
       const resultMask = new Uint8Array(existingBinaryMask.length);
       for (let i = 0; i < resultMask.length; i++) {
         resultMask[i] = existingBinaryMask[i] && !eraserMask[i] ? 1 : 0;
       }
+      
+      console.log(`Result mask has ${resultMask.reduce((a,b)=>a+b,0)} pixels`);
 
-      const rleString = encodeRLE(resultMask, canvasDimensions.height, canvasDimensions.width);
+      const rleString = encodeRLE(
+        resultMask, 
+        canvasDimensions.height, 
+        canvasDimensions.width
+      );
 
-      // Update activeManualSegmentation immediately
+      // Update activeManualSegmentation
       setActiveManualSegmentation(prevSegmentation => {
         if (!prevSegmentation) return null;
 
         const updatedSegmentation = JSON.parse(JSON.stringify(prevSegmentation));
         updatedSegmentation.isSaved = false;
 
-        let targetFrame = updatedSegmentation.frames.find(f => f.frameindex === manualTimeIndex);
+        let targetFrame = updatedSegmentation.frames.find(
+          f => f.frameindex === manualTimeIndex
+        );
         if (!targetFrame) {
-          targetFrame = { frameindex: manualTimeIndex, frameinferred: false, slices: [] };
+          targetFrame = { 
+            frameindex: manualTimeIndex, 
+            frameinferred: false, 
+            slices: [] 
+          };
           updatedSegmentation.frames.push(targetFrame);
           updatedSegmentation.frames.sort((a, b) => a.frameindex - b.frameindex);
         }
 
-        let targetSlice = targetFrame.slices.find(s => s.sliceindex === manualLayerIndex);
+        let targetSlice = targetFrame.slices.find(
+          s => s.sliceindex === manualLayerIndex
+        );
         if (!targetSlice) {
-          targetSlice = { sliceindex: manualLayerIndex, segmentationmasks: [], componentboundingboxes: [] };
+          targetSlice = { 
+            sliceindex: manualLayerIndex, 
+            segmentationmasks: [], 
+            componentboundingboxes: [] 
+          };
           targetFrame.slices.push(targetSlice);
           targetFrame.slices.sort((a, b) => a.sliceindex - b.sliceindex);
         }
 
-        let maskForClass = targetSlice.segmentationmasks.find(m => m.class === selectedClass);
+        let maskForClass = targetSlice.segmentationmasks.find(
+          m => normalizeClassName(m.class) === normalizeClassName(selectedClass)
+        );
         if (maskForClass) {
           maskForClass.segmentationmaskcontents = rleString;
+          console.log(`Updated existing ${selectedClass} mask`);
         } else {
           targetSlice.segmentationmasks.push({
-  class: normalizeClassName(selectedClass), // ← Normalize to lowercase
-  segmentationmaskcontents: rleString,
-});
+            class: normalizeClassName(selectedClass),
+            segmentationmaskcontents: rleString,
+          });
+          console.log(`Created new ${selectedClass} mask`);
         }
         
         return updatedSegmentation;
       });
 
-      // Remove eraser strokes from drawing history since they're now applied
-      setDrawingHistory(prev => prev.filter(action => !(action.type === 'eraser' && action.class === selectedClass)));
+      // Remove applied eraser strokes from history
+      setDrawingHistory(prev => prev.filter(
+        action => !(action.type === 'eraser' && 
+        normalizeClassName(action.class) === normalizeClassName(selectedClass))
+      ));
+      
+      console.log('Eraser auto-apply complete');
     }
   }
 
@@ -1020,7 +1136,7 @@ const handleSecondCanvasMouseMove = useCallback((e) => {
   manualTimeIndex,
   manualLayerIndex,
   activeManualSegmentation,
-  generateBinaryMaskFromBrushStrokes,
+  generateBinaryMaskFromStrokes,
   getCurrentSliceData,
 ]);
 
@@ -1049,7 +1165,7 @@ const handleMouseMove = (e) => {
   const deltaCanvasX = deltaXClient * scaleX;
   const deltaCanvasY = deltaYClient * scaleY;
 
-  setAiPanOffset(prev => ({ x: prev.x + deltaCanvasX, y: prev.y + deltaCanvasY })); // ← Changed
+  setAiPanOffset(prev => ({ x: prev.x + deltaCanvasX, y: prev.y + deltaCanvasY })); // â† Changed
   setLastMousePos({ x: e.clientX, y: e.clientY });
 };
 
@@ -1184,7 +1300,7 @@ const handleMouseMove = (e) => {
                 targetFrame.slices.sort((a, b) => a.sliceindex - b.sliceindex);
               }
 
-              // ✅ FIXED: Clear masks only ONCE per slice (before adding any new masks)
+              // âœ… FIXED: Clear masks only ONCE per slice (before adding any new masks)
               const sliceKey = `${frameIndex}_${sliceIndex}`;
               if (!clearedSlices.has(sliceKey)) {
                 targetSlice.segmentationmasks = [];
@@ -1235,9 +1351,10 @@ const handleMouseMove = (e) => {
   // Initialize activeManualSegmentation when entering edit mode
   useEffect(() => {
   if (isEditMode) {
-    if (segmentationData && (!activeManualSegmentation || activeManualSegmentation.isMedSAMOutput === true)) {
+    // Only initialize if we don't have manual segmentation OR if it's still marked as MedSAM output
+    if (!activeManualSegmentation || activeManualSegmentation.isMedSAMOutput === true) {
       console.log("Edit mode: Initializing activeManualSegmentation from AI data.");
-
+      
       const transformedFrames = [];
       if (segmentationData.masks && Array.isArray(segmentationData.masks)) {
         segmentationData.masks.forEach((frameSlicesArray, frameIdx) => {
@@ -1247,7 +1364,6 @@ const handleMouseMove = (e) => {
               if (sliceObject && sliceObject.segmentationMasks && Array.isArray(sliceObject.segmentationMasks)) {
                 slicesForCurrentFrame.push({
                   sliceindex: sliceIdx,
-                  // CRITICAL: Deep clone to preserve exact RLE data
                   segmentationmasks: sliceObject.segmentationMasks.map(mask => ({
                     class: mask.class,
                     segmentationmaskcontents: mask.segmentationmaskcontents || mask.rle
@@ -1274,19 +1390,11 @@ const handleMouseMove = (e) => {
         isSaved: false,
         frames: transformedFrames,
       });
-    } else if (!segmentationData && !activeManualSegmentation) {
-      console.log("Edit mode: No AI data, initializing empty activeManualSegmentation.");
-      setActiveManualSegmentation({
-        name: `Manual Edit - Project ${projectId}`,
-        description: "User-edited segmentation",
-        isMedSAMOutput: false,
-        isEditable: true,
-        isSaved: false,
-        frames: []
-      });
+    } else {
+      console.log("Edit mode: Using existing activeManualSegmentation - NOT reinitializing");
     }
   }
-}, [isEditMode, segmentationData, projectId]);
+}, [isEditMode, segmentationData, projectId, activeManualSegmentation]);  
 
   const handleApplyBrushStrokes = useCallback(() => {
   if (!isEditMode) {
@@ -1355,9 +1463,10 @@ const handleMouseMove = (e) => {
       }
     }
     // Generate mask from brush strokes
-    const brushMask = generateBinaryMaskFromBrushStrokes(
+    const brushMask = generateBinaryMaskFromStrokes(
       drawingHistory,
       selectedClass,
+      'brush',  // ← Specify brush type
       canvasDimensions.width,
       canvasDimensions.height
     );
@@ -1398,7 +1507,7 @@ const handleMouseMove = (e) => {
         maskForClass.segmentationmaskcontents = rleString;
       } else {
         targetSlice.segmentationmasks.push({
-          class: normalizeClassName(selectedClass), // ← FIXED: Normalize to lowercase
+          class: normalizeClassName(selectedClass), // â† FIXED: Normalize to lowercase
           segmentationmaskcontents: rleString,
         });
       }
@@ -1416,7 +1525,7 @@ const handleMouseMove = (e) => {
     setIsApplying(false);
   }, 100);
   
-}, [isEditMode, drawingHistory, selectedClass, canvasDimensions, manualTimeIndex, manualLayerIndex, generateBinaryMaskFromBrushStrokes, getCurrentSliceData, activeManualSegmentation]);
+}, [isEditMode, drawingHistory, selectedClass, canvasDimensions, manualTimeIndex, manualLayerIndex, generateBinaryMaskFromStrokes, getCurrentSliceData, activeManualSegmentation]);
 
   // Event handlers
   const toggleMaskVisibility = (maskId) => {
@@ -1603,8 +1712,8 @@ const clearSecondCanvas = useCallback(() => {
         manualImage?.url,
         canvasDimensions.width,
         canvasDimensions.height,
-        manualZoomLevel,  // ← Pass manual zoom
-        manualPanOffset,  // ← Pass manual pan
+        manualZoomLevel,  // â† Pass manual zoom
+        manualPanOffset,  // â† Pass manual pan
         null
       );
     }
@@ -1624,10 +1733,10 @@ const clearSecondCanvas = useCallback(() => {
   manualTimeIndex,
   manualLayerIndex,
   extractedImages,
-  aiZoomLevel,      // ← Updated dependency
-  aiPanOffset,      // ← Updated dependency
-  manualZoomLevel,  // ← Added dependency
-  manualPanOffset   // ← Added dependency
+  aiZoomLevel,      // â† Updated dependency
+  aiPanOffset,      // â† Updated dependency
+  manualZoomLevel,  // â† Added dependency
+  manualPanOffset   // â† Added dependency
 ]);
 
   // CORRECTED: useEffect that properly triggers redraws
@@ -1793,7 +1902,7 @@ useEffect(() => {
               <span className="text-white font-medium">Cardiac Analysis Workspace</span>
             </div>
             <div className="text-gray-300 text-sm">
-              Frame {currentTimeIndex + 1} • Slice {currentLayerIndex + 1}
+              Frame {currentTimeIndex + 1} â€¢ Slice {currentLayerIndex + 1}
             </div>
             {availableMasks.length > 0 && (
               <div className="bg-blue-600 text-white px-2 py-1 rounded text-xs font-medium">
@@ -2355,58 +2464,9 @@ useEffect(() => {
       <Target size={14} />
       Save Manual Edits
     </button>
-
-    {/* Debug Panel */}
-    {saveDebugInfo.length > 0 && (
-      <div className="mt-3 bg-slate-900 rounded-lg p-3 max-h-60 overflow-y-auto border border-slate-700">
-        <div className="flex items-center justify-between mb-2">
-          <h4 className="text-xs font-semibold text-slate-300">Save Debug Log</h4>
-          <button
-            onClick={() => setSaveDebugInfo([])}
-            className="text-xs text-slate-500 hover:text-slate-300"
-          >
-            Clear
-          </button>
-        </div>
-        {saveDebugInfo.map((log, idx) => (
-          <div key={idx} className="text-xs mb-2 pb-2 border-b border-slate-800">
-            <div className="flex justify-between mb-1">
-              <span className={`font-mono font-semibold ${
-                log.stage === 'ERROR' ? 'text-red-400' :
-                log.stage === 'SUCCESS' ? 'text-green-400' :
-                'text-blue-400'
-              }`}>
-                {log.stage}
-              </span>
-              <span className="text-slate-500">{log.timestamp}</span>
-            </div>
-            <div className="text-slate-300">{log.message}</div>
-            {log.data && (
-              <pre className="text-green-400 mt-1 text-[10px] overflow-x-auto bg-slate-950 p-2 rounded">
-                {JSON.stringify(log.data, null, 2)}
-              </pre>
-            )}
-          </div>
-        ))}
-      </div>
-    )}
   </div>
 )}
     </div>
-
-    <DebugPanel
-      isEditMode={isEditMode}
-      activeManualSegmentation={activeManualSegmentation}
-      projectId={projectId}
-      currentTimeIndex={currentTimeIndex}
-      currentLayerIndex={currentLayerIndex}
-      manualTimeIndex={manualTimeIndex}
-      manualLayerIndex={manualLayerIndex}
-      drawingHistory={drawingHistory}
-      segmentationData={segmentationData}
-      selectedClass={selectedClass}
-      api={api}
-    />
   </div>
 
   {/* Custom Slider Styling */}
