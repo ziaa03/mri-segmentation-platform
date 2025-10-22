@@ -31,6 +31,27 @@ const LoginPage = () => {
     setIsLoading(true);
     setError('');
 
+    // --- 1️⃣ Local validation before contacting server ---
+    const usernameRegex = /^.{3,}$/; // At least 3 characters
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
+    // - At least 8 chars
+    // - 1 lowercase, 1 uppercase, 1 number, 1 special character
+
+    if (!usernameRegex.test(username)) {
+      setError('Username must be 3-20 characters and contain only letters, numbers, or underscores.');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!passwordRegex.test(password)) {
+      setError(
+        'Password must be at least 8 characters with uppercase, lowercase, number, and special character.'
+      );
+      setIsLoading(false);
+      return;
+    }
+
+    // --- 2️⃣ Proceed with server request if validation passes ---
     try {
       const result = await login(username, password);
 
@@ -45,16 +66,16 @@ const LoginPage = () => {
           setWelcomeMessage(`Welcome back, ${result.user.username}!`);
         }
 
-        // Show welcome message and start redirect timer
+        // Show welcome message and redirect after delay
         setWelcome(true);
         setIsRedirecting(true);
 
-        // Redirect after delay
         setTimeout(() => {
           navigate(redirectPath);
         }, 1500);
       } else {
-        setError(result.error || 'Invalid credentials');
+        // --- 3️⃣ Logical message if credentials are wrong ---
+        setError('Invalid username and password');
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -63,6 +84,7 @@ const LoginPage = () => {
       setIsLoading(false);
     }
   };
+
 
   return (
     <div className={`h-screen relative flex items-center justify-center p-6 overflow-hidden transition-opacity duration-700 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}>
@@ -79,7 +101,7 @@ const LoginPage = () => {
 
       {/* Main container */}
       <div className='relative z-10 w-full max-w-4xl h-full flex items-center'>
-        <div className='bg-white/20 backdrop-blur-xl border border-white/30 rounded-3xl shadow-2xl p-8 w-full h-[90vh] flex flex-col justify-center'>
+        <div className='bg-white/20 backdrop-blur-xl border border-white/30 rounded-3xl shadow-2xl p-8 w-full h-[95vh] flex flex-col justify-center'>
           
           {/* Header Section */}
           <div className='text-center mb-8'>
@@ -118,7 +140,7 @@ const LoginPage = () => {
           {/* Login Form */}
           {!isRedirecting && !welcome && (
             <div className='flex-1 max-w-md mx-auto w-full'>
-              <form onSubmit={handleSubmit} className='space-y-6'>
+              <form onSubmit={handleSubmit} className='space-y-5'>
                 
                 {/* Username Field */}
                 <div className='group'>

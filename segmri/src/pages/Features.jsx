@@ -354,17 +354,17 @@ const FeaturesPage = () => {
     modules={[EffectCoverflow]}
     coverflowEffect={{
       rotate: 0,
-      stretch: 0,
+      stretch: 50,
       depth: 100,
       modifier: 2,
       slideShadows: true,
     }}
-    className="w-full py-12"
+    className="w-full max-w-7xl mx-auto py-12"
   >
     {imageslider.map((item, index) => (
       <SwiperSlide
         key={index}
-        className="w-[320px] sm:w-[350px] bg-[#c1c3c4] rounded-xl shadow-2xl overflow-hidden swiper-slide-custom"
+        className="w-[300px] sm:w-[350px] bg-[#c1c3c4] rounded-xl shadow-2xl overflow-hidden swiper-slide-custom"
       >
         {/* Card design from 2nd snippet */}
         <div className="w-full h-full flex flex-col">
@@ -379,7 +379,7 @@ const FeaturesPage = () => {
             </div>
           </div>
           <div className="p-6">
-            <p className="text-[#3A4454]/70 text-sm leading-relaxed">
+            <p className="text-black text-sm text-center">
               {item.description}
             </p>
           </div>
