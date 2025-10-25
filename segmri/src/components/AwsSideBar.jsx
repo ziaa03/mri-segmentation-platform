@@ -5,7 +5,8 @@ import { SiAmazonec2 } from "react-icons/si";
 import { SiAmazons3 } from "react-icons/si";
 import { RiMoneyCnyCircleLine } from "react-icons/ri";
 import { SiAwselasticloadbalancing } from "react-icons/si";
-import { TbCloudLock } from "react-icons/tb";
+// import { TbCloudLock } from "react-icons/tb";
+import { PiArrowsInCardinal } from "react-icons/pi";
 
 const AwsSideBar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -40,23 +41,23 @@ const AwsSideBar = () => {
     {
       id: 'elb',
       label: 'Load Balancer',
-      // path: '/',
+      path: '/aws-alb',
       icon: (
         <SiAwselasticloadbalancing className="w-6 h-6" />
       )
     },
     {
-      id: 'esg',
-      label: 'Security Group',
-      // path: '/aws-s3',
+      id: 'asg',
+      label: 'Auto Scaling Group',
+      path: '/aws-asg',
       icon: (
-        <TbCloudLock className="w-6 h-6" />
+        <PiArrowsInCardinal className="w-6 h-6" />
       )
     },
     {
       id: 'cost',
       label: 'Cost',
-      // path: '/aws-s3',
+      path: '/aws-bill',
       icon: (
         <RiMoneyCnyCircleLine className="w-6 h-6" />
       )

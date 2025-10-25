@@ -27,6 +27,9 @@ import ReconstructionPage from './pages/ReconstructionPage';
 import CpuDebugPage from './pages/CpuDebugPage';
 import ECRMetricsPage from './pages/ECRMetricsPage';
 import ScrollToTop from './utils/SmoothScroll';
+import LoadBalancerPage from './pages/LoadBalancerPage';
+import AutoScalingGroupPage from './pages/AutoScalingGroupPage';
+import BillingMetricsPage from './pages/BillingMetricsPage';
 
 // Component to determine if sidebar should be shown
 const AppLayout = () => {
@@ -37,7 +40,7 @@ const AppLayout = () => {
   const showSidebar = sidebarRoutes.some(route => location.pathname.startsWith(route));
 
   // Define routes where sidebar should be visible
-  const AwsSidebarRoutes = ['/aws-cpu', '/aws-s3', '/aws-testing', '/cpu-testing', '/aws-ecr'];
+  const AwsSidebarRoutes = ['/aws-cpu', '/aws-s3', '/aws-testing', '/cpu-testing', '/aws-ecr', '/aws-alb', '/aws-asg', '/aws-bill'];
   const showAwsSidebar = AwsSidebarRoutes.some(route => location.pathname.startsWith(route));
 
     return (
@@ -86,6 +89,9 @@ const AppLayout = () => {
             <Route path="/aws-cpu" element={<CpuUtilizationPage />} />
             <Route path="/aws-s3" element={<S3AnalyticsPage />} />
             <Route path="/aws-ecr" element={<ECRMetricsPage />} />
+            <Route path="/aws-alb" element={<LoadBalancerPage />} />
+            <Route path="/aws-asg" element={<AutoScalingGroupPage />} />
+            <Route path="/aws-bill" element={<BillingMetricsPage />} />
             <Route path="/aws-testing" element={<Testing />} />
 
             {/* cpu debug page */}
