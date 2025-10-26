@@ -21,6 +21,7 @@ const AutoScalingGroupPage = () => {
   });
 
   // Fetch all ASG metrics
+  // Fetch all ASG metrics
   const fetchASGMetrics = async () => {
     try {
       const [
@@ -38,14 +39,20 @@ const AutoScalingGroupPage = () => {
         api.get("/metrics/asg/pending"),
         api.get("/metrics/asg/total"),
       ]);
-
+    
+      // Helper function to safely extract the last value
+      const getLastValue = (res) =>
+        Array.isArray(res.data.values) && res.data.values.length > 0
+          ? res.data.values[res.data.values.length - 1]
+          : 0;
+  
       setMetrics({
-        minSize: minSizeRes.data.value ?? 0,
-        maxSize: maxSizeRes.data.value ?? 0,
-        desiredCapacity: desiredRes.data.value ?? 0,
-        inServiceInstances: inServiceRes.data.value ?? 0,
-        pendingInstances: pendingRes.data.value ?? 0,
-        totalInstances: totalRes.data.value ?? 0,
+        minSize: getLastValue(minSizeRes),
+        maxSize: getLastValue(maxSizeRes),
+        desiredCapacity: getLastValue(desiredRes),
+        inServiceInstances: getLastValue(inServiceRes),
+        pendingInstances: getLastValue(pendingRes),
+        totalInstances: getLastValue(totalRes),
       });
     } catch (error) {
       console.error("Error fetching ASG metrics:", error);

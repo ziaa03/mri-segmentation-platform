@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import api from "../api/AxiosInstance";
 import {
   LineChart,
   Line,
@@ -8,27 +9,106 @@ import {
   CartesianGrid,
   ResponsiveContainer,
 } from "recharts";
-import { RotateCcw } from "lucide-react"; // refresh icon
-
-// --- Mock data ---
-const initialDummyData = [
-  { timestamp: "10:00", value: 120 },
-  { timestamp: "10:05", value: 180 },
-  { timestamp: "10:10", value: 160 },
-  { timestamp: "10:15", value: 220 },
-  { timestamp: "10:20", value: 190 },
-  { timestamp: "10:25", value: 210 },
-];
-
-const graphMetrics = [
-  { title: "Request Count", color: "#3b82f6", current: "2.4K" },
-  { title: "Target Response Time", color: "#10b981", current: "0.24s", unit: "s" },
-  { title: "HTTP 4XX (ELB)", color: "#f59e0b", current: "42" },
-  { title: "HTTP 4XX (Target)", color: "#ef4444", current: "18" },
-];
 
 export default function AlbMetricsDashboard() {
-  const [data, setData] = useState(initialDummyData);
+  const [metricsData, setMetricsData] = useState({
+    requestCount: [],
+    targetResponseTime: [],
+    http4xxElb: [],
+    http4xxTarget: [],
+  });
+
+  const [healthyHosts, setHealthyHosts] = useState(0);
+  const [unhealthyHosts, setUnhealthyHosts] = useState(0);
+
+  // Fetch all ALB metrics
+  const fetchAlbMetrics = async () => {
+    try {
+      const [
+        requestCountRes,
+        responseTimeRes,
+        http4xxElbRes,
+        http4xxTargetRes,
+        healthyRes,
+        unhealthyRes,
+      ] = await Promise.all([
+        api.get("/metrics/alb/request-count"),
+        api.get("/metrics/alb/target-response-time"),
+        api.get("/metrics/alb/http-4xx-elb"),
+        api.get("/metrics/alb/http-4xx-target"),
+        api.get("/metrics/alb/healthy-hosts"),
+        api.get("/metrics/alb/unhealthy-hosts"),
+      ]);
+
+      // Convert timestamps + values → Recharts-friendly format
+      const toChartData = (timestamps, values) =>
+        timestamps.map((t, i) => ({
+          timestamp: new Date(t).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          value: values[i],
+        }));
+
+      setMetricsData({
+        requestCount: toChartData(
+          requestCountRes.data.timestamps,
+          requestCountRes.data.values
+        ),
+        targetResponseTime: toChartData(
+          responseTimeRes.data.timestamps,
+          responseTimeRes.data.values
+        ),
+        http4xxElb: toChartData(
+          http4xxElbRes.data.timestamps,
+          http4xxElbRes.data.values
+        ),
+        http4xxTarget: toChartData(
+          http4xxTargetRes.data.timestamps,
+          http4xxTargetRes.data.values
+        ),
+      });
+
+      // For healthy/unhealthy hosts → use latest value
+      const getLatestValue = (res) =>
+        res?.data?.values?.length > 0
+          ? res.data.values[res.data.values.length - 1]
+          : 0;
+
+      setHealthyHosts(getLatestValue(healthyRes));
+      setUnhealthyHosts(getLatestValue(unhealthyRes));
+    } catch (error) {
+      console.error("Error fetching ALB metrics:", error);
+    }
+  };
+
+  // Load once at mount
+  useEffect(() => {
+    fetchAlbMetrics();
+  }, []);
+
+  const graphMetrics = [
+    {
+      title: "Request Count",
+      color: "#3b82f6",
+      data: metricsData.requestCount,
+    },
+    {
+      title: "Target Response Time (s)",
+      color: "#10b981",
+      data: metricsData.targetResponseTime,
+    },
+    {
+      title: "HTTP 4XX (ELB)",
+      color: "#f59e0b",
+      data: metricsData.http4xxElb,
+    },
+    {
+      title: "HTTP 4XX (Target)",
+      color: "#ef4444",
+      data: metricsData.http4xxTarget,
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -41,7 +121,7 @@ export default function AlbMetricsDashboard() {
           <p className="text-gray-600">
             Application Load Balancer performance overview
           </p>
-        </div>               
+        </div>
       </header>
 
       {/* Host Status Cards */}
@@ -54,7 +134,9 @@ export default function AlbMetricsDashboard() {
           </div>
           <div>
             <p className="text-sm text-gray-600">Healthy Hosts</p>
-            <p className="text-3xl font-semibold text-gray-900">8</p>
+            <p className="text-3xl font-semibold text-gray-900">
+              {healthyHosts}
+            </p>
           </div>
         </div>
 
@@ -66,7 +148,9 @@ export default function AlbMetricsDashboard() {
           </div>
           <div>
             <p className="text-sm text-gray-600">Unhealthy Hosts</p>
-            <p className="text-3xl font-semibold text-gray-900">2</p>
+            <p className="text-3xl font-semibold text-gray-900">
+              {unhealthyHosts}
+            </p>
           </div>
         </div>
       </div>
@@ -82,16 +166,11 @@ export default function AlbMetricsDashboard() {
               <h3 className="text-lg font-medium text-gray-900">
                 {metric.title}
               </h3>
-              <p
-                className="text-2xl font-bold"
-                style={{ color: metric.color }}
-              >
-              </p>
             </div>
 
             <div className="h-48">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data}>
+                <LineChart data={metric.data}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
                   <XAxis
                     dataKey="timestamp"
@@ -122,13 +201,12 @@ export default function AlbMetricsDashboard() {
       {/* Refresh Button */}
       <div className="mt-10 text-center">
         <button
-          // onClick={fetchEcrMetrics}
+          onClick={fetchAlbMetrics}
           className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
         >
           Refresh Metrics
         </button>
       </div>
-
     </div>
   );
 }
