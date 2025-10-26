@@ -21,7 +21,7 @@ const S3AnalyticsPage = () => {
   // Fetch all S3 buckets
   const fetchBuckets = async () => {
     try {
-      const res = await api.get('/metrics/s3');
+      const res = await api.get('/metrics/s3/buckets');
       const bucketList = res.data.buckets?.map((b) => b.Name) || [];
       setBuckets(bucketList);
 
@@ -37,43 +37,41 @@ const S3AnalyticsPage = () => {
   // Fetch metrics for a specific bucket
   const fetchBucketMetrics = async (bucketName) => {
     try {
-      const res = await api.get(`/metrics/s3/${bucketName}`);
-      const m = res.data.metrics;
-
-      // Convert bytes to GB for readability
-      const sizeGB = (m.BucketSizeBytes / (1024 ** 3)).toFixed(2);
-
+      const res = await api.get(`/metrics/s3/${bucketName}/all`);
+      const m = res.data;
+    
+      // Calculate latest values (take last element from each array)
+      const latestSize = m.bucketSizeBytes.values.at(-1) || 0;
+      const latestObjects = m.numberOfObjects.values.at(-1) || 0;
+      const latestAllReq = m.allRequests.values.at(-1) || 0;
+      const latestGetReq = m.getRequests.values.at(-1) || 0;
+      const latestPutReq = m.putRequests.values.at(-1) || 0;
+    
+      // Convert bytes → GB
+      const sizeGB = (latestSize / (1024 ** 3)).toFixed(2);
+    
       setMetrics({
         bucketSize: `${sizeGB} GB`,
-        objectCount: Number(m.NumberOfObjects || 0).toLocaleString(),
-        allRequests: Number(m.AllRequests || 0).toLocaleString(),
-        getRequests: Number(m.GetRequests || 0).toLocaleString(),
-        putRequests: Number(m.PutRequests || 0).toLocaleString()
+        objectCount: latestObjects.toLocaleString(),
+        allRequests: latestAllReq.toLocaleString(),
+        getRequests: latestGetReq.toLocaleString(),
+        putRequests: latestPutReq.toLocaleString(),
       });
-
-      // If backend provides historical metrics, use them.
-      // Otherwise, simulate daily trend based on latest values.
-      const today = new Date();
-      const storageTrend = Array.from({ length: 30 }, (_, i) => {
-        const date = new Date(today);
-        date.setDate(today.getDate() - (29 - i));
-        return {
-          date: date.toISOString().split('T')[0],
-          bucketSize: parseFloat(sizeGB) * (0.95 + Math.random() * 0.1),
-          objectCount: parseInt(m.NumberOfObjects || 0) * (0.95 + Math.random() * 0.1),
-        };
-      });
-      const requestTrend = Array.from({ length: 30 }, (_, i) => {
-        const date = new Date(today);
-        date.setDate(today.getDate() - (29 - i));
-        return {
-          date: date.toISOString().split('T')[0],
-          allRequests: parseInt(m.AllRequests || 0) * (0.9 + Math.random() * 0.2),
-          getRequests: parseInt(m.GetRequests || 0) * (0.9 + Math.random() * 0.2),
-          putRequests: parseInt(m.PutRequests || 0) * (0.9 + Math.random() * 0.2)
-        };
-      });
-
+    
+      // Historical data for charts
+      const storageTrend = m.bucketSizeBytes.timestamps.map((t, i) => ({
+        date: t,
+        bucketSize: (m.bucketSizeBytes.values[i] / (1024 ** 3)).toFixed(2),
+        objectCount: m.numberOfObjects.values[i] || 0,
+      }));
+    
+      const requestTrend = m.allRequests.timestamps.map((t, i) => ({
+        date: t,
+        allRequests: m.allRequests.values[i] || 0,
+        getRequests: m.getRequests.values[i] || 0,
+        putRequests: m.putRequests.values[i] || 0,
+      }));
+    
       setStorageData(storageTrend);
       setRequestData(requestTrend);
     } catch (error) {
