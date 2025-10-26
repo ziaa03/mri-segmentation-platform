@@ -202,7 +202,7 @@ const AdminFileManagementPage = () => {
         const formattedProjects = allProjects.map(p => ({
           projectId: p.projectId,
           name: p.name,
-          filesize: p.filesize,
+          filesize: formatFileSize(p.filesize),
           createdAt: p.createdAt?.slice(0, 10),
           updatedAt: p.updatedAt?.slice(0, 10),
           username: p.username
@@ -362,12 +362,18 @@ const AdminFileManagementPage = () => {
   //   return 'dicom';
   // };
   
-  const formatFileSize = (bytes) => {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
-    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
-  };
+ const formatFileSize = (bytes) => {
+  // Convert to number if it's a string
+  const size = typeof bytes === 'string' ? parseInt(bytes, 10) : bytes;
+  
+  // Handle invalid numbers
+  if (isNaN(size) || size < 0) return '0 B';
+  
+  if (size < 1024) return size + ' B';
+  if (size < 1024 * 1024) return (size / 1024).toFixed(1) + ' KB';
+  if (size < 1024 * 1024 * 1024) return (size / (1024 * 1024)).toFixed(1) + ' MB';
+  return (size / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+};
   
   // Filter files based on search and filters
   const filteredFiles = files.filter(file => {
