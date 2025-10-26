@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
+import { OrbitControls, PerspectiveCamera, Grid, Environment } from '@react-three/drei';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
 import * as THREE from 'three';
 import { 
@@ -8,7 +8,7 @@ import {
   Loader, AlertCircle, CheckCircle, Settings, Layers,
   Heart, Activity, Clock, RefreshCw, ChevronDown, Info,
   Maximize2, Minimize2, Grid3x3, Eye, EyeOff, Zap,
-  ArrowLeft, Server, Database, FileText
+  ArrowLeft, Server, Database, FileText, Trash2, Archive
 } from 'lucide-react';
 
 // Import existing utilities
@@ -21,6 +21,8 @@ import {
 
 // Import simplified 2D viewer
 import Simple2DSegmentationViewer from './Simple2DSegmentationViewer';
+// Import reconstruction history page
+import ReconstructionHistoryPage from './ReconstructionHistoryPage';
 
 // Animated background grid component
 const AnimatedGridBackground = () => {
@@ -109,6 +111,26 @@ const ProgressBar = ({ current, total, label }) => {
   );
 };
 
+// Grid Floor Component 
+const GridFloor = () => {
+  return (
+    <Grid
+      position={[0, -50, 0]}
+      args={[200, 200]}
+      cellSize={5}
+      cellThickness={0.5}
+      cellColor="#1e3a8a"
+      sectionSize={20}
+      sectionThickness={1}
+      sectionColor="#3b82f6"
+      fadeDistance={150}
+      fadeStrength={1}
+      followCamera={false}
+      infiniteGrid={false}
+    />
+  );
+};
+
 // 3D Mesh Component
 function AnimatedMesh({ meshUrl, autoRotate, meshColor }) {
   const [mesh, setMesh] = useState(null);
@@ -130,11 +152,25 @@ function AnimatedMesh({ meshUrl, autoRotate, meshColor }) {
         obj.traverse((child) => {
           if (child instanceof THREE.Mesh) {
             child.material = new THREE.MeshStandardMaterial({ 
-              color: meshColor || '#4ECDC4',
-              metalness: 0.3,
-              roughness: 0.4,
-              side: THREE.DoubleSide
-            });
+  color: meshColor || '#4ECDC4',
+  metalness: 0.2,
+  roughness: 0.3,
+  side: THREE.DoubleSide,
+  flatShading: false,
+  envMapIntensity: 1.5  // ← Makes it shiny with environment reflections
+});
+
+// Add subtle edge lines
+const edges = new THREE.EdgesGeometry(child.geometry, 15);
+const line = new THREE.LineSegments(
+  edges,
+  new THREE.LineBasicMaterial({ 
+    color: 0x000000, 
+    transparent: true, 
+    opacity: 0.15 
+  })
+);
+child.add(line);
           }
         });
         
@@ -169,6 +205,196 @@ function AnimatedMesh({ meshUrl, autoRotate, meshColor }) {
   );
 }
 
+const ExportModal = ({ isOpen, onClose, reconstructionData, onExport, isExporting }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+      <div className="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl max-w-md w-full mx-4">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-blue-500/20 rounded-lg">
+                <Download className="w-5 h-5 text-blue-400" />
+              </div>
+              <h2 className="text-xl font-bold text-white">Export Reconstruction</h2>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-white transition-colors"
+              disabled={isExporting}
+            >
+              <span className="sr-only">Close</span>
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="space-y-4 mb-6">
+            <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Name:</span>
+                <span className="text-white font-medium">{reconstructionData?.name || 'Reconstruction'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Format:</span>
+                <span className="text-white font-medium uppercase">{reconstructionData?.exportFormat || 'GLB'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">File Size:</span>
+                <span className="text-white font-medium">
+                  {reconstructionData?.filesize 
+                    ? `${(reconstructionData.filesize / 1024 / 1024).toFixed(2)} MB`
+                    : 'N/A'
+                  }
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Frames:</span>
+                <span className="text-white font-medium">{reconstructionData?.totalFrames || 'N/A'}</span>
+              </div>
+            </div>
+
+            <div className="bg-blue-900/30 border border-blue-700 rounded-lg p-4">
+              <div className="flex items-start space-x-2">
+                <Info className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-slate-300 space-y-1">
+                  <p><strong className="text-blue-300">Export Contents:</strong></p>
+                  <ul className="list-disc list-inside space-y-0.5 text-slate-400">
+                    <li>TAR archive containing all mesh files</li>
+                    <li>One mesh file per cardiac frame</li>
+                    <li>ED (End-Diastolic) frame marked</li>
+                    <li>Compatible with 3D software</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex space-x-3">
+            <button
+              onClick={onClose}
+              disabled={isExporting}
+              className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onExport}
+              disabled={isExporting}
+              className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+            >
+              {isExporting ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  <span>Downloading...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span>Download TAR</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// NEW: Delete Confirmation Modal
+const DeleteConfirmModal = ({ isOpen, onClose, reconstructionData, onDelete, isDeleting }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+      <div className="bg-slate-800 border border-red-900/50 rounded-xl shadow-2xl max-w-md w-full mx-4">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-red-500/20 rounded-lg">
+                <Trash2 className="w-5 h-5 text-red-400" />
+              </div>
+              <h2 className="text-xl font-bold text-white">Delete Reconstruction</h2>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-white transition-colors"
+              disabled={isDeleting}
+            >
+              <span className="sr-only">Close</span>
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="space-y-4 mb-6">
+            <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-4">
+              <p className="text-red-200 text-sm mb-3">
+                Are you sure you want to delete this reconstruction? This action cannot be undone.
+              </p>
+              <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-3 space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Name:</span>
+                  <span className="text-white">{reconstructionData?.name || 'Reconstruction'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Created:</span>
+                  <span className="text-white">
+                    {reconstructionData?.created_at 
+                      ? new Date(reconstructionData.created_at).toLocaleDateString()
+                      : 'N/A'
+                    }
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-4">
+              <div className="flex items-start space-x-2">
+                <AlertCircle className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-yellow-200">
+                  <strong>Warning:</strong> This will permanently delete all mesh files, metadata, and download URLs associated with this reconstruction.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex space-x-3">
+            <button
+              onClick={onClose}
+              disabled={isDeleting}
+              className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onDelete}
+              disabled={isDeleting}
+              className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  <span>Deleting...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4" />
+                  <span>Delete</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Main 4D Reconstruction Component
 export default function Cardiac4DReconstruction({ 
   projectId,
@@ -186,7 +412,7 @@ export default function Cardiac4DReconstruction({
   const [isReconstructing, setIsReconstructing] = useState(false);
   const [reconstructionError, setReconstructionError] = useState(null);
   const [reconstructionHistory, setReconstructionHistory] = useState([]);
-  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
+  const [currentView, setCurrentView] = useState('main'); // 'main' or 'history'
   const [loadingHistory, setLoadingHistory] = useState(false);
   
   // Mesh data state
@@ -206,6 +432,17 @@ export default function Cardiac4DReconstruction({
   const [show2DView, setShow2DView] = useState(true);
   const [show3D, setShow3D] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Export and Delete Modals 
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedReconstruction, setSelectedReconstruction] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [exportError, setExportError] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
+
+  const [showGrid, setShowGrid] = useState(true);
   
   // Debug state
   const [apiDebugData, setApiDebugData] = useState({
@@ -265,16 +502,19 @@ export default function Cardiac4DReconstruction({
 
     setJobStatus('loading');
     setReconstructionError(null);
+    setIsReconstructing(true); // Use this as loading indicator
     
     try {
       setReconstructionMetadata(reconstruction.metadata);
       await loadMeshesFromTar(reconstruction.downloadUrl);
       setJobStatus('COMPLETED');
-      setShowHistoryPanel(false);
+      setCurrentView('main'); // Switch back to main view
+      setIsReconstructing(false);
     } catch (error) {
       console.error('Error loading reconstruction:', error);
       setReconstructionError('Failed to load reconstruction: ' + error.message);
       setJobStatus('error');
+      setIsReconstructing(false);
     }
   };
 
@@ -515,6 +755,141 @@ export default function Cardiac4DReconstruction({
     }
   };
 
+  const handleExportClick = (reconstruction) => {
+    setSelectedReconstruction(reconstruction);
+    setShowExportModal(true);
+    setExportError(null);
+  };
+
+  const handleExport = async () => {
+    if (!selectedReconstruction?.tarUrl) {
+      setExportError('No download URL available');
+      return;
+    }
+
+    setIsExporting(true);
+    setExportError(null);
+
+    try {
+      console.log('📥 Starting export download...');
+      
+      // Fetch the TAR file
+      const response = await fetch(selectedReconstruction.tarUrl);
+      
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.statusText}`);
+      }
+
+      // Get the blob
+      const blob = await response.blob();
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Generate filename
+      const filename = `reconstruction_${selectedReconstruction.name.replace(/\s+/g, '_')}_${Date.now()}.tar`;
+      link.download = filename;
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      
+      console.log('✅ Export completed successfully');
+      
+      // Close modal after successful download
+      setTimeout(() => {
+        setShowExportModal(false);
+        setIsExporting(false);
+      }, 500);
+      
+    } catch (error) {
+      console.error('❌ Export error:', error);
+      setExportError(error.message || 'Failed to export reconstruction');
+      setIsExporting(false);
+    }
+  };
+
+  // NEW: Delete functionality
+  const handleDeleteClick = (reconstruction) => {
+    setSelectedReconstruction(reconstruction);
+    setShowDeleteModal(true);
+    setDeleteError(null);
+  };
+
+  const handleDelete = async () => {
+    if (!selectedReconstruction?._id) {
+      setDeleteError('Invalid reconstruction ID');
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      console.log('🗑️ Deleting reconstruction:', selectedReconstruction._id);
+      
+      const response = await api.delete(`/reconstruction/delete-project-reconstructions/${projectId}`);
+      
+      if (response.data.success) {
+        console.log('✅ Reconstruction deleted successfully');
+        
+        // Update reconstruction history - remove the deleted item
+        setReconstructionHistory(prev => 
+          prev.filter(r => r._id !== selectedReconstruction._id)
+        );
+        
+        // If the deleted reconstruction was currently loaded, clear the mesh data
+        if (selectedReconstruction._id === reconstructionMetadata?._id) {
+          setReconstructionMetadata(null);
+          setHasReconstruction(false);
+          setExtractedMeshes([]);
+          cleanupMeshUrls();
+        }
+        
+        // Close modal
+        setShowDeleteModal(false);
+        setSelectedReconstruction(null);
+        
+      } else {
+        throw new Error(response.data.message || 'Delete failed');
+      }
+      
+    } catch (error) {
+      console.error('❌ Delete error:', error);
+      setDeleteError(error.response?.data?.message || error.message || 'Failed to delete reconstruction');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // NEW: Render action buttons for reconstruction history
+  const renderReconstructionActions = (reconstruction) => {
+    return (
+      <div className="flex items-center space-x-2">
+        <button
+          onClick={() => handleExportClick(reconstruction)}
+          className="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-all"
+          title="Export Reconstruction"
+        >
+          <Download className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => handleDeleteClick(reconstruction)}
+          className="p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-all"
+          title="Delete Reconstruction"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  };
+
   // Playback controls
   const togglePlayback = () => setIsPlaying(!isPlaying);
   
@@ -530,9 +905,50 @@ export default function Cardiac4DReconstruction({
 
   const hasReconstruction = processedMeshes.length > 0;
 
+  // Handle history view
+  if (currentView === 'history') {
+    return (
+      <ReconstructionHistoryPage
+  reconstructionHistory={reconstructionHistory}
+  onBack={() => setCurrentView('main')}
+  onLoadReconstruction={loadReconstructionFromHistory}
+  api={api}                                    
+  projectId={projectId}                         
+  onRefreshHistory={loadReconstructionHistory} 
+  isLoadingReconstruction={isReconstructing}
+/>
+    );
+  }
+
   return (
     <div className="w-full bg-slate-950 flex flex-col relative" style={{ height: 'calc(100vh - 64px)' }}>
       <AnimatedGridBackground />
+
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => {
+          setShowExportModal(false);
+          setSelectedReconstruction(null);
+          setExportError(null);
+        }}
+        reconstructionData={selectedReconstruction}
+        onExport={handleExport}
+        isExporting={isExporting}
+      />
+
+      {/* Delete Modal */}
+      <DeleteConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setSelectedReconstruction(null);
+          setDeleteError(null);
+        }}
+        reconstructionData={selectedReconstruction}
+        onDelete={handleDelete}
+        isDeleting={isDeleting}
+      />
       
       {/* Main Content */}
       <div className="flex-1 flex relative z-10 min-h-0">
@@ -543,154 +959,22 @@ export default function Cardiac4DReconstruction({
           <div className="space-y-3">
             <StatusBadge status={jobStatus} queuePosition={queuePosition} />
             
-            {/* History Dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => setShowHistoryPanel(!showHistoryPanel)}
-                className="w-full flex items-center justify-between p-3 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg transition-all"
-                title="View Reconstruction History"
-              >
-                <div className="flex items-center space-x-2">
-                  <Clock className="w-4 h-4 text-slate-400" />
-                  <span className="text-sm font-medium text-slate-300">Reconstruction History</span>
-                </div>
-                {reconstructionHistory.length > 0 && (
-                  <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded-full">
-                    {reconstructionHistory.length}
-                  </span>
-                )}
-              </button>
-
-              {/* Dropdown Menu */}
-              {showHistoryPanel && (
-                <>
-                  {/* Backdrop to close dropdown */}
-                  <div 
-                    className="fixed inset-0 z-[100]" 
-                    onClick={() => setShowHistoryPanel(false)}
-                  />
-                  
-                  {/* Dropdown Content */}
-                  <div className="absolute left-0 top-full mt-2 w-full bg-slate-900 border border-slate-700 rounded-lg shadow-2xl z-[110] flex flex-col max-h-[500px]">
-                    <div className="p-4 border-b border-slate-800">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <Clock className="w-5 h-5 text-blue-400" />
-                          <h2 className="text-lg font-bold text-white">History</h2>
-                        </div>
-                        <button
-                          onClick={() => setShowHistoryPanel(false)}
-                          className="p-1 hover:bg-slate-800 rounded transition-colors"
-                        >
-                          <span className="text-slate-400 text-xl">×</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="overflow-y-auto flex-1 scroll-smooth scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
-                      {loadingHistory ? (
-                        <div className="flex items-center justify-center py-8">
-                          <Loader className="w-6 h-6 text-blue-400 animate-spin" />
-                        </div>
-                      ) : reconstructionHistory.length === 0 ? (
-                        <div className="text-center py-8 px-4">
-                          <FileText className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-                          <p className="text-slate-400 text-sm">No history available</p>
-                          <p className="text-slate-500 text-xs mt-1">Start a reconstruction</p>
-                        </div>
-                      ) : (
-                        <div className="p-4 space-y-3">
-                          {reconstructionHistory.map((reconstruction, idx) => (
-                            <div
-                              key={reconstruction.reconstructionId}
-                              className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 hover:border-blue-600/50 transition-all cursor-pointer group"
-                              onClick={() => loadReconstructionFromHistory(reconstruction)}
-                            >
-                              <div className="flex items-start justify-between mb-3">
-                                <div className="flex-1">
-                                  <h3 className="text-sm font-semibold text-white mb-1 group-hover:text-blue-400 transition-colors">
-                                    {reconstruction.name || `Reconstruction ${idx + 1}`}
-                                  </h3>
-                                  <p className="text-xs text-slate-400 line-clamp-2">
-                                    {reconstruction.description || 'No description'}
-                                  </p>
-                                </div>
-                                {idx === 0 && (
-                                  <span className="px-2 py-0.5 bg-blue-600/20 text-blue-400 text-[10px] font-medium rounded">
-                                    Latest
-                                  </span>
-                                )}
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-2 mb-3">
-                                <div className="bg-slate-900/50 rounded p-2">
-                                  <div className="text-[10px] text-slate-500 uppercase mb-0.5">ED Frame</div>
-                                  <div className="text-sm font-semibold text-slate-300">
-                                    {reconstruction.metadata?.edFrameIndex || 'N/A'}
-                                  </div>
-                                </div>
-                                <div className="bg-slate-900/50 rounded p-2">
-                                  <div className="text-[10px] text-slate-500 uppercase mb-0.5">Resolution</div>
-                                  <div className="text-sm font-semibold text-slate-300">
-                                    {reconstruction.metadata?.resolution || 'N/A'}
-                                  </div>
-                                </div>
-                                <div className="bg-slate-900/50 rounded p-2">
-                                  <div className="text-[10px] text-slate-500 uppercase mb-0.5">Iterations</div>
-                                  <div className="text-sm font-semibold text-slate-300">
-                                    {reconstruction.metadata?.numIterations || 'N/A'}
-                                  </div>
-                                </div>
-                                <div className="bg-slate-900/50 rounded p-2">
-                                  <div className="text-[10px] text-slate-500 uppercase mb-0.5">File Size</div>
-                                  <div className="text-sm font-semibold text-slate-300">
-                                    {reconstruction.meshFileSize 
-                                      ? `${(reconstruction.meshFileSize / 1024 / 1024).toFixed(1)} MB`
-                                      : 'N/A'}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center justify-between pt-2 border-t border-slate-700/50">
-                                <div className="text-[10px] text-slate-500">
-                                  {new Date(reconstruction.createdAt).toLocaleDateString()} at{' '}
-                                  {new Date(reconstruction.createdAt).toLocaleTimeString()}
-                                </div>
-                                <div className="flex items-center space-x-1 text-xs text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <Play className="w-3 h-3" />
-                                  <span>Load</span>
-                                </div>
-                              </div>
-
-                              {!reconstruction.downloadUrl && (
-                                <div className="mt-2 flex items-center space-x-1 text-xs text-yellow-400">
-                                  <AlertCircle className="w-3 h-3" />
-                                  <span>Download URL unavailable</span>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="p-4 border-t border-slate-800">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          loadReconstructionHistory();
-                        }}
-                        disabled={loadingHistory}
-                        className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm transition-all disabled:opacity-50"
-                      >
-                        <RefreshCw className={`w-4 h-4 ${loadingHistory ? 'animate-spin' : ''}`} />
-                        <span>Refresh</span>
-                      </button>
-                    </div>
-                  </div>
-                </>
+            {/* History Button */}
+            <button
+              onClick={() => setCurrentView('history')}
+              className="w-full flex items-center justify-between p-3 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg transition-all"
+              title="View Reconstruction History"
+            >
+              <div className="flex items-center space-x-2">
+                <Clock className="w-4 h-4 text-slate-400" />
+                <span className="text-sm font-medium text-slate-300">Reconstruction History</span>
+              </div>
+              {reconstructionHistory.length > 0 && (
+                <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded-full">
+                  {reconstructionHistory.length}
+                </span>
               )}
-            </div>
+            </button>
           </div>
 
           {/* Stats Grid */}
@@ -857,6 +1141,20 @@ export default function Cardiac4DReconstruction({
                 }`} />
               </button>
             </label>
+
+            <label className="flex items-center justify-between py-2">
+  <span className="text-sm text-slate-300">Show Grid</span>
+  <button
+    onClick={() => setShowGrid(!showGrid)}
+    className={`relative w-11 h-6 rounded-full transition-colors ${
+      showGrid ? 'bg-blue-600' : 'bg-slate-700'
+    }`}
+  >
+    <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+      showGrid ? 'translate-x-5' : 'translate-x-0'
+    }`} />
+  </button>
+</label>
             
             <div className="pt-2">
               <label className="text-xs text-slate-400 uppercase tracking-wide mb-2 block">
@@ -936,20 +1234,37 @@ export default function Cardiac4DReconstruction({
                 </div>
                 
                 {hasReconstruction && currentMeshUrl ? (
-                  <Canvas>
-                    <PerspectiveCamera makeDefault position={[0, 0, 150]} fov={50} />
-                    <ambientLight intensity={0.5} />
-                    <directionalLight position={[10, 10, 10]} intensity={1} />
-                    <directionalLight position={[-10, -10, -10]} intensity={0.3} />
-                    <pointLight position={[0, 5, 0]} intensity={0.5} />
-                    <OrbitControls enablePan enableZoom enableRotate />
-                    <AnimatedMesh 
-                      meshUrl={currentMeshUrl}
-                      autoRotate={autoRotate}
-                      meshColor={meshColor}
-                    />
-                    <gridHelper args={[10, 10, '#444', '#222']} />
-                  </Canvas>
+                  <Canvas
+  dpr={[1, 2]}
+  gl={{ 
+    antialias: true,
+    toneMapping: THREE.ACESFilmicToneMapping
+  }}
+>
+  <PerspectiveCamera makeDefault position={[0, 0, 150]} fov={50} />
+  
+  {/* ✨ ENHANCED LIGHTING - ADD THIS ✨ */}
+  <ambientLight intensity={0.4} />
+  <directionalLight position={[10, 10, 10]} intensity={1.2} />
+  <directionalLight position={[-10, -10, -10]} intensity={0.5} />
+  <pointLight position={[0, 20, 0]} intensity={0.5} />
+  <hemisphereLight args={['#87ceeb', '#543a14', 0.4]} />
+  
+  {/* ✨ ADD GRID - ADD THIS ✨ */}
+  {showGrid && <GridFloor />}
+  
+  {/* ✨ ADD ENVIRONMENT - ADD THIS ✨ */}
+  <Environment preset="city" />
+  
+  {/* Your existing AnimatedMesh */}
+  <AnimatedMesh 
+    meshUrl={currentMeshUrl}
+    autoRotate={autoRotate}
+    meshColor={meshColor}
+  />
+  
+  <OrbitControls enablePan enableZoom enableRotate />
+</Canvas>
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="text-center text-slate-500 max-w-md px-6">
