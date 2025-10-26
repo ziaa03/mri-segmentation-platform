@@ -27,7 +27,8 @@ const ECRMetricsPage = () => {
   const formatMetrics = (timestamps, values, unit = '') =>
     timestamps.map((t, i) => {
       const rawValue = parseFloat(values[i]);
-      const localTime = new Date(t).toLocaleString('en-MY', {
+
+      const fullDateTime = new Date(t).toLocaleString('en-MY', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
@@ -37,7 +38,13 @@ const ECRMetricsPage = () => {
         hour12: true
       });
 
-      // Human-readable units for repository size
+      const timeOnly = new Date(t).toLocaleTimeString('en-MY', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      });
+
       let displayValue;
       if (unit === 'Bytes' && rawValue > 1_000_000_000) {
         displayValue = (rawValue / 1_000_000_000).toFixed(2) + ' GB';
@@ -48,11 +55,14 @@ const ECRMetricsPage = () => {
       }
 
       return {
-        timestamp: localTime,
+        timestamp: timeOnly,
         value: rawValue,
-        displayValue
+        displayValue,
+        fullDateTime
       };
     });
+
+
 
   // Fetch all metrics
   const fetchEcrMetrics = async () => {
@@ -133,7 +143,9 @@ const ECRMetricsPage = () => {
               />
               <Tooltip
                 formatter={(value, name, props) => [props.payload.displayValue, title]}
-                labelFormatter={(label) => `Time: ${label}`}
+                labelFormatter={(label, payload) =>
+                  `Time: ${payload?.[0]?.payload?.fullDateTime || label}`
+                }
               />
               <Legend />
               <Line
@@ -189,8 +201,7 @@ const ECRMetricsPage = () => {
         <div className="mt-10 text-center">
           <button
             onClick={fetchEcrMetrics}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-          >
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
             Refresh Metrics
           </button>
         </div>
