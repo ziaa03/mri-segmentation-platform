@@ -5,7 +5,8 @@ import { SiAmazonec2 } from "react-icons/si";
 import { SiAmazons3 } from "react-icons/si";
 import { RiMoneyCnyCircleLine } from "react-icons/ri";
 import { SiAwselasticloadbalancing } from "react-icons/si";
-import { TbCloudLock } from "react-icons/tb";
+// import { TbCloudLock } from "react-icons/tb";
+import { PiArrowsInCardinal } from "react-icons/pi";
 
 const AwsSideBar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -40,49 +41,49 @@ const AwsSideBar = () => {
     {
       id: 'elb',
       label: 'Load Balancer',
-      // path: '/',
+      path: '/aws-alb',
       icon: (
         <SiAwselasticloadbalancing className="w-6 h-6" />
       )
     },
     {
-      id: 'esg',
-      label: 'Security Group',
-      // path: '/aws-s3',
+      id: 'asg',
+      label: 'Auto Scaling Group',
+      path: '/aws-asg',
       icon: (
-        <TbCloudLock className="w-6 h-6" />
+        <PiArrowsInCardinal className="w-6 h-6" />
       )
     },
     {
       id: 'cost',
       label: 'Cost',
-      // path: '/aws-s3',
+      path: '/aws-bill',
       icon: (
         <RiMoneyCnyCircleLine className="w-6 h-6" />
       )
     },
-    {
+    // {
       // check the fetch info are the same with cpu utilization
-      id: 'cpu-testFetch',
-      label: 'CPU Fetch',
-      path: '/cpu-testing',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 
-    0l4 4m-4-4l4-4" />
-        </svg>
-      )
-    },
-    {
-      id: 'testing',
-      label: 'Testing',
-      path: '/aws-testing',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-        </svg>
-      )
-    },
+      // id: 'cpu-testFetch',
+      // label: 'CPU Fetch',
+      // path: '/cpu-testing',
+      // icon: (
+        // <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          // {/* <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0  */}
+    // 0l4 4m-4-4l4-4" />
+        // {/* </svg> */}
+      // )
+    // },
+    // {
+      // id: 'testing',
+      // label: 'Testing',
+      // path: '/aws-testing',
+      // icon: (
+        // <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          // {/* <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /> */}
+        // {/* </svg> */}
+      // )
+    // },
   ];
 
   return (

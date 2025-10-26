@@ -38,15 +38,15 @@ const CpuUtilizationPage = () => {
           let convertedValue = converter ? parseFloat(converter(rawValue)) : rawValue;
 
           // Convert to local readable date/time (e.g., "10/10/2025, 11:37:00 AM")
-          const localTime = new Date(t).toLocaleString('en-MY', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: true
-          });
+          // const localTime = new Date(t).toLocaleString('en-MY', {
+            // year: 'numeric',
+            // month: '2-digit',
+            // day: '2-digit',
+            // hour: '2-digit',
+            // minute: '2-digit',
+            // second: '2-digit',
+            // hour12: true
+          // });
 
           // Convert MB/s to MB (make readable)
           let displayValue;
@@ -58,7 +58,7 @@ const CpuUtilizationPage = () => {
           }
 
           return {
-            timestamp: localTime,       // formatted human-readable time
+            timestamp: t,       // formatted human-readable time
             value: rawValue,            // original number
             displayValue,               // formatted (e.g., "7.1 MB")
             numericValue: convertedValue
@@ -112,17 +112,13 @@ const CpuUtilizationPage = () => {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="timestamp"
-                tick={{ fontSize: 12 }}
-                tickFormatter={(timestamp) => {
-                  return new Date(timestamp).toLocaleTimeString('en-MY', {
+                tickFormatter={(timestamp) =>
+                  new Date(timestamp).toLocaleTimeString('en-MY', {
                     hour: '2-digit',
                     minute: '2-digit',
                     hour12: true
-                  });
-                }}
-                angle={-30}
-                textAnchor="end"
-                height={50}
+                  })
+                }
               />
               <YAxis
                 tick={{ fontSize: 12 }}
@@ -135,12 +131,24 @@ const CpuUtilizationPage = () => {
                 }}
               />
               <Tooltip
+              labelFormatter={(label) => {
+                const date = new Date(label);
+                return `Time: ${date.toLocaleString('en-MY', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  hour12: true
+                }).replace(' ', '')}`; // remove thin spaces in some locales
+              }}
                 formatter={(value, name, props) => {
                   const { payload } = props;
-                  return [payload.displayValue, title];
+                  return [payload.displayValue, name];
                 }}
-                labelFormatter={(label) => `Time: ${label}`}
               />
+
               <Legend />
               <Line
                 type="monotone"
