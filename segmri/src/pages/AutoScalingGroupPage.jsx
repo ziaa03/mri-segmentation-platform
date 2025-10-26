@@ -198,13 +198,21 @@ const AutoScalingGroupPage = () => {
         </div>
 
         {/* Refresh Button */}
-        <button
-          onClick={fetchASGMetrics}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh Metrics
-        </button>
+        {/* <button */}
+          {/* // onClick={fetchASGMetrics} */}
+          {/* // className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"> */}
+          {/* Refresh Metrics */}
+        {/* </button> */}
+
+        {/* Refresh Button */}
+        <div className="mt-10 text-center">
+          <button
+            onClick={fetchASGMetrics}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+            Refresh Metrics
+          </button>
+        </div>
+
       </div>
     </div>
   );
