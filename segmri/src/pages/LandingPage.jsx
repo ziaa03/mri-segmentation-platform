@@ -363,16 +363,16 @@ const LandingPage = () => {
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900/30 via-transparent to-transparent"></div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-20 h-20 bg-white/90 rounded-full flex items-center justify-center shadow-xl hover:scale-110 transition-all duration-300 cursor-pointer backdrop-blur-sm">
-                    <svg className="w-10 h-10 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                    </svg>
-                  </div>
-                </div>
-                <div className="absolute bottom-6 left-6 right-6">
-                  <p className="text-white text-center font-medium">Interactive Technology Demo</p>
-                </div>
+                {/* <div className="absolute inset-0 flex items-center justify-center"> */}
+                  {/* <div className="w-20 h-20 bg-white/90 rounded-full flex items-center justify-center shadow-xl hover:scale-110 transition-all duration-300 cursor-pointer backdrop-blur-sm"> */}
+                    {/* <svg className="w-10 h-10 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"> */}
+                      {/* <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /> */}
+                    {/* </svg> */}
+                  {/* </div> */}
+                {/* </div> */}
+                {/* <div className="absolute bottom-6 left-6 right-6"> */}
+                  {/* <p className="text-white text-center font-medium">Interactive Technology Demo</p> */}
+                {/* </div> */}
               </div>
             </div>
 
