@@ -33,11 +33,11 @@ const TeamPage = () => {
     {
       id: 2,
       name: "Jesmine Ting",
-      role: "Backend Developer",
+      role: "Backend Developer & Cloud Engineer",
       department: "engineering",
       avatar: "/pfp-jes.jpg",
-      bio: "Jesmine manages the cloud infrastructure for VisHeart, handling deployment, scalability, and monitoring through AWS. She ensures the system runs securely and efficiently across all cloud services.",
-      expertise: ["AWS", "Cloud Architecture", "API Design" ],
+      bio: "Jesmine manages the cloud infrastructure for VisHeart, handling architecture design, dockerization, deployment, scalability, and monitoring through AWS. She ensures the system runs securely and efficiently across all cloud services.",
+      expertise: ["AWS", "Docker", "Cloud Architecture", "API Design" ],
       education: "B.CS. AI",
       projects: [
         "Deployed containerized backend and frontend services to cloud infrastructure",
@@ -47,7 +47,7 @@ const TeamPage = () => {
       social: {
         gmail: "mailto:tingziching@gmail.com",
       },
-      quote: "It’s not about doing more, it’s about doing better."
+      quote: "Architecting for scalability, deploying for reliability."
     },
     {
       id: 3,
