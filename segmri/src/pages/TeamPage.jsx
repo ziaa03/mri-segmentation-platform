@@ -18,39 +18,36 @@ const TeamPage = () => {
       role: "Lead Backend Developer",
       department: "engineering",
       avatar: "/pfp-james.jpg",
-      bio: "James is a .",
-      expertise: ["Python", "Node.js", "Cloud Architecture", "Medical Data Processing", "API Design"],
+      bio: "James handles GPU acceleration, model inference logic, and the integration of AI models into the backend system for efficient medical image processing.",
+      expertise: ["Python", "Node.js", "Medical Data Processing", "Model Optimization"],
       education: "B.CS. AI and Data Science",
       projects: [
-        "A",
-        "B",
-        "C"
+        "Implemented GPU-based inference pipeline for cardiac MRI segmentation",
+        "Optimized segmentation performance for MRI datasets"
       ],
       social: {
-        linkedin: "https://linkedin.com/in/jamesmuking",
-        github: "https://github.com/jamesmuking"
+        gmail: "mailto:jamesmuking@gmail.com",
       },
-      quote: " jdisndi "
+      quote: "Technology is only powerful when it makes life easier."
     },
     {
       id: 2,
       name: "Jesmine Ting",
-      role: "Backend Developer",
+      role: "Backend Developer & Cloud Engineer",
       department: "engineering",
       avatar: "/pfp-jes.jpg",
-      bio: "Jesmine is a ",
-      expertise: ["Java", ],
+      bio: "Jesmine manages the cloud infrastructure for VisHeart, handling architecture design, dockerization, deployment, scalability, and monitoring through AWS. She ensures the system runs securely and efficiently across all cloud services.",
+      expertise: ["AWS", "Docker", "Cloud Architecture", "API Design" ],
       education: "B.CS. AI",
       projects: [
-        "D",
-        "O",
-        "C"
+        "Deployed containerized backend and frontend services to cloud infrastructure",
+        "Ensured data security and compliance in cloud-based operations",
+        "Developed backend endpoints to support system integration",
       ],
       social: {
-        linkedin: "https://linkedin.com/in/jesmineting",
-        github: "https://github.com/jesmineting"
+        gmail: "mailto:tingziching@gmail.com",
       },
-      quote: " jfnjenfj "
+      quote: "Architecting for scalability, deploying for reliability."
     },
     {
       id: 3,
@@ -58,19 +55,17 @@ const TeamPage = () => {
       role: "Backend Developer",
       department: "engineering",
       avatar: "/pfp-cla.jpg",
-      bio: "Clarissa ",
-      expertise: ["Machine Learning", "Python", "Data Pipeline", "AI Model Deployment"],
+      bio: "Clarissa focuses on designing APIs, managing databases, and ensuring smooth communication between the frontend and AI inference services.",
+      expertise: ["Python", "Data Pipeline", "API Design", "Data Modeling"],
       education: "B.CS. AI",
       projects: [
-        "I",
-        "D",
-        "C"
+        "Developed API endpoints for model inference and file handling",
+        "Designed and managed database for MRI data storage",
       ],
       social: {
-        linkedin: "https://linkedin.com/in/clarissawong",
-        github: "https://github.com/clarissawong"
+        gmail: "mailto:wongclarissa25@gmail.com",
       },
-      quote: "AI"
+      quote: "Perfection isn’t the goal, clarity is."
     },
     {
       id: 4,
@@ -78,19 +73,18 @@ const TeamPage = () => {
       role: "Frontend Developer",
       department: "design",
       avatar: "/pfp-qh.jpg",
-      bio: "Qian Hui ",
-      expertise: ["React", "TypeScript", "UI/UX Design", "Accessibility"],
+      bio: "Qian Hui specializes in designing intuitive and responsive interfaces, ensuring seamless interaction and accessibility across the VisHeart platform.",
+      expertise: ["React", "UI/UX Design", "Tailwind CSS", "Recharts"],
       education: "B.CS. Cyberscurity",
       projects: [
-        "Designed VisHeart's main analysis interface",
-        "Created responsive layouts for medical imaging displays",
-        "Implemented accessibility features for healthcare professionals"
+        "Developed AWS monitoring dashboard",
+        "Created responsive layouts for VisHeart platform",
+        "Implemented responsive and secure user interfaces"
       ],
       social: {
-        linkedin: "https://linkedin.com/in/yeqianhui",
-        behance: "https://behance.net/yeqianhui"
+        gmail: "mailto:qianhuiyee@gmail.com",
       },
-      quote: "bgdfbfd"
+      quote: "Small details make the biggest difference."
     },
     {
       id: 5,
@@ -106,8 +100,7 @@ const TeamPage = () => {
         "Established frontend development best practices and standards"
       ],
       social: {
-        linkedin: "https://linkedin.com/in/ziatan",
-        dribbble: "https://dribbble.com/ziatan"
+       gmail: "mailto:qianhuiyee@gmail.com",
       },
       quote: "In healthcare technology, every pixel and every interaction can impact a life."
     }
