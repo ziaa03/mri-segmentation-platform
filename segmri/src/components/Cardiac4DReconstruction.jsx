@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Grid, Environment } from '@react-three/drei';
-import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import * as THREE from 'three';
 import { 
   Play, Pause, SkipBack, SkipForward, Download, 
@@ -24,7 +24,10 @@ import Simple2DSegmentationViewer from './Simple2DSegmentationViewer';
 // Import reconstruction history page
 import ReconstructionHistoryPage from './ReconstructionHistoryPage';
 
-// Animated background grid component
+// ============================================================================
+// UTILITY COMPONENTS
+// ============================================================================
+
 const AnimatedGridBackground = () => {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -54,7 +57,6 @@ const AnimatedGridBackground = () => {
   );
 };
 
-// Status badge component
 const StatusBadge = ({ status, message, queuePosition }) => {
   const configs = {
     idle: { color: 'bg-slate-600', icon: Clock, text: 'Ready' },
@@ -80,7 +82,6 @@ const StatusBadge = ({ status, message, queuePosition }) => {
   );
 };
 
-// Stats card component
 const StatsCard = ({ icon: Icon, label, value, color = "text-blue-400" }) => (
   <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-lg p-3">
     <div className="flex items-center justify-between mb-1">
@@ -91,7 +92,6 @@ const StatsCard = ({ icon: Icon, label, value, color = "text-blue-400" }) => (
   </div>
 );
 
-// Progress bar component
 const ProgressBar = ({ current, total, label }) => {
   const percentage = (current / total) * 100;
   
@@ -111,7 +111,10 @@ const ProgressBar = ({ current, total, label }) => {
   );
 };
 
-// Grid Floor Component 
+// ============================================================================
+// 3D COMPONENTS - COMPLETELY REBUILT
+// ============================================================================
+
 const GridFloor = () => {
   return (
     <Grid
@@ -131,62 +134,140 @@ const GridFloor = () => {
   );
 };
 
-// 3D Mesh Component
+// COMPLETELY REBUILT AnimatedMesh Component
 function AnimatedMesh({ meshUrl, autoRotate, meshColor }) {
   const [mesh, setMesh] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const groupRef = useRef();
 
   useEffect(() => {
     if (!meshUrl) {
+      console.warn('⚠️ No meshUrl provided to AnimatedMesh');
       setMesh(null);
       return;
     }
-    
+
+    console.log('🔄 Loading mesh from:', meshUrl.substring(0, 50) + '...');
     setLoading(true);
-    const loader = new OBJLoader();
+    setError(null);
+    
+    const loader = new GLTFLoader();
     
     loader.load(
       meshUrl,
-      (obj) => {
-        obj.traverse((child) => {
-          if (child instanceof THREE.Mesh) {
-            child.material = new THREE.MeshStandardMaterial({ 
-  color: meshColor || '#4ECDC4',
-  metalness: 0.2,
-  roughness: 0.3,
-  side: THREE.DoubleSide,
-  flatShading: false,
-  envMapIntensity: 1.5  // ← Makes it shiny with environment reflections
-});
-
-// Add subtle edge lines
-const edges = new THREE.EdgesGeometry(child.geometry, 15);
-const line = new THREE.LineSegments(
-  edges,
-  new THREE.LineBasicMaterial({ 
-    color: 0x000000, 
-    transparent: true, 
-    opacity: 0.15 
-  })
-);
-child.add(line);
+      // Success callback
+      (gltf) => {
+        console.log('✅ GLTF loaded successfully');
+        
+        const scene = gltf.scene;
+        let foundMeshes = 0;
+        
+        // Log scene structure
+        console.log('📦 Scene structure:', {
+          children: scene.children.length,
+          position: scene.position.toArray(),
+          scale: scene.scale.toArray()
+        });
+        
+        // Process all meshes in the scene
+        scene.traverse((child) => {
+          if (child.isMesh) {
+            foundMeshes++;
+            
+            console.log(`🔍 Processing mesh ${foundMeshes}:`, {
+              name: child.name,
+              hasGeometry: !!child.geometry,
+              vertexCount: child.geometry?.attributes?.position?.count || 0,
+              hasMaterial: !!child.material,
+              visible: child.visible,
+              position: child.position.toArray(),
+              scale: child.scale.toArray()
+            });
+            
+            // Apply simple, bright material for testing
+            child.material = new THREE.MeshStandardMaterial({
+              color: meshColor || '#e9c8c8', 
+              metalness: 0.3,
+              roughness: 0.7,
+              side: THREE.DoubleSide,
+              flatShading: false
+            });
+            
+            // Ensure visibility
+            child.visible = true;
+            child.frustumCulled = false;
+            child.castShadow = true;
+            child.receiveShadow = true;
+            
+            // Add wireframe for debugging
+            const wireframe = new THREE.WireframeGeometry(child.geometry);
+            const line = new THREE.LineSegments(wireframe);
+            line.material = new THREE.LineBasicMaterial({ 
+              color: 0x000000, 
+              transparent: true, 
+              opacity: 0.1 
+            });
+            child.add(line);
           }
         });
         
-        const box = new THREE.Box3().setFromObject(obj);
-        const center = box.getCenter(new THREE.Vector3());
-        obj.position.sub(center);
+        if (foundMeshes === 0) {
+          console.error('❌ No meshes found in GLTF scene!');
+          setError('No meshes found in GLB file');
+          setLoading(false);
+          return;
+        }
         
-        setMesh(obj);
+        console.log(`✅ Found ${foundMeshes} mesh(es) in scene`);
+        
+        // Calculate bounding box and center the mesh
+        const box = new THREE.Box3().setFromObject(scene);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        
+        console.log('📐 Mesh dimensions:', {
+          center: center.toArray(),
+          size: size.toArray(),
+          min: box.min.toArray(),
+          max: box.max.toArray()
+        });
+        
+        // Center the mesh at origin
+        scene.position.x = -center.x;
+        scene.position.y = -center.y;
+        scene.position.z = -center.z;
+        
+        console.log('✅ Mesh centered and ready to render');
+        
+        setMesh(scene);
         setLoading(false);
       },
-      undefined,
-      (err) => {
-        console.error('Error loading OBJ:', err);
+      // Progress callback
+      (progress) => {
+        const percent = (progress.loaded / progress.total) * 100;
+        if (percent % 20 === 0) { // Log every 20%
+          console.log(`📊 Loading progress: ${percent.toFixed(0)}%`);
+        }
+      },
+      // Error callback
+      (error) => {
+        console.error('❌ GLTF loading error:', error);
+        setError(error.message || 'Failed to load mesh');
         setLoading(false);
       }
     );
+    
+    return () => {
+      if (mesh) {
+        mesh.traverse((child) => {
+          if (child.isMesh) {
+            child.geometry?.dispose();
+            child.material?.dispose();
+          }
+        });
+      }
+    };
   }, [meshUrl, meshColor]);
 
   useFrame(() => {
@@ -195,15 +276,33 @@ child.add(line);
     }
   });
 
-  if (loading) return null;
-  if (!mesh) return null;
+  if (loading) {
+    console.log('⏳ AnimatedMesh: Rendering loading state');
+    return null;
+  }
+  
+  if (error) {
+    console.error('❌ AnimatedMesh: Rendering error state:', error);
+    return null;
+  }
+  
+  if (!mesh) {
+    console.log('⚠️ AnimatedMesh: No mesh to render');
+    return null;
+  }
 
+  console.log('✅ AnimatedMesh: Rendering mesh');
+  
   return (
     <group ref={groupRef}>
       <primitive object={mesh} />
     </group>
   );
 }
+
+// ============================================================================
+// MODAL COMPONENTS
+// ============================================================================
 
 const ExportModal = ({ isOpen, onClose, reconstructionData, onExport, isExporting }) => {
   if (!isOpen) return null;
@@ -239,20 +338,16 @@ const ExportModal = ({ isOpen, onClose, reconstructionData, onExport, isExportin
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Format:</span>
-                <span className="text-white font-medium uppercase">{reconstructionData?.exportFormat || 'GLB'}</span>
+                <span className="text-white font-medium uppercase">{reconstructionData?.meshFormat || 'GLB'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">File Size:</span>
                 <span className="text-white font-medium">
-                  {reconstructionData?.filesize 
-                    ? `${(reconstructionData.filesize / 1024 / 1024).toFixed(2)} MB`
+                  {reconstructionData?.meshFileSize 
+                    ? `${(reconstructionData.meshFileSize / 1024 / 1024).toFixed(2)} MB`
                     : 'N/A'
                   }
                 </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Frames:</span>
-                <span className="text-white font-medium">{reconstructionData?.totalFrames || 'N/A'}</span>
               </div>
             </div>
 
@@ -264,7 +359,6 @@ const ExportModal = ({ isOpen, onClose, reconstructionData, onExport, isExportin
                   <ul className="list-disc list-inside space-y-0.5 text-slate-400">
                     <li>TAR archive containing all mesh files</li>
                     <li>One mesh file per cardiac frame</li>
-                    <li>ED (End-Diastolic) frame marked</li>
                     <li>Compatible with 3D software</li>
                   </ul>
                 </div>
@@ -304,7 +398,6 @@ const ExportModal = ({ isOpen, onClose, reconstructionData, onExport, isExportin
   );
 };
 
-// NEW: Delete Confirmation Modal
 const DeleteConfirmModal = ({ isOpen, onClose, reconstructionData, onDelete, isDeleting }) => {
   if (!isOpen) return null;
 
@@ -336,28 +429,13 @@ const DeleteConfirmModal = ({ isOpen, onClose, reconstructionData, onDelete, isD
               <p className="text-red-200 text-sm mb-3">
                 Are you sure you want to delete this reconstruction? This action cannot be undone.
               </p>
-              <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-3 space-y-1.5 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Name:</span>
-                  <span className="text-white">{reconstructionData?.name || 'Reconstruction'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Created:</span>
-                  <span className="text-white">
-                    {reconstructionData?.created_at 
-                      ? new Date(reconstructionData.created_at).toLocaleDateString()
-                      : 'N/A'
-                    }
-                  </span>
-                </div>
-              </div>
             </div>
 
             <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-4">
               <div className="flex items-start space-x-2">
                 <AlertCircle className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
                 <div className="text-xs text-yellow-200">
-                  <strong>Warning:</strong> This will permanently delete all mesh files, metadata, and download URLs associated with this reconstruction.
+                  <strong>Warning:</strong> This will permanently delete all mesh files and metadata.
                 </div>
               </div>
             </div>
@@ -395,7 +473,10 @@ const DeleteConfirmModal = ({ isOpen, onClose, reconstructionData, onDelete, isD
   );
 };
 
-// Main 4D Reconstruction Component
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
 export default function Cardiac4DReconstruction({ 
   projectId,
   segmentationData,
@@ -428,10 +509,10 @@ export default function Cardiac4DReconstruction({
   
   // Display settings
   const [autoRotate, setAutoRotate] = useState(true);
-  const [meshColor, setMeshColor] = useState('#4ECDC4');
+  const [meshColor, setMeshColor] = useState('#e9c8c8'); 
   const [show2DView, setShow2DView] = useState(true);
   const [show3D, setShow3D] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showGrid, setShowGrid] = useState(true);
 
   // Export and Delete Modals 
   const [showExportModal, setShowExportModal] = useState(false);
@@ -439,18 +520,6 @@ export default function Cardiac4DReconstruction({
   const [selectedReconstruction, setSelectedReconstruction] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [exportError, setExportError] = useState(null);
-  const [deleteError, setDeleteError] = useState(null);
-
-  const [showGrid, setShowGrid] = useState(true);
-  
-  // Debug state
-  const [apiDebugData, setApiDebugData] = useState({
-    lastJobCheck: null,
-    lastReconstructionResults: null,
-    pollingActive: false,
-    errorLogs: []
-  });
   
   // Refs
   const playbackRef = useRef(null);
@@ -500,18 +569,20 @@ export default function Cardiac4DReconstruction({
       return;
     }
 
+    console.log('🔄 Loading reconstruction from history...');
     setJobStatus('loading');
     setReconstructionError(null);
-    setIsReconstructing(true); // Use this as loading indicator
+    setIsReconstructing(true);
     
     try {
       setReconstructionMetadata(reconstruction.metadata);
       await loadMeshesFromTar(reconstruction.downloadUrl);
       setJobStatus('COMPLETED');
-      setCurrentView('main'); // Switch back to main view
+      setCurrentView('main');
       setIsReconstructing(false);
+      console.log('✅ Reconstruction loaded from history');
     } catch (error) {
-      console.error('Error loading reconstruction:', error);
+      console.error('❌ Error loading reconstruction:', error);
       setReconstructionError('Failed to load reconstruction: ' + error.message);
       setJobStatus('error');
       setIsReconstructing(false);
@@ -522,6 +593,7 @@ export default function Cardiac4DReconstruction({
   useEffect(() => {
     if (processedMeshes.length > 0) {
       const meshUrl = getMeshUrlForFrame(processedMeshes, currentFrame);
+      console.log(`🔄 Frame ${currentFrame}: Setting mesh URL:`, meshUrl ? 'valid' : 'null');
       setCurrentMeshUrl(meshUrl);
     }
   }, [processedMeshes, currentFrame]);
@@ -556,7 +628,7 @@ export default function Cardiac4DReconstruction({
     };
   }, [processedMeshes]);
 
-  // Start 4D Reconstruction - API Route 1
+  // Start 4D Reconstruction
   const handleStartReconstruction = async () => {
     if (!projectId || !api) {
       alert('Error: Missing project ID or API client');
@@ -568,12 +640,13 @@ export default function Cardiac4DReconstruction({
     setReconstructionError(null);
 
     try {
-      const edFrameIndex = selectedEDFrame - 1; // Convert to 0-indexed
+      const edFrameIndex = selectedEDFrame - 1;
       
       const payload = {
         reconstructionName: `4D Reconstruction - ED Frame ${selectedEDFrame}`,
         reconstructionDescription: `4D cardiac reconstruction from AI segmentation masks (ED: Frame ${selectedEDFrame})`,
         ed_frame: edFrameIndex,
+        export_format: 'glb',
         parameters: {
           num_iterations: 50,
           resolution: 128,
@@ -582,16 +655,18 @@ export default function Cardiac4DReconstruction({
         }
       };
 
+      console.log('🚀 Starting reconstruction with payload:', payload);
       const response = await api.post(`/reconstruction/start-reconstruction/${projectId}`, payload);
       
       if (response.data?.uuid) {
+        console.log('✅ Reconstruction job started:', response.data.uuid);
         setJobUuid(response.data.uuid);
         startPollingJobStatus(response.data.uuid);
       } else {
         throw new Error('No job UUID returned from server');
       }
     } catch (error) {
-      console.error('Reconstruction error:', error);
+      console.error('❌ Reconstruction error:', error);
       
       let errorMsg = 'Failed to start reconstruction';
       if (error.response) {
@@ -605,102 +680,68 @@ export default function Cardiac4DReconstruction({
       setReconstructionError(errorMsg);
       setJobStatus('error');
       setIsReconstructing(false);
-      
-      setApiDebugData(prev => ({
-        ...prev,
-        errorLogs: [...prev.errorLogs, {
-          timestamp: new Date().toISOString(),
-          error: errorMsg,
-          type: 'start_reconstruction_error'
-        }]
-      }));
     }
   };
 
-  // Poll job status - API Route 3
+  // Poll job status
   const startPollingJobStatus = (uuid) => {
-    setApiDebugData(prev => ({ ...prev, pollingActive: true }));
+    console.log('🔄 Starting job polling for:', uuid);
     
     pollingRef.current = setInterval(async () => {
       try {
         const response = await api.get('/reconstruction/user-check-jobs');
         const data = response.data;
         
-        setApiDebugData(prev => ({
-          ...prev,
-          lastJobCheck: {
-            timestamp: new Date().toISOString(),
-            data: data,
-            targetJobId: uuid
-          }
-        }));
-        
         const job = data.jobs?.find(j => j.jobId === uuid);
         
         if (!job) {
-          setApiDebugData(prev => ({
-            ...prev,
-            errorLogs: [...prev.errorLogs, {
-              timestamp: new Date().toISOString(),
-              error: 'Job not found in poll response',
-              availableJobs: data.jobs?.map(j => ({ id: j.jobId, status: j.status }))
-            }]
-          }));
+          console.warn('⚠️ Job not found in poll response');
           return;
         }
         
+        console.log(`📊 Job status: ${job.status}`);
         setJobStatus(job.status);
         setQueuePosition(job.queuePosition);
         
         if (job.status === 'COMPLETED' || job.status === 'completed') {
+          console.log('✅ Job completed, loading results...');
           clearInterval(pollingRef.current);
           pollingRef.current = null;
-          setApiDebugData(prev => ({ ...prev, pollingActive: false }));
           
           setTimeout(async () => {
             await loadReconstructionResults();
           }, 1000);
           
         } else if (job.status === 'FAILED' || job.status === 'failed') {
+          console.error('❌ Job failed');
           clearInterval(pollingRef.current);
           pollingRef.current = null;
-          setApiDebugData(prev => ({ ...prev, pollingActive: false }));
           setReconstructionError('Reconstruction job failed on server');
           setJobStatus('FAILED');
           setIsReconstructing(false);
         }
       } catch (error) {
-        setApiDebugData(prev => ({
-          ...prev,
-          errorLogs: [...prev.errorLogs, {
-            timestamp: new Date().toISOString(),
-            error: error.message,
-            type: 'polling_error'
-          }]
-        }));
+        console.error('❌ Polling error:', error);
       }
     }, 3000);
   };
 
-  // Load reconstruction results - API Route 2
+  // Load reconstruction results
   const loadReconstructionResults = async () => {
+    console.log('🔄 Loading reconstruction results...');
+    
     try {
       const response = await api.get(`/reconstruction/reconstruction-results/${projectId}`);
       const data = response.data;
       
-      setApiDebugData(prev => ({
-        ...prev,
-        lastReconstructionResults: {
-          timestamp: new Date().toISOString(),
-          data: data
-        }
-      }));
+      console.log('📦 Reconstruction results:', data);
       
       if (!data.success || !data.reconstructions?.length) {
         throw new Error('No reconstruction results found');
       }
       
       const latestReconstruction = data.reconstructions[0];
+      console.log('📦 Latest reconstruction:', latestReconstruction);
       
       // Update history with latest data
       setReconstructionHistory(data.reconstructions);
@@ -715,17 +756,9 @@ export default function Cardiac4DReconstruction({
       setJobStatus('COMPLETED');
       
     } catch (error) {
+      console.error('❌ Error loading results:', error);
       setReconstructionError(error.message || 'Failed to load reconstruction results');
       setJobStatus('error');
-      
-      setApiDebugData(prev => ({
-        ...prev,
-        errorLogs: [...prev.errorLogs, {
-          timestamp: new Date().toISOString(),
-          error: error.message,
-          type: 'load_results_error'
-        }]
-      }));
     } finally {
       setIsReconstructing(false);
     }
@@ -733,14 +766,18 @@ export default function Cardiac4DReconstruction({
 
   // Load meshes from TAR file
   const loadMeshesFromTar = async (tarUrl) => {
+    console.log('🔄 Loading meshes from TAR:', tarUrl);
+    
     try {
       const extractedFiles = await fetchAndExtractMeshTar(tarUrl);
+      console.log('📦 Extracted files:', extractedFiles?.length || 0);
       
       if (!extractedFiles || extractedFiles.length === 0) {
         throw new Error('No mesh files found in TAR archive');
       }
       
       const meshes = processExtractedMeshes(extractedFiles);
+      console.log('✅ Processed meshes:', meshes.length);
       
       if (meshes.length === 0) {
         throw new Error('Failed to process mesh files');
@@ -749,60 +786,42 @@ export default function Cardiac4DReconstruction({
       setProcessedMeshes(meshes);
       setCurrentFrame(0);
       
+      console.log('✅ Meshes loaded successfully');
+      
     } catch (error) {
-      console.error('Error loading meshes from TAR:', error);
+      console.error('❌ Error loading meshes from TAR:', error);
       throw error;
     }
   };
 
+  // Export handler
   const handleExportClick = (reconstruction) => {
     setSelectedReconstruction(reconstruction);
     setShowExportModal(true);
-    setExportError(null);
   };
 
   const handleExport = async () => {
-    if (!selectedReconstruction?.tarUrl) {
-      setExportError('No download URL available');
+    if (!selectedReconstruction?.downloadUrl) {
       return;
     }
 
     setIsExporting(true);
-    setExportError(null);
 
     try {
-      console.log('📥 Starting export download...');
-      
-      // Fetch the TAR file
-      const response = await fetch(selectedReconstruction.tarUrl);
-      
-      if (!response.ok) {
-        throw new Error(`Download failed: ${response.statusText}`);
-      }
+      const response = await fetch(selectedReconstruction.downloadUrl);
+      if (!response.ok) throw new Error(`Download failed: ${response.statusText}`);
 
-      // Get the blob
       const blob = await response.blob();
-      
-      // Create download link
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
+      link.download = `reconstruction_${selectedReconstruction.name.replace(/\s+/g, '_')}_${Date.now()}.tar`;
       
-      // Generate filename
-      const filename = `reconstruction_${selectedReconstruction.name.replace(/\s+/g, '_')}_${Date.now()}.tar`;
-      link.download = filename;
-      
-      // Trigger download
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
-      // Cleanup
       window.URL.revokeObjectURL(url);
       
-      console.log('✅ Export completed successfully');
-      
-      // Close modal after successful download
       setTimeout(() => {
         setShowExportModal(false);
         setIsExporting(false);
@@ -810,84 +829,48 @@ export default function Cardiac4DReconstruction({
       
     } catch (error) {
       console.error('❌ Export error:', error);
-      setExportError(error.message || 'Failed to export reconstruction');
       setIsExporting(false);
     }
   };
 
-  // NEW: Delete functionality
+  // Delete handler
   const handleDeleteClick = (reconstruction) => {
     setSelectedReconstruction(reconstruction);
     setShowDeleteModal(true);
-    setDeleteError(null);
   };
 
   const handleDelete = async () => {
-    if (!selectedReconstruction?._id) {
-      setDeleteError('Invalid reconstruction ID');
+    if (!selectedReconstruction?.reconstructionId) {
       return;
     }
 
     setIsDeleting(true);
-    setDeleteError(null);
 
     try {
-      console.log('🗑️ Deleting reconstruction:', selectedReconstruction._id);
-      
       const response = await api.delete(`/reconstruction/delete-project-reconstructions/${projectId}`);
       
       if (response.data.success) {
-        console.log('✅ Reconstruction deleted successfully');
-        
-        // Update reconstruction history - remove the deleted item
         setReconstructionHistory(prev => 
-          prev.filter(r => r._id !== selectedReconstruction._id)
+          prev.filter(r => r.reconstructionId !== selectedReconstruction.reconstructionId)
         );
         
-        // If the deleted reconstruction was currently loaded, clear the mesh data
-        if (selectedReconstruction._id === reconstructionMetadata?._id) {
+        if (selectedReconstruction.reconstructionId === reconstructionMetadata?.reconstructionId) {
           setReconstructionMetadata(null);
-          setHasReconstruction(false);
-          setExtractedMeshes([]);
-          cleanupMeshUrls();
+          setProcessedMeshes([]);
+          cleanupMeshUrls(processedMeshes);
         }
         
-        // Close modal
         setShowDeleteModal(false);
         setSelectedReconstruction(null);
-        
       } else {
         throw new Error(response.data.message || 'Delete failed');
       }
       
     } catch (error) {
       console.error('❌ Delete error:', error);
-      setDeleteError(error.response?.data?.message || error.message || 'Failed to delete reconstruction');
     } finally {
       setIsDeleting(false);
     }
-  };
-
-  // NEW: Render action buttons for reconstruction history
-  const renderReconstructionActions = (reconstruction) => {
-    return (
-      <div className="flex items-center space-x-2">
-        <button
-          onClick={() => handleExportClick(reconstruction)}
-          className="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-all"
-          title="Export Reconstruction"
-        >
-          <Download className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => handleDeleteClick(reconstruction)}
-          className="p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-all"
-          title="Delete Reconstruction"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
-      </div>
-    );
   };
 
   // Playback controls
@@ -905,20 +888,36 @@ export default function Cardiac4DReconstruction({
 
   const hasReconstruction = processedMeshes.length > 0;
 
+  // Debug logging
+  useEffect(() => {
+    console.log('🔍 Render State:', {
+      show3D,
+      hasReconstruction,
+      meshCount: processedMeshes.length,
+      currentFrame,
+      currentMeshUrl: currentMeshUrl ? 'exists' : 'null',
+      meshColor
+    });
+  }, [show3D, hasReconstruction, processedMeshes.length, currentFrame, currentMeshUrl, meshColor]);
+
   // Handle history view
   if (currentView === 'history') {
     return (
       <ReconstructionHistoryPage
-  reconstructionHistory={reconstructionHistory}
-  onBack={() => setCurrentView('main')}
-  onLoadReconstruction={loadReconstructionFromHistory}
-  api={api}                                    
-  projectId={projectId}                         
-  onRefreshHistory={loadReconstructionHistory} 
-  isLoadingReconstruction={isReconstructing}
-/>
+        reconstructionHistory={reconstructionHistory}
+        onBack={() => setCurrentView('main')}
+        onLoadReconstruction={loadReconstructionFromHistory}
+        api={api}
+        projectId={projectId}
+        onRefreshHistory={loadReconstructionHistory}
+        isLoadingReconstruction={isReconstructing}
+      />
     );
   }
+
+  // ============================================================================
+  // MAIN RENDER
+  // ============================================================================
 
   return (
     <div className="w-full bg-slate-950 flex flex-col relative" style={{ height: 'calc(100vh - 64px)' }}>
@@ -930,7 +929,6 @@ export default function Cardiac4DReconstruction({
         onClose={() => {
           setShowExportModal(false);
           setSelectedReconstruction(null);
-          setExportError(null);
         }}
         reconstructionData={selectedReconstruction}
         onExport={handleExport}
@@ -943,7 +941,6 @@ export default function Cardiac4DReconstruction({
         onClose={() => {
           setShowDeleteModal(false);
           setSelectedReconstruction(null);
-          setDeleteError(null);
         }}
         reconstructionData={selectedReconstruction}
         onDelete={handleDelete}
@@ -955,6 +952,7 @@ export default function Cardiac4DReconstruction({
 
         {/* Left Sidebar */}
         <div className="w-80 bg-slate-900/50 backdrop-blur-sm border-r border-slate-800 p-4 space-y-4 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+          
           {/* Status & History */}
           <div className="space-y-3">
             <StatusBadge status={jobStatus} queuePosition={queuePosition} />
@@ -963,7 +961,6 @@ export default function Cardiac4DReconstruction({
             <button
               onClick={() => setCurrentView('history')}
               className="w-full flex items-center justify-between p-3 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg transition-all"
-              title="View Reconstruction History"
             >
               <div className="flex items-center space-x-2">
                 <Clock className="w-4 h-4 text-slate-400" />
@@ -1058,16 +1055,36 @@ export default function Cardiac4DReconstruction({
             <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold text-white text-sm">Playback Control</h3>
-                <button
-                  onClick={() => setIsPlaying(!isPlaying)}
-                  className={`p-2 rounded-lg transition-all ${
-                    isPlaying 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                  }`}
-                >
-                  {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                </button>
+
+                {/* Playback controls: previous / play-pause / next */}
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={handlePreviousFrame}
+                    disabled={!hasReconstruction}
+                    className="p-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    title="Previous frame"
+                  >
+                    <SkipBack className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    onClick={togglePlayback}
+                    disabled={!hasReconstruction}
+                    className={`p-2 rounded-lg transition-flex ${isPlaying ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                    title={isPlaying ? 'Pause' : 'Play'}
+                  >
+                    {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  </button>
+
+                  <button
+                    onClick={handleNextFrame}
+                    disabled={!hasReconstruction}
+                    className="p-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    title="Next frame"
+                  >
+                    <SkipForward className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
               
               <ProgressBar 
@@ -1143,18 +1160,18 @@ export default function Cardiac4DReconstruction({
             </label>
 
             <label className="flex items-center justify-between py-2">
-  <span className="text-sm text-slate-300">Show Grid</span>
-  <button
-    onClick={() => setShowGrid(!showGrid)}
-    className={`relative w-11 h-6 rounded-full transition-colors ${
-      showGrid ? 'bg-blue-600' : 'bg-slate-700'
-    }`}
-  >
-    <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
-      showGrid ? 'translate-x-5' : 'translate-x-0'
-    }`} />
-  </button>
-</label>
+              <span className="text-sm text-slate-300">Show Grid</span>
+              <button
+                onClick={() => setShowGrid(!showGrid)}
+                className={`relative w-11 h-6 rounded-full transition-colors ${
+                  showGrid ? 'bg-blue-600' : 'bg-slate-700'
+                }`}
+              >
+                <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                  showGrid ? 'translate-x-5' : 'translate-x-0'
+                }`} />
+              </button>
+            </label>
             
             <div className="pt-2">
               <label className="text-xs text-slate-400 uppercase tracking-wide mb-2 block">
@@ -1189,10 +1206,6 @@ export default function Cardiac4DReconstruction({
                   <span className="text-slate-400">Resolution:</span>
                   <span className="text-slate-200">{reconstructionMetadata.resolution}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">File Size:</span>
-                  <span className="text-slate-200">{(reconstructionMetadata.filesize / 1024 / 1024).toFixed(2)} MB</span>
-                </div>
               </div>
             </div>
           )}
@@ -1226,7 +1239,7 @@ export default function Cardiac4DReconstruction({
 
             {/* 3D View */}
             {show3D && (
-              <div className="relative bg-slate-900/30 backdrop-blur-sm">
+              <div className="relative bg-slate-900/30 backdrop-blur-sm h-full">
                 <div className="absolute top-4 left-4 z-10">
                   <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700 rounded-lg px-3 py-1.5">
                     <span className="text-xs font-medium text-slate-300">3D Reconstruction View</span>
@@ -1234,37 +1247,37 @@ export default function Cardiac4DReconstruction({
                 </div>
                 
                 {hasReconstruction && currentMeshUrl ? (
-                  <Canvas
-  dpr={[1, 2]}
-  gl={{ 
-    antialias: true,
-    toneMapping: THREE.ACESFilmicToneMapping
-  }}
->
-  <PerspectiveCamera makeDefault position={[0, 0, 150]} fov={50} />
-  
-  {/* ✨ ENHANCED LIGHTING - ADD THIS ✨ */}
-  <ambientLight intensity={0.4} />
-  <directionalLight position={[10, 10, 10]} intensity={1.2} />
-  <directionalLight position={[-10, -10, -10]} intensity={0.5} />
-  <pointLight position={[0, 20, 0]} intensity={0.5} />
-  <hemisphereLight args={['#87ceeb', '#543a14', 0.4]} />
-  
-  {/* ✨ ADD GRID - ADD THIS ✨ */}
-  {showGrid && <GridFloor />}
-  
-  {/* ✨ ADD ENVIRONMENT - ADD THIS ✨ */}
-  <Environment preset="city" />
-  
-  {/* Your existing AnimatedMesh */}
-  <AnimatedMesh 
-    meshUrl={currentMeshUrl}
-    autoRotate={autoRotate}
-    meshColor={meshColor}
-  />
-  
-  <OrbitControls enablePan enableZoom enableRotate />
-</Canvas>
+                  <div className="w-full h-full">
+                    <Canvas
+                    dpr={[1, 2]}
+                    gl={{ 
+                      antialias: true,
+                      alpha: true,
+                      toneMapping: THREE.NoToneMapping,  // ← Changed to no tone mapping
+                      toneMappingExposure: 1.0
+                    }}
+                    camera={{ position: [0, 0, 150], fov: 50 }}
+                  >
+                    {/* White background for testing */}
+                    <color attach="background" args={['black']} />
+                    
+                    {/* EXTREMELY BRIGHT LIGHTING */}
+                    <ambientLight intensity={3.0} />
+                    <directionalLight position={[10, 10, 10]} intensity={5.0} />
+                    <directionalLight position={[-10, -10, -10]} intensity={3.0} />
+                    <pointLight position={[0, 0, 150]} intensity={10.0} />  
+                    
+                    {showGrid && <GridFloor />}
+                    
+                    <AnimatedMesh 
+                      meshUrl={currentMeshUrl}
+                      autoRotate={autoRotate}
+                      meshColor={meshColor}
+                    />
+                    
+                    <OrbitControls />
+                  </Canvas>
+                  </div>
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="text-center text-slate-500 max-w-md px-6">
@@ -1274,16 +1287,11 @@ export default function Cardiac4DReconstruction({
                       </div>
                       <p className="text-lg mb-2 text-slate-400">No 3D Mesh Available</p>
                       <p className="text-sm mb-4 text-slate-500">
-                        Select an end-diastolic frame and start reconstruction to generate 3D cardiac mesh visualization
+                        {isReconstructing 
+                          ? 'Processing reconstruction...' 
+                          : 'Select an end-diastolic frame and start reconstruction to generate 3D cardiac mesh visualization'
+                        }
                       </p>
-                      <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 text-left">
-                        <div className="flex items-start space-x-2">
-                          <Info className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
-                          <div className="text-xs text-slate-400 leading-relaxed">
-                            <strong className="text-slate-300">SDF-Based Reconstruction:</strong> Uses deep learning to create smooth, anatomically accurate 3D meshes from 2D segmentation masks across all cardiac phases.
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 )}

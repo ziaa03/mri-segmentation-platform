@@ -36,22 +36,22 @@ export default function ReconstructionPage() {
         console.log('🔬 Debug Info:', debug);
         
         if (response.data.success && response.data.segmentations.length > 0) {
-          // Find AI segmentation ONLY (isMedSAMOutput: true)
-          const aiSegmentation = response.data.segmentations.find(s => s.isMedSAMOutput === true);
+          // Find EDITABLE segmentation (isMedSAMOutput: false) - this is what reconstruction uses
+          const editableSegmentation = response.data.segmentations.find(s => s.isMedSAMOutput === false);
           
-          console.log('🎯 AI Segmentation Found:', !!aiSegmentation);
+          console.log('🎯 Editable Segmentation Found:', !!editableSegmentation);
           
-          if (aiSegmentation) {
-            console.log('✅ AI Segmentation Details:', {
-              name: aiSegmentation.name,
-              hasMasks: !!(aiSegmentation.masks && aiSegmentation.masks.length > 0),
-              maskCount: aiSegmentation.masks?.length || 0,
-              firstMaskStructure: aiSegmentation.masks?.[0]
+          if (editableSegmentation) {
+            console.log('✅ Editable Segmentation Details:', {
+              name: editableSegmentation.name,
+              hasMasks: !!(editableSegmentation.masks && editableSegmentation.masks.length > 0),
+              maskCount: editableSegmentation.masks?.length || 0,
+              firstMaskStructure: editableSegmentation.masks?.[0]
             });
             
-            setSegmentationData(aiSegmentation);
+            setSegmentationData(editableSegmentation);
           } else {
-            const errorMsg = 'No AI segmentation found. Only MedSAM AI output can be used for 4D reconstruction.';
+            const errorMsg = 'No editable segmentation found. Reconstruction requires editable/refined masks (isMedSAMOutput: false)';
             console.error('❌', errorMsg);
             setError(errorMsg);
           }
@@ -90,7 +90,7 @@ export default function ReconstructionPage() {
         <div className="max-w-2xl mx-auto text-center p-8">
           <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-white mb-4">
-            No AI Segmentation Available
+            No Editable Segmentation Available
           </h1>
           <p className="text-lg text-red-400 mb-6">
             {error || 'No segmentation data found'}
@@ -146,19 +146,19 @@ export default function ReconstructionPage() {
           <div className="bg-blue-900/30 border border-blue-700 rounded-lg p-6 mb-6 text-left">
             <h3 className="text-white font-semibold mb-3">Requirements for 4D Reconstruction:</h3>
             <ul className="text-slate-300 space-y-2 text-sm">
-              <li>✓ Must have AI segmentation data (isMedSAMOutput: true)</li>
+              <li>✓ Must have editable segmentation data (isMedSAMOutput: false)</li>
               <li>✓ Segmentation must contain masks array with frame data</li>
-              <li>✓ Manual edits are NOT supported for reconstruction</li>
+              <li>✓ Editable masks are used for reconstruction (created after AI segmentation)</li>
             </ul>
           </div>
 
           <div className="bg-yellow-900/30 border border-yellow-700 rounded-lg p-6 mb-6 text-left">
             <h3 className="text-white font-semibold mb-3">Possible Issues:</h3>
             <ul className="text-slate-300 space-y-2 text-sm">
-              <li>1. AI segmentation was never run on this project</li>
-              <li>2. AI segmentation was deleted or overwritten</li>
-              <li>3. Manual edits replaced the original AI segmentation</li>
-              <li>4. Backend is not returning isMedSAMOutput flag correctly</li>
+              <li>1. Segmentation was never run on this project</li>
+              <li>2. Editable mask was deleted or not created</li>
+              <li>3. Segmentation system did not create editable mask properly</li>
+              <li>4. Backend is not returning isMedSAMOutput: false mask correctly</li>
             </ul>
           </div>
 
@@ -222,7 +222,7 @@ export default function ReconstructionPage() {
           <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-white mb-4">Invalid Segmentation Data</h1>
           <p className="text-lg text-red-400 mb-4">
-            AI segmentation found but contains no mask data
+            Editable segmentation found but contains no mask data
           </p>
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 text-left mb-6">
             <pre className="text-xs text-slate-300 overflow-auto">

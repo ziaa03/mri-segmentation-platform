@@ -2,13 +2,13 @@
  * Mesh Tar File Processing Utilities
  * 
  * This module provides utilities for downloading, extracting, and processing
- * tar files containing 4D cardiac reconstruction OBJ mesh files.
+ * tar files containing 4D cardiac reconstruction GLB mesh files.
  */
 
 /**
- * Parse a tar file buffer and extract OBJ mesh files
+ * Parse a tar file buffer and extract GLB mesh files
  * @param {ArrayBuffer} buffer - The tar file buffer
- * @returns {Array} Array of extracted OBJ file objects with name, buffer, and size
+ * @returns {Array} Array of extracted GLB file objects with name, buffer, and size
  */
 export const parseMeshTarFile = (buffer) => {
   const files = [];
@@ -42,8 +42,8 @@ export const parseMeshTarFile = (buffer) => {
     // Move past header
     offset += 512;
 
-    // Extract file data if it's a regular file and it's an OBJ file
-    if (isRegularFile && size > 0 && name && name.toLowerCase().endsWith('.obj')) {
+    // Extract file data if it's a regular file and it's an GLB file
+    if (isRegularFile && size > 0 && name && name.toLowerCase().endsWith('.glb')) {
       const fileData = view.slice(offset, offset + size);
       files.push({
         name: name,
@@ -62,7 +62,7 @@ export const parseMeshTarFile = (buffer) => {
 /**
  * Fetch and extract mesh files from a tar archive via presigned URL
  * @param {string} presignedUrl - The presigned URL to fetch the mesh tar file from
- * @returns {Promise<Array>} Promise that resolves to array of extracted OBJ mesh files
+ * @returns {Promise<Array>} Promise that resolves to array of extracted GLB mesh files
  */
 export const fetchAndExtractMeshTar = async (presignedUrl) => {
   console.log('=== FETCHING MESH TAR FILE ===');
@@ -80,10 +80,10 @@ export const fetchAndExtractMeshTar = async (presignedUrl) => {
 
     // Parse the tar file
     const extractedFiles = parseMeshTarFile(arrayBuffer);
-    console.log('OBJ files extracted:', extractedFiles.length);
+    console.log('GLB files extracted:', extractedFiles.length);
 
     if (extractedFiles.length === 0) {
-      throw new Error('No OBJ files found in tar archive');
+      throw new Error('No GLB files found in tar archive');
     }
 
     console.log('Sample mesh files:', extractedFiles.slice(0, 5).map(f => f.name));
@@ -96,7 +96,7 @@ export const fetchAndExtractMeshTar = async (presignedUrl) => {
 };
 
 /**
- * Process extracted OBJ mesh files and create structured mesh objects with blob URLs
+ * Process extracted GLB mesh files and create structured mesh objects with blob URLs
  * @param {Array} extractedMeshFiles - Array of extracted mesh file objects
  * @returns {Array} Array of processed mesh objects with frame indices and blob URLs
  */
@@ -107,9 +107,9 @@ export const processExtractedMeshes = (extractedMeshFiles) => {
     const processedMeshes = extractedMeshFiles
       .map(file => {
         // Parse filename to extract frame index
-        // Expected format: frame_XX.obj or similar
+        // Expected format: frame_XX.glb or similar
         const frameMatch = file.name.match(/frame[_-]?(\d+)/i) || 
-                          file.name.match(/(\d+)\.obj$/i);
+                          file.name.match(/(\d+)\.glb$/i);
         
         if (!frameMatch) {
           console.warn(`Could not parse frame index from filename: ${file.name}`);
@@ -123,8 +123,8 @@ export const processExtractedMeshes = (extractedMeshFiles) => {
           return null;
         }
 
-        // Create blob and object URL for the OBJ file
-        const blob = new Blob([file.buffer], { type: 'text/plain' });
+        // Create blob and object URL for the GLB file
+        const blob = new Blob([file.buffer], { type: 'model/gltf-binary' });
         const url = URL.createObjectURL(blob);
 
         return {
